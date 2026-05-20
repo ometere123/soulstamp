@@ -42,4 +42,8 @@
            focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500
            transition-colors;
   }
+
+  .footer-link {
+    @apply text-xs text-brand-300 hover:text-brand-200 transition-colors;
+  }
 }
