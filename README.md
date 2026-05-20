@@ -132,19 +132,60 @@ npm install
 npm run dev
 ```
 
-### 5. Optional: run Discord backend
+### 5. Deploy Discord backend on Cloudflare Workers
 
-Discord verification needs a Discord application and a public backend URL reachable by GenLayer validators.
+Discord verification needs a Discord application and a public Cloudflare Worker URL reachable by GenLayer validators. The contract does not need to change.
+
+The backend is stateless: it signs short-lived Discord session and attestation tokens instead of using a database.
+
+Install backend dependencies:
 
 ```bash
 cd backend
-cp .env.example .env
-# Fill DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI,
-# PUBLIC_BASE_URL, FRONTEND_ORIGIN, and BACKEND_SESSION_SECRET
-npm run dev
+npm install
 ```
 
-After deploying the contract, open Admin and save the same public backend URL as the Discord attestation backend.
+Update `backend/wrangler.toml`:
+
+```toml
+[vars]
+FRONTEND_ORIGIN = "https://your-vercel-frontend.vercel.app"
+PUBLIC_BASE_URL = "https://soulstamp-discord.your-cloudflare-subdomain.workers.dev"
+DISCORD_CLIENT_ID = "your-discord-client-id"
+DISCORD_REDIRECT_URI = "https://soulstamp-discord.your-cloudflare-subdomain.workers.dev/api/discord/callback"
+```
+
+Store secrets in Cloudflare:
+
+```bash
+npx wrangler secret put BACKEND_SESSION_SECRET
+npx wrangler secret put DISCORD_CLIENT_SECRET
+```
+
+Deploy the Worker:
+
+```bash
+npm run deploy
+```
+
+Vercel frontend environment variables:
+
+```bash
+VITE_CONTRACT_ADDRESS=0xYourDeployedContract
+VITE_DISCORD_BACKEND_URL=https://soulstamp-discord.your-cloudflare-subdomain.workers.dev
+```
+
+In Discord Developer Portal, add this exact redirect URI:
+
+```text
+https://soulstamp-discord.your-cloudflare-subdomain.workers.dev/api/discord/callback
+```
+
+In the SoulStamp Admin panel, set Discord attestation backend to:
+
+```text
+https://soulstamp-discord.your-cloudflare-subdomain.workers.dev
+```
 
 ### 6. Run tests
 

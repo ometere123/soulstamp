@@ -3,9 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "main": "index.js",
   "scripts": {
-    "dev": "node server.mjs",
-    "start": "node server.mjs",
-    "check": "node --check server.mjs"
+    "check": "node --check index.js",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.47.0"
   }
 }

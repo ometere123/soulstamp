@@ -1,0 +1,7 @@
+FRONTEND_ORIGIN=http://localhost:5173
+PUBLIC_BASE_URL=http://localhost:8787
+BACKEND_SESSION_SECRET=replace-with-a-long-random-secret
+
+DISCORD_CLIENT_ID=replace-with-discord-client-id
+DISCORD_CLIENT_SECRET=replace-with-discord-client-secret
+DISCORD_REDIRECT_URI=http://localhost:8787/api/discord/callback
