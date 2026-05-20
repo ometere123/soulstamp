@@ -171,7 +171,7 @@ npm run deploy
 Vercel frontend environment variables:
 
 ```bash
-VITE_CONTRACT_ADDRESS=0xYourDeployedContract
+VITE_CONTRACT_ADDRESS=0x80e1EDb6996483E7050bb81B4D1a54dD69879719
 VITE_DISCORD_BACKEND_URL=https://soulstamp-discord.your-cloudflare-subdomain.workers.dev
 ```
 
