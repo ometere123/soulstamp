@@ -3,7 +3,7 @@ main = "index.js"
 compatibility_date = "2026-05-20"
 
 [vars]
-FRONTEND_ORIGIN = "https://soulstamp-gen.vercel.app"
-PUBLIC_BASE_URL = "https://soulstamp-discord.delealufejoel.workers.dev"
 DISCORD_CLIENT_ID = "1506429798560567386"
 DISCORD_REDIRECT_URI = "https://soulstamp-discord.delealufejoel.workers.dev/api/discord/callback"
+PUBLIC_BASE_URL = "https://soulstamp-discord.delealufejoel.workers.dev"
+FRONTEND_ORIGIN = "https://soulstamp-gen.vercel.app"
