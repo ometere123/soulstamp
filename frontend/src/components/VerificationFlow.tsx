@@ -247,7 +247,6 @@ export function VerificationFlow() {
   }
 
   const pendingId = pending?.pending_id ?? "pending";
-  const expiresAt = pendingId;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -411,14 +410,14 @@ export function VerificationFlow() {
               <p className="font-medium">Instructions:</p>
               <p>• Open Settings → Profile and paste the code above into your <strong>Bio</strong>.</p>
               <p>• Save the change so it's <strong>publicly visible</strong>, then come back and click Verify.</p>
-              <p>• Expires: <strong>{expiresAt}</strong></p>
+              <p>Proof ID: <strong className="font-mono">{pendingId}</strong></p>
             </div>
           ) : platform === "discord" ? (
             <div className="bg-yellow-950/30 border border-yellow-800/40 rounded-xl p-4 text-sm text-yellow-300 space-y-1">
               <p className="font-medium">Instructions:</p>
               <p>Discord is already connected. The backend will publish a short-lived OAuth attestation containing this code.</p>
               <p>Click Verify so GenLayer validators can fetch the attestation.</p>
-              <p>Expires: <strong>{expiresAt}</strong></p>
+              <p>Pending proof: <strong className="font-mono">{pendingId}</strong></p>
             </div>
           ) : (
             <div className="bg-yellow-950/30 border border-yellow-800/40 rounded-xl p-4 text-sm text-yellow-300 space-y-2">
@@ -430,7 +429,7 @@ export function VerificationFlow() {
                 Why a tweet URL? X blocks anonymous profile scraping. The contract uses Twitter's
                 public oEmbed endpoint to read the specific tweet you point at — works every time.
               </p>
-              <p>• Expires: <strong>{expiresAt}</strong></p>
+              <p>Proof ID: <strong className="font-mono">{pendingId}</strong></p>
             </div>
           )}
 
