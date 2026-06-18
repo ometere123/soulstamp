@@ -37,7 +37,7 @@ const LEGAL_DOCS: Record<LegalDocId, LegalDoc> = {
       {
         heading: "Public on-chain records",
         body:
-          "Verified identity records, platform handles, confidence scores, reasoning summaries, audit events, and moderation actions may be written to public chain state. Public chain data can be difficult or impossible to remove.",
+          "Verified identity records, platform handles, proof statuses, proof dossiers, confidence buckets, reasoning summaries, audit events, and moderation actions may be written to public chain state. Public chain data can be difficult or impossible to remove.",
       },
       {
         heading: "Moderation",
@@ -60,7 +60,7 @@ const LEGAL_DOCS: Record<LegalDocId, LegalDoc> = {
       {
         heading: "Public wallet and identity data",
         body:
-          "SoulStamp stores wallet addresses, linked platform names, account handles or identifiers, verification counts, confidence scores, reasoning summaries, and audit history in public contract state.",
+          "SoulStamp stores wallet addresses, linked platform names, account handles or identifiers, verification counts, proof health states, confidence buckets, proof dossiers, reasoning summaries, and audit history in public contract state.",
       },
       {
         heading: "GitHub and X verification",
@@ -88,7 +88,7 @@ const LEGAL_DOCS: Record<LegalDocId, LegalDoc> = {
     title: "Disclaimer",
     updated: "May 20, 2026",
     intro:
-      "SoulStamp is an experimental identity reputation app. Treat its output as a signal, not a final truth.",
+      "SoulStamp is an experimental identity proof health app. Treat its output as a signal, not a final truth.",
     sections: [
       {
         heading: "Not legal identity",
@@ -150,8 +150,8 @@ export function Footer({ onNavigate }: FooterProps) {
                 </div>
               </div>
               <p className="max-w-xs text-xs leading-5 text-gray-500">
-                AI-assisted on-chain identity reputation for wallets linked to GitHub, X,
-                and Discord accounts.
+                GenLayer-powered identity proof health for wallets linked to GitHub,
+                X, and Discord accounts.
               </p>
             </div>
 

@@ -215,6 +215,7 @@ export function VerificationFlow() {
           wallet: address!,
           verificationCode: pending!.verification_code,
           claimedUsername: pending!.username,
+          pendingId: pending!.pending_id,
         });
         fetchUrl = attestation.attestation_url;
       }
@@ -245,16 +246,15 @@ export function VerificationFlow() {
     setDiscordDisplay(null);
   }
 
-  const expiresAt = pending
-    ? new Date(pending.expires_at * 1000).toLocaleString()
-    : null;
+  const pendingId = pending?.pending_id ?? "pending";
+  const expiresAt = pendingId;
 
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
         <h2 className="text-2xl font-bold mb-1">Verify Your Identity</h2>
         <p className="text-gray-400 text-sm">
-          Link your social media accounts to your wallet. GenLayer AI autonomously validates your post.
+          Link your social media accounts to your wallet. GenLayer consensus validates public proof and tracks proof health.
         </p>
       </div>
 

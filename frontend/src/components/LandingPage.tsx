@@ -26,17 +26,17 @@ const FLOW_STEPS = [
     icon: <CheckCircle2 className="h-5 w-5" />,
   },
   {
-    title: "Build reputation",
-    body: "SoulStamp records verified accounts, scores, reasoning, and audit history on-chain.",
+    title: "Maintain proof health",
+    body: "GenLayer can re-check live public evidence and mark proofs active, stale, conflicted, revoked, or flagged.",
     icon: <ShieldCheck className="h-5 w-5" />,
   },
 ];
 
 const SIGNALS = [
-  "Exact-code verification",
-  "Account quality signals",
-  "Validator reasoning",
-  "Admin moderation",
+  "Structured proof verdicts",
+  "Live reverification",
+  "Proof dossiers",
+  "Admin flag and revoke trail",
 ];
 
 export function LandingPage() {
@@ -46,7 +46,7 @@ export function LandingPage() {
         <div className="mx-auto flex max-w-3xl flex-col items-center">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-brand-500/30 bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-200">
             <BrainCircuit className="h-3.5 w-3.5" />
-            GenLayer AI identity reputation
+            GenLayer proof health protocol
           </div>
 
           <img
@@ -56,13 +56,14 @@ export function LandingPage() {
           />
 
           <h1 className="mt-7 max-w-3xl text-4xl font-bold tracking-normal text-white sm:text-5xl">
-            Verified social identity for on-chain reputation.
+            Identity proofs kept healthy by GenLayer consensus.
           </h1>
 
           <p className="mt-5 max-w-2xl text-base leading-7 text-gray-400">
             SoulStamp links a wallet to controlled GitHub, X, and Discord accounts,
-            then stores transparent verification evidence, confidence scores, and
-            audit history on GenLayer Studionet.
+            then uses GenLayer to verify public proof, store structured evidence,
+            and re-check whether each proof remains active, stale, conflicted,
+            revoked, or flagged.
           </p>
 
           <div className="mt-7 flex flex-wrap justify-center gap-2">
@@ -100,7 +101,7 @@ export function LandingPage() {
             Verification model
           </p>
           <h2 className="mt-3 text-2xl font-bold text-white">
-            A public identity record with a readable audit trail.
+            Proof first. Consensus verified. Health maintained.
           </h2>
         </div>
 

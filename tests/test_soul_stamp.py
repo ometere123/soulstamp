@@ -40,6 +40,15 @@ def test_request_verification_stores_pending(runner):
     assert pending["platform"] == "github"
     assert pending["username"] == "octocat"
     assert "SOULSTAMP-VERIFY-" in pending["verification_code"]
+    assert pending["pending_id"]
+    assert pending["expires_at"] == 0
+
+
+def test_contract_does_not_use_wall_clock_time():
+    with open(CONTRACT_PATH, "r", encoding="utf-8") as f:
+        source = f.read()
+    assert "datetime.now" not in source
+    assert "timezone" not in source
 
 
 def test_request_verification_rejects_unsupported_platform(runner):
@@ -64,8 +73,8 @@ def test_request_verification_normalizes_x_to_twitter(runner):
     assert pending["platform"] == "twitter"
 
 
-def test_request_verification_sybil_guard(runner):
-    """Same social account cannot be claimed by two wallets."""
+def test_request_verification_allows_pending_before_completion(runner):
+    """Pending proofs do not reserve a social account until GenLayer accepts them."""
     # Simulate first wallet already having the platform link in platform_to_address
     # We test this by having wallet 1 complete verification (mocked) then wallet 2 tries
     runner.call_write(
@@ -74,12 +83,11 @@ def test_request_verification_sybil_guard(runner):
         sender="0xUSER000000000000000000000000000000000001",
     )
     # Wallet 2 tries the same account — should fail
-    with pytest.raises(Exception, match="already linked"):
-        runner.call_write(
-            "request_verification",
-            ["github", "shared_user", "https://github.com/shared_user"],
-            sender="0xUSER000000000000000000000000000000000002",
-        )
+    runner.call_write(
+        "request_verification",
+        ["github", "shared_user", "https://github.com/shared_user"],
+        sender="0xUSER000000000000000000000000000000000002",
+    )
 
 
 def test_cancel_pending_verification(runner):
@@ -120,6 +128,34 @@ def test_complete_verification_without_pending_raises(runner):
         )
 
 
+def test_contract_has_structured_proof_health_consensus():
+    with open(CONTRACT_PATH, "r", encoding="utf-8") as f:
+        source = f.read()
+    for field in [
+        "code_found",
+        "account_match",
+        "proof_strength",
+        "risk_band",
+        "confidence_bucket",
+        "reason_code",
+        "proof_status",
+    ]:
+        assert field in source
+    assert "run_nondet_unsafe" in source
+    assert "reverify_platform" in source
+    for status in ["ACTIVE", "STALE", "REVOKED", "CONFLICTED", "FLAGGED"]:
+        assert status in source
+
+
+def test_contract_restricts_fetch_sources():
+    with open(CONTRACT_PATH, "r", encoding="utf-8") as f:
+        source = f.read()
+    assert "api.github.com/users" in source
+    assert "publish.twitter.com/oembed" in source
+    assert "Discord attestation URL is not from the configured backend" in source
+    assert "used_discord_attestations" in source
+
+
 # ── get_identity ──────────────────────────────────────────────────────────────
 
 def test_get_identity_not_found(runner):
@@ -141,7 +177,7 @@ def test_is_platform_taken_false(runner):
 # ── revoke_platform ───────────────────────────────────────────────────────────
 
 def test_revoke_without_identity_raises(runner):
-    with pytest.raises(Exception, match="No identity record"):
+    with pytest.raises(Exception, match="No verified link"):
         runner.call_write(
             "revoke_platform",
             ["github", "octocat"],

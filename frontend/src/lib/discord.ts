@@ -62,6 +62,7 @@ export async function createDiscordAttestation(input: {
   wallet: string;
   verificationCode: string;
   claimedUsername: string;
+  pendingId?: string;
 }): Promise<DiscordAttestationResult> {
   if (!DISCORD_BACKEND_URL) throw new Error("VITE_DISCORD_BACKEND_URL is not set");
   const response = await fetch(`${DISCORD_BACKEND_URL}/api/discord/attest`, {
@@ -72,6 +73,7 @@ export async function createDiscordAttestation(input: {
       wallet: input.wallet,
       verification_code: input.verificationCode,
       claimed_username: input.claimedUsername,
+      pending_id: input.pendingId,
     }),
   });
   const body = await response.json().catch(() => ({}));

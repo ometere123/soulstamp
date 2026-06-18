@@ -1,113 +1,144 @@
+# v0.2.18
 # { "Depends": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6" }
+
 from genlayer import *
 from dataclasses import dataclass
-from datetime import datetime, timezone
 import hashlib
 import json
 from urllib.parse import quote
 
-# ── Constants ────────────────────────────────────────────────────────────────
-VERIFICATION_EXPIRY_SECONDS = 86400 * 7   # 7 days
-CONFIDENCE_THRESHOLD        = 65           # Minimum identity confidence to approve
-BOT_FLAG_THRESHOLD          = 75           # Bot score >= this triggers auto-flag
-SUPPORTED_PLATFORMS         = ["github", "twitter", "discord"]
-MAX_ACCOUNTS_PER_ADDRESS    = 10
+SUPPORTED_PLATFORMS = ["github", "twitter", "discord"]
+PROOF_STATUSES = ["ACTIVE", "STALE", "REVOKED", "CONFLICTED", "FLAGGED"]
+PROOF_STRENGTHS = ["STRONG", "MEDIUM", "WEAK"]
+RISK_BANDS = ["low", "medium", "high"]
+CONFIDENCE_THRESHOLD = 65
+BOT_FLAG_THRESHOLD = 75
+MAX_ACCOUNTS_PER_ADDRESS = 10
+VERIFIER_VERSION = "soulstamp-v2.0"
 
-# ── Storage Dataclasses ───────────────────────────────────────────────────────
+
+@allow_storage
+@dataclass
+class ProofDossier:
+    platform: str
+    username: str
+    canonical_platform_id: str
+    proof_url: str
+    verification_code: str
+    pending_id: str
+    proof_strength: str
+    risk_band: str
+    confidence_bucket: u32
+    reason_code: str
+    proof_status: str
+    verification_method: str
+    verifier_version: str
+    audit_ref: u32
+    verified_wallet: str
+    created_marker: u256
+    updated_marker: u256
+
 
 @allow_storage
 @dataclass
 class LinkedAccount:
-    platform:         str
-    username:         str
-    profile_url:      str
-    verified_at:      u256
+    platform: str
+    username: str
+    profile_url: str
+    verified_at: u256
     confidence_score: u32
-    bot_score:        u32
-    reasoning:        str
-    is_active:        bool
+    bot_score: u32
+    reasoning: str
+    is_active: bool
+    proof_status: str
+    proof_strength: str
+    risk_band: str
+    canonical_platform_id: str
+    verification_code: str
+    pending_id: str
+    proof_url: str
+    reason_code: str
+    last_checked_marker: u256
+    dossier: ProofDossier
+
 
 @allow_storage
 @dataclass
 class PendingVerification:
-    platform:          str
-    username:          str
-    profile_url:       str
+    platform: str
+    username: str
+    profile_url: str
     verification_code: str
-    requested_at:      u256
-    expires_at:        u256
+    pending_id: str
+    request_nonce: u32
+
 
 @allow_storage
 @dataclass
 class AuditEntry:
-    action:     str
-    platform:   str
-    username:   str
-    result:     str
+    action: str
+    platform: str
+    username: str
+    result: str
     confidence: u32
-    bot_score:  u32
-    timestamp:  u256
+    bot_score: u32
+    timestamp: u256
+    proof_status: str
+    reason_code: str
+
 
 @allow_storage
 @dataclass
 class IdentityRecord:
-    owner:              str
-    linked_accounts:    DynArray[LinkedAccount]
-    reputation_score:   u32
-    is_flagged:         bool
-    flag_reason:        str
-    created_at:         u256
-    last_updated:       u256
+    owner: str
+    linked_accounts: DynArray[LinkedAccount]
+    reputation_score: u32
+    is_flagged: bool
+    flag_reason: str
+    created_at: u256
+    last_updated: u256
     verification_count: u32
-    audit_log:          DynArray[AuditEntry]
+    audit_log: DynArray[AuditEntry]
 
-
-# ── Contract ──────────────────────────────────────────────────────────────────
 
 class SoulStamp(gl.Contract):
     """
-    On-chain identity verification platform.
+    SoulStamp v2: GenLayer-powered identity proof health protocol.
 
-    Verification flow:
-      1. User calls request_verification() → receives unique code to post
-      2. User posts the code on their social media profile
-      3. User calls complete_verification() → GenLayer LLMs fetch and validate
-      4. If approved, the linked account is stored on-chain
+    The contract verifies public identity proofs once, then lets GenLayer
+    re-check live sources over time and classify each proof as ACTIVE, STALE,
+    CONFLICTED, REVOKED, or FLAGGED.
     """
 
-    # Persistent state
-    identities:           TreeMap[str, IdentityRecord]
+    identities: TreeMap[str, IdentityRecord]
     pending_verifications: TreeMap[str, PendingVerification]
-    platform_to_address:  TreeMap[str, str]   # "platform:username" → owner address
-    all_addresses:        DynArray[str]        # ordered registry for admin enumeration
-    admin:                str
-    total_verifications:  u32
-    total_identities:     u32
+    platform_to_address: TreeMap[str, str]
+    used_discord_attestations: TreeMap[str, bool]
+    all_addresses: DynArray[str]
+    admin: str
+    total_verifications: u32
+    total_identities: u32
+    request_nonce: u32
+    event_marker: u256
     discord_attestation_base_url: str
 
-    # ── Constructor ──────────────────────────────────────────────────────────
-
-    def __init__(self, admin_address: str) -> None:
-        # TreeMap and DynArray fields are auto-initialized by the GenVM storage system.
-        # Only set primitive types here.
-        # admin_address is supplied at deploy time so the admin role is decoupled
-        # from whoever signs the deployment transaction.
-        if not admin_address or not admin_address.startswith("0x"):
+    def __init__(self, admin_address: str = "") -> None:
+        admin = admin_address or str(gl.message.sender_address)
+        if not admin or not str(admin).lower().startswith("0x"):
             raise gl.vm.UserError("admin_address must be a valid 0x-prefixed address")
-        self.admin               = self._addr(admin_address)
+        self.admin = self._addr(admin)
         self.total_verifications = u32(0)
-        self.total_identities    = u32(0)
+        self.total_identities = u32(0)
+        self.request_nonce = u32(0)
+        self.event_marker = u256(0)
         self.discord_attestation_base_url = ""
 
-    # ── Internal helpers ─────────────────────────────────────────────────────
-
     def _addr(self, address) -> str:
-        """
-        Normalize any address (Address type or string, checksummed or not) to a
-        lowercase hex string. MetaMask returns lowercase, GenLayer's Address
-        stringifies to EIP-55 checksum case — we must align both ends.
-        """
         return str(address).lower()
+
+    def _mark(self) -> u256:
+        self.event_marker = u256(int(self.event_marker) + 1)
+        return self.event_marker
 
     def _normalize_platform(self, platform: str) -> str:
         p = platform.lower().strip()
@@ -120,607 +151,282 @@ class SoulStamp(gl.Contract):
     def _platform_key(self, platform: str, username: str) -> str:
         return f"{platform}:{username.lower().strip()}"
 
-    def _generate_verification_code(self, caller: str, platform: str, username: str) -> str:
-        """Deterministic unique code — caller + platform + username + block timestamp."""
-        raw = f"SOULSTAMP:{caller}:{platform}:{username}:{int(datetime.now(timezone.utc).timestamp())}"
-        digest = hashlib.sha256(raw.encode()).hexdigest()[:12].upper()
-        return f"SOULSTAMP-VERIFY-{digest}"
+    def _make_pending_id(self, caller: str, platform: str, username: str, nonce: u32) -> str:
+        raw = f"SOULSTAMP-V2:{caller}:{platform}:{username.lower().strip()}:{int(nonce)}"
+        return hashlib.sha256(raw.encode()).hexdigest()[:24].upper()
 
-    # ── Write Methods ─────────────────────────────────────────────────────────
+    def _make_code(self, pending_id: str) -> str:
+        return f"SOULSTAMP-VERIFY-{pending_id[:12]}"
 
-    @gl.public.write
-    def request_verification(self, platform: str, username: str, profile_url: str) -> None:
-        """
-        Step 1 — user requests verification for a social media account.
-        Generates a unique code; user must post it publicly, then call complete_verification().
-        """
-        caller = self._addr(gl.message.sender_address)
-        plat   = self._normalize_platform(platform)
-
-        if plat not in SUPPORTED_PLATFORMS:
-            raise gl.vm.UserError(f"Unsupported platform '{plat}'. Supported: {SUPPORTED_PLATFORMS}")
-
-        if not username.strip() or not profile_url.strip():
-            raise gl.vm.UserError("username and profile_url must not be empty")
-
-        # Guard: already active on this platform?
-        identity = self.identities.get(caller)
-        if identity is not None:
-            for acct in identity.linked_accounts:
-                if (acct.platform == plat
-                        and acct.username.lower() == username.lower()
-                        and acct.is_active):
-                    raise gl.vm.UserError(f"Already verified @{username} on {plat}")
-
-            if int(identity.verification_count) >= MAX_ACCOUNTS_PER_ADDRESS:
-                raise gl.vm.UserError(f"Maximum {MAX_ACCOUNTS_PER_ADDRESS} linked accounts reached")
-
-        # Sybil guard: is this social account already owned by another address?
-        pkey = self._platform_key(plat, username)
-        existing_owner = self.platform_to_address.get(pkey)
-        if existing_owner is not None and existing_owner != caller:
-            raise gl.vm.UserError(f"@{username} on {plat} is already linked to another wallet address")
-
-        code = self._generate_verification_code(caller, plat, username)
-
-        self.pending_verifications[caller] = PendingVerification(
-            platform=plat,
+    def _empty_dossier(
+        self,
+        platform: str,
+        username: str,
+        proof_url: str,
+        code: str,
+        pending_id: str,
+        wallet: str,
+        marker: u256,
+    ) -> ProofDossier:
+        return ProofDossier(
+            platform=platform,
             username=username,
-            profile_url=profile_url,
+            canonical_platform_id="",
+            proof_url=proof_url,
             verification_code=code,
-            requested_at=u256(int(datetime.now(timezone.utc).timestamp())),
-            expires_at=u256(int(datetime.now(timezone.utc).timestamp()) + VERIFICATION_EXPIRY_SECONDS),
+            pending_id=pending_id,
+            proof_strength="WEAK",
+            risk_band="medium",
+            confidence_bucket=u32(0),
+            reason_code="PENDING",
+            proof_status="STALE",
+            verification_method="genlayer-web-consensus",
+            verifier_version=VERIFIER_VERSION,
+            audit_ref=u32(0),
+            verified_wallet=wallet,
+            created_marker=marker,
+            updated_marker=marker,
         )
 
-    @gl.public.write
-    def complete_verification(self, fetch_url: str = "") -> None:
-        """
-        Step 2 — AI-powered verification.
-        GenLayer LLMs autonomously fetch the social media content and validate
-        that the unique code was posted. Records the verified link on-chain.
+    def _target_url(self, platform: str, username: str, fetch_url: str) -> str:
+        username_lc = username.lower().strip()
+        if platform == "github":
+            if fetch_url:
+                lowered = fetch_url.lower()
+                allowed = (
+                    f"https://github.com/{username_lc}",
+                    f"https://api.github.com/users/{username_lc}",
+                )
+                if not any(lowered.startswith(x) for x in allowed):
+                    raise gl.vm.UserError("GitHub verification must use the claimed GitHub profile or API source")
+            return f"https://api.github.com/users/{username}"
 
-        Arguments:
-          fetch_url:
-            - GitHub: ignored. The contract reads GitHub's public user API and
-              checks the `bio` field for the verification code.
-            - Twitter: required. Must be a public tweet URL belonging to the
-              claimed username (e.g. https://x.com/papito_dele/status/123...).
-              The contract fetches Twitter's public oEmbed endpoint for that URL,
-              which returns the tweet text/HTML in JSON form — readable by
-              anonymous validators where the profile page itself is not.
-        """
-        caller  = self._addr(gl.message.sender_address)
-        pending = self.pending_verifications.get(caller)
-
-        if pending is None:
-            raise gl.vm.UserError("No pending verification. Call request_verification() first.")
-
-        if u256(int(datetime.now(timezone.utc).timestamp())) > pending.expires_at:
-            raise gl.vm.UserError("Verification request expired. Please call request_verification() again.")
-
-        plat        = pending.platform
-        username    = pending.username
-        profile_url = pending.profile_url
-        code        = pending.verification_code
-
-        # ── Decide what URL the validators will actually fetch ────────────────
-        # Strategy: GitHub's public API returns compact account-quality signals
-        # and the bio field. Twitter blocks anonymous profile renders behind a JS
-        # shell, so we use Twitter's public oEmbed endpoint for a specific tweet.
-        username_lc = username.lower()
-        is_twitter  = (plat == "twitter")
-        is_discord  = (plat == "discord")
-
-        if is_twitter:
+        if platform == "twitter":
             if not fetch_url:
-                raise gl.vm.UserError(
-                    "Twitter verification requires a public tweet URL. "
-                    "Post a tweet containing the verification code, then submit its URL."
-                )
-            url_lc = fetch_url.lower()
-            # Tweet URL must belong to the claimed username (prevents pasting random tweets)
-            valid_patterns = (
-                f"twitter.com/{username_lc}/status/",
-                f"x.com/{username_lc}/status/",
-            )
-            if not any(p in url_lc for p in valid_patterns):
-                raise gl.vm.UserError(
-                    f"Tweet URL must belong to @{username}. "
-                    f"Expected pattern: https://x.com/{username}/status/..."
-                )
-            # Use Twitter's public oEmbed endpoint (no auth required, returns JSON).
-            # Canonicalize to /i/status/<id> and percent-encode the URL so the
-            # endpoint sees the tweet URL as a single query value.
+                raise gl.vm.UserError("Twitter verification requires a public tweet URL")
+            lowered = fetch_url.lower()
+            patterns = (f"https://x.com/{username_lc}/status/", f"https://twitter.com/{username_lc}/status/")
+            if not any(lowered.startswith(p) for p in patterns):
+                raise gl.vm.UserError("Twitter proof URL must be a status URL owned by the claimed handle")
             tweet_id = fetch_url.split("/status/", 1)[1].split("?", 1)[0].split("/", 1)[0]
             tweet_url = f"https://twitter.com/i/status/{tweet_id}"
-            target_url = f"https://publish.twitter.com/oembed?url={quote(tweet_url, safe='')}&dnt=true&omit_script=true"
-        elif is_discord:
-            if not fetch_url:
-                raise gl.vm.UserError(
-                    "Discord verification requires an attestation URL from the SoulStamp Discord backend."
-                )
-            allowed_base = self.discord_attestation_base_url.rstrip("/")
-            if not allowed_base:
-                raise gl.vm.UserError("Discord attestation backend is not configured")
-            expected_prefix = f"{allowed_base}/api/discord/attestations/"
-            if not fetch_url.startswith(expected_prefix):
-                raise gl.vm.UserError("Discord attestation URL is not from the configured backend")
-            target_url = fetch_url
-        else:
-            # GitHub: use the public user API. It returns compact JSON with the
-            # bio field, avoiding GitHub's large HTML shell where the bio can
-            # appear after our content limit.
-            target_url = f"https://api.github.com/users/{username}"
+            return f"https://publish.twitter.com/oembed?url={quote(tweet_url, safe='')}&dnt=true&omit_script=true"
 
-        # ── Non-deterministic block: fetch + LLM analysis ────────────────────
+        if platform == "discord":
+            if not fetch_url:
+                raise gl.vm.UserError("Discord verification requires an attestation URL")
+            base = self.discord_attestation_base_url.rstrip("/")
+            if not base:
+                raise gl.vm.UserError("Discord attestation backend is not configured")
+            prefix = f"{base}/api/discord/attestations/"
+            if not fetch_url.startswith(prefix):
+                raise gl.vm.UserError("Discord attestation URL is not from the configured backend")
+            token = fetch_url.split("/")[-1]
+            if self.used_discord_attestations.get(token) is not None:
+                raise gl.vm.UserError("Discord attestation has already been used")
+            return fetch_url
+
+        raise gl.vm.UserError(f"Unsupported platform '{platform}'")
+
+    def _coerce_verdict(
+        self,
+        value,
+        platform: str,
+        username: str,
+        code: str,
+        content: str,
+        fallback_status: str,
+    ) -> dict:
+        if not isinstance(value, dict):
+            raise gl.vm.UserError("GenLayer proof verdict was not structured JSON")
+
+        code_found = bool(value.get("code_found", code in content))
+        account_match = bool(value.get("account_match", False))
+        reason_code = str(value.get("reason_code", "") or "").strip().upper()
+        proof_status = str(value.get("proof_status", fallback_status) or fallback_status).strip().upper()
+        risk_band = str(value.get("risk_band", "medium") or "medium").strip().lower()
+        proof_strength = str(value.get("proof_strength", "WEAK") or "WEAK").strip().upper()
+
+        if proof_status not in PROOF_STATUSES:
+            raise gl.vm.UserError("GenLayer proof verdict used an invalid proof_status")
+        if risk_band not in RISK_BANDS:
+            raise gl.vm.UserError("GenLayer proof verdict used an invalid risk_band")
+        if proof_strength not in PROOF_STRENGTHS:
+            raise gl.vm.UserError("GenLayer proof verdict used an invalid proof_strength")
+
+        if not reason_code:
+            if code_found and account_match:
+                reason_code = "CODE_FOUND_ON_CANONICAL_PROFILE"
+            elif code_found:
+                reason_code = "CODE_FOUND_ACCOUNT_UNCONFIRMED"
+            else:
+                reason_code = "CODE_NOT_FOUND"
+
+        try:
+            confidence = int(value.get("confidence_bucket", 0))
+        except Exception:
+            confidence = 0
+
+        return {
+            "code_found": code_found,
+            "account_match": account_match,
+            "platform": platform,
+            "username": username,
+            "canonical_platform_id": str(value.get("canonical_platform_id", "") or ""),
+            "proof_strength": proof_strength,
+            "risk_band": risk_band,
+            "confidence_bucket": max(0, min(100, confidence)),
+            "reason_code": reason_code,
+            "proof_status": proof_status,
+            "reasoning": str(value.get("reasoning", "") or reason_code),
+        }
+
+    def _evaluate_proof(
+        self,
+        platform: str,
+        username: str,
+        code: str,
+        target_url: str,
+        caller: str,
+        pending_id: str,
+        recheck: bool,
+    ) -> dict:
+        username_lc = username.lower().strip()
 
         def leader_fn():
-            content = ""
-            fetch_error = ""
             try:
-                if is_twitter:
-                    # oEmbed returns JSON over plain HTTP.
-                    response = gl.nondet.web.get(target_url)
-                    body = response.body
-                    content = body.decode("utf-8") if isinstance(body, (bytes, bytearray)) else str(body)
-                else:
-                    # GitHub API returns compact JSON with the public bio.
-                    response = gl.nondet.web.get(target_url)
-                    body = response.body
-                    content = body.decode("utf-8") if isinstance(body, (bytes, bytearray)) else str(body)
+                response = gl.nondet.web.get(target_url)
+                body = response.body
+                content = body.decode("utf-8") if isinstance(body, (bytes, bytearray)) else str(body)
             except Exception as e:
                 content = ""
                 fetch_error = str(e)
-
-            content = content[:10000] if len(content) > 10000 else content
-
-            if not content:
-                reason = "Source content is empty or inaccessible"
-                if fetch_error:
-                    reason = f"{reason}: {fetch_error}"
-                return {
-                    "verification_code_found": False,
-                    "code_in_bio": False,
-                    "code_in_recent_post": False,
-                    "account_age_category": "new",
-                    "has_profile_picture": False,
-                    "has_bio_text": False,
-                    "post_activity_level": "none",
-                    "cross_platform_signals": False,
-                    "bot_indicators": [],
-                    "is_likely_bot": False,
-                    "bot_confidence": 0,
-                    "identity_confidence": 0,
-                    "reasoning": reason,
-                }
-
-            # The verification code check itself is exact and deterministic.
-            # If it passes, account quality signals and an LLM assessment decide
-            # the confidence score. If it fails, the LLM can only explain failure.
-            exact_code_found = code in content
-
-            if exact_code_found:
-                account_age_category = "new"
-                has_profile_picture = False
-                has_bio_text = False
-                post_activity_level = "low"
-                cross_platform_signals = False
-                signal_score = 88 if is_discord else (70 if is_twitter else 72)
-                bot_score_signal = 18 if is_discord else (30 if is_twitter else 28)
-                signal_notes = []
-
-                try:
-                    parsed = json.loads(content)
-                except Exception:
-                    parsed = {}
-
-                if is_discord:
-                    if not isinstance(parsed, dict):
-                        return {
-                            "verification_code_found": False,
-                            "code_in_bio": False,
-                            "code_in_recent_post": False,
-                            "account_age_category": "new",
-                            "has_profile_picture": False,
-                            "has_bio_text": False,
-                            "post_activity_level": "none",
-                            "cross_platform_signals": False,
-                            "bot_indicators": [],
-                            "is_likely_bot": False,
-                            "bot_confidence": 0,
-                            "identity_confidence": 0,
-                            "reasoning": "Discord attestation is not valid JSON",
-                        }
-
-                    discord_id = str(parsed.get("discord_id", "") or "").strip()
-                    expected_discord_id = username.rsplit("#", 1)[-1].strip()
-                    attestation_wallet = self._addr(parsed.get("wallet", ""))
-                    attestation_platform = str(parsed.get("platform", "") or "").lower().strip()
-                    attestation_code = str(parsed.get("verification_code", "") or "").strip()
-                    attestation_expires_at = 0
-                    try:
-                        attestation_expires_at = int(parsed.get("expires_at", 0) or 0)
-                    except Exception:
-                        attestation_expires_at = 0
-
-                    if attestation_platform != "discord":
-                        return {
-                            "verification_code_found": False,
-                            "code_in_bio": False,
-                            "code_in_recent_post": False,
-                            "account_age_category": "new",
-                            "has_profile_picture": False,
-                            "has_bio_text": False,
-                            "post_activity_level": "none",
-                            "cross_platform_signals": False,
-                            "bot_indicators": [],
-                            "is_likely_bot": False,
-                            "bot_confidence": 0,
-                            "identity_confidence": 0,
-                            "reasoning": "Discord attestation platform mismatch",
-                        }
-                    if attestation_wallet != caller:
-                        return {
-                            "verification_code_found": False,
-                            "code_in_bio": False,
-                            "code_in_recent_post": False,
-                            "account_age_category": "new",
-                            "has_profile_picture": False,
-                            "has_bio_text": False,
-                            "post_activity_level": "none",
-                            "cross_platform_signals": False,
-                            "bot_indicators": [],
-                            "is_likely_bot": False,
-                            "bot_confidence": 0,
-                            "identity_confidence": 0,
-                            "reasoning": "Discord attestation wallet mismatch",
-                        }
-                    if attestation_code != code:
-                        return {
-                            "verification_code_found": False,
-                            "code_in_bio": False,
-                            "code_in_recent_post": False,
-                            "account_age_category": "new",
-                            "has_profile_picture": False,
-                            "has_bio_text": False,
-                            "post_activity_level": "none",
-                            "cross_platform_signals": False,
-                            "bot_indicators": [],
-                            "is_likely_bot": False,
-                            "bot_confidence": 0,
-                            "identity_confidence": 0,
-                            "reasoning": "Discord attestation code mismatch",
-                        }
-                    if not discord_id or discord_id != expected_discord_id:
-                        return {
-                            "verification_code_found": False,
-                            "code_in_bio": False,
-                            "code_in_recent_post": False,
-                            "account_age_category": "new",
-                            "has_profile_picture": False,
-                            "has_bio_text": False,
-                            "post_activity_level": "none",
-                            "cross_platform_signals": False,
-                            "bot_indicators": [],
-                            "is_likely_bot": False,
-                            "bot_confidence": 0,
-                            "identity_confidence": 0,
-                            "reasoning": "Discord attestation user mismatch",
-                        }
-                    if attestation_expires_at < int(datetime.now(timezone.utc).timestamp()):
-                        return {
-                            "verification_code_found": False,
-                            "code_in_bio": False,
-                            "code_in_recent_post": False,
-                            "account_age_category": "new",
-                            "has_profile_picture": False,
-                            "has_bio_text": False,
-                            "post_activity_level": "none",
-                            "cross_platform_signals": False,
-                            "bot_indicators": [],
-                            "is_likely_bot": False,
-                            "bot_confidence": 0,
-                            "identity_confidence": 0,
-                            "reasoning": "Discord attestation expired",
-                        }
-
-                    display_name = str(parsed.get("display_name", "") or "").strip()
-                    global_name = str(parsed.get("global_name", "") or "").strip()
-                    username_text = str(parsed.get("username", "") or "").strip()
-                    has_bio_text = bool(display_name or global_name or username_text)
-                    has_profile_picture = bool(str(parsed.get("avatar_url", "") or "").strip())
-                    cross_platform_signals = bool(parsed.get("email_verified", False))
-                    post_activity_level = "none"
-
-                    account_age_years = 0
-                    try:
-                        account_age_years = int(parsed.get("account_age_years", 0) or 0)
-                    except Exception:
-                        account_age_years = 0
-
-                    if account_age_years >= 3:
-                        account_age_category = "established"
-                        signal_score += 7
-                        bot_score_signal -= 5
-                        signal_notes.append("Discord account is at least three years old")
-                    elif account_age_years >= 1:
-                        account_age_category = "moderate"
-                        signal_score += 4
-                        bot_score_signal -= 3
-                        signal_notes.append("Discord account is at least one year old")
-
-                    if has_profile_picture:
-                        signal_score += 3
-                        signal_notes.append("Discord account has an avatar")
-                    if has_bio_text:
-                        signal_score += 2
-                        signal_notes.append("Discord account has public display identity")
-                    if cross_platform_signals:
-                        signal_score += 3
-                        bot_score_signal -= 3
-                        signal_notes.append("Discord OAuth reported a verified email")
-
-                    signal_score = max(80, min(98, signal_score))
-                    bot_score_signal = max(3, min(35, bot_score_signal))
-                    return {
-                        "verification_code_found": True,
-                        "code_in_bio": False,
-                        "code_in_recent_post": False,
-                        "account_age_category": account_age_category,
-                        "has_profile_picture": has_profile_picture,
-                        "has_bio_text": has_bio_text,
-                        "post_activity_level": post_activity_level,
-                        "cross_platform_signals": cross_platform_signals,
-                        "bot_indicators": [],
-                        "is_likely_bot": bot_score_signal >= BOT_FLAG_THRESHOLD,
-                        "bot_confidence": bot_score_signal,
-                        "identity_confidence": signal_score,
-                        "reasoning": "Discord OAuth attestation confirmed account control; score reflects account age, avatar, display identity, and verified-email signal.",
-                    }
-
-                elif is_twitter:
-                    html = str(parsed.get("html", "")) if isinstance(parsed, dict) else content
-                    author_url = str(parsed.get("author_url", "")) if isinstance(parsed, dict) else ""
-                    author_name = str(parsed.get("author_name", "")) if isinstance(parsed, dict) else ""
-
-                    has_bio_text = bool(author_name)
-                    has_profile_picture = False
-                    post_activity_level = "low"
-
-                    if username_lc in author_url.lower():
-                        signal_score += 8
-                        bot_score_signal -= 5
-                        signal_notes.append("oEmbed author URL matches claimed username")
-                    if len(html) > 120:
-                        signal_score += 4
-                        signal_notes.append("tweet embed contains substantive public text")
-                    if "twitter-tweet" in html:
-                        signal_score += 3
-                        bot_score_signal -= 2
-                        signal_notes.append("source is a Twitter public embed")
-                    if code in html:
-                        signal_score += 5
-                        bot_score_signal -= 3
-                        signal_notes.append("exact code is in the tweet HTML")
-                else:
-                    public_repos = int(parsed.get("public_repos", 0) or 0) if isinstance(parsed, dict) else 0
-                    followers = int(parsed.get("followers", 0) or 0) if isinstance(parsed, dict) else 0
-                    created_at = str(parsed.get("created_at", "")) if isinstance(parsed, dict) else ""
-                    bio = str(parsed.get("bio", "") or "") if isinstance(parsed, dict) else ""
-                    avatar_url = str(parsed.get("avatar_url", "") or "") if isinstance(parsed, dict) else ""
-
-                    has_profile_picture = bool(avatar_url)
-                    has_bio_text = bool(bio.strip())
-                    profile_fields = 0
-                    for key in ("name", "company", "blog", "location", "twitter_username"):
-                        if isinstance(parsed, dict) and str(parsed.get(key, "") or "").strip():
-                            profile_fields += 1
-                    if has_bio_text:
-                        profile_fields += 1
-
-                    created_year = 0
-                    try:
-                        created_year = int(created_at[:4])
-                    except Exception:
-                        created_year = 0
-                    current_year = int(datetime.now(timezone.utc).year)
-                    account_years = current_year - created_year if created_year else 0
-
-                    if account_years >= 3:
-                        account_age_category = "established"
-                        signal_score += 14
-                        bot_score_signal -= 8
-                        signal_notes.append("GitHub account is at least three years old")
-                    elif account_years >= 1:
-                        account_age_category = "moderate"
-                        signal_score += 9
-                        bot_score_signal -= 5
-                        signal_notes.append("GitHub account is at least one year old")
-
-                    if public_repos >= 10:
-                        post_activity_level = "high"
-                        signal_score += 10
-                        bot_score_signal -= 6
-                        signal_notes.append("GitHub profile has ten or more public repositories")
-                    elif public_repos >= 3:
-                        post_activity_level = "moderate"
-                        signal_score += 7
-                        bot_score_signal -= 4
-                        signal_notes.append("GitHub profile has multiple public repositories")
-                    elif public_repos > 0:
-                        post_activity_level = "low"
-                        signal_score += 4
-                        bot_score_signal -= 2
-                        signal_notes.append("GitHub profile has at least one public repository")
-                    else:
-                        post_activity_level = "none"
-
-                    if followers >= 50:
-                        signal_score += 8
-                        bot_score_signal -= 5
-                        signal_notes.append("GitHub profile has fifty or more followers")
-                    elif followers >= 10:
-                        signal_score += 5
-                        bot_score_signal -= 3
-                        signal_notes.append("GitHub profile has ten or more followers")
-                    elif followers > 0:
-                        signal_score += 3
-                        bot_score_signal -= 1
-                        signal_notes.append("GitHub profile has at least one follower")
-
-                    if has_profile_picture:
-                        signal_score += 3
-                        signal_notes.append("GitHub profile has an avatar")
-                    if profile_fields >= 4:
-                        signal_score += 7
-                        bot_score_signal -= 3
-                        signal_notes.append("GitHub profile has several completed profile fields")
-                    elif profile_fields >= 2:
-                        signal_score += 4
-                        signal_notes.append("GitHub profile has some completed profile fields")
-                    if isinstance(parsed, dict) and str(parsed.get("twitter_username", "") or "").strip():
-                        cross_platform_signals = True
-                        signal_score += 3
-                        signal_notes.append("GitHub profile has a linked Twitter username")
-
-                signal_score = max(70, min(98, signal_score))
-                bot_score_signal = max(3, min(45, bot_score_signal))
-
-                scoring_prompt = f"""You are scoring a SoulStamp identity proof.
-
-The exact verification code was found in the public source, so proof of account control is established.
-Now assess account quality and bot risk using the source and deterministic signals.
-
-Platform: @{username} on {plat}
-Verification Code: {code}
-Deterministic signal score: {signal_score}
-Deterministic bot risk score: {bot_score_signal}
-Signals: {", ".join(signal_notes) if signal_notes else "limited public account quality signals"}
-
-Source content excerpt:
----
-{content}
----
-
-Return JSON with EXACTLY:
-{{
-  "identity_confidence": <integer 70-98, stay within 15 points of deterministic signal score unless there is a clear reason>,
-  "bot_confidence": <integer 0-100>,
-  "is_likely_bot": <true | false>,
-  "bot_indicators": <array of short strings, or []>,
-  "reasoning": <one concise sentence explaining proof and quality signals>
-}}
-"""
-                try:
-                    ai_score = gl.nondet.exec_prompt(scoring_prompt, response_format="json")
-                except Exception:
-                    ai_score = {}
-
-                def safe_int(value, default):
-                    try:
-                        return int(value)
-                    except Exception:
-                        digits = "".join(ch for ch in str(value) if ch.isdigit())
-                        return int(digits) if digits else default
-
-                def safe_bool(value, default=False):
-                    if isinstance(value, bool):
-                        return value
-                    if isinstance(value, str):
-                        lowered = value.strip().lower()
-                        if lowered in ("true", "yes", "1"):
-                            return True
-                        if lowered in ("false", "no", "0", ""):
-                            return False
-                    return default
-
-                ai_conf_raw = safe_int(ai_score.get("identity_confidence", signal_score), signal_score) if isinstance(ai_score, dict) else signal_score
-                ai_bot_raw = safe_int(ai_score.get("bot_confidence", bot_score_signal), bot_score_signal) if isinstance(ai_score, dict) else bot_score_signal
-                ai_conf = max(signal_score - 15, min(signal_score + 15, ai_conf_raw))
-                ai_bot = max(bot_score_signal - 20, min(bot_score_signal + 20, ai_bot_raw))
-                confidence = (signal_score * 2 + max(70, min(98, ai_conf))) // 3
-                bot_confidence = (bot_score_signal * 2 + max(0, min(100, ai_bot))) // 3
-                bot_indicators = ai_score.get("bot_indicators", []) if isinstance(ai_score, dict) else []
-                if not isinstance(bot_indicators, list):
-                    bot_indicators = [str(bot_indicators)]
-                is_likely_bot = safe_bool(
-                    ai_score.get("is_likely_bot", bot_confidence >= BOT_FLAG_THRESHOLD),
-                    bot_confidence >= BOT_FLAG_THRESHOLD,
-                ) if isinstance(ai_score, dict) else False
-                reasoning = (
-                    str(ai_score.get("reasoning", "")) if isinstance(ai_score, dict) else ""
-                ).strip()
-                if not reasoning:
-                    reasoning = (
-                        "Exact code proof succeeded; confidence reflects public account "
-                        "age, activity, profile completeness, and bot-risk signals."
-                    )
-
-                return {
-                    "verification_code_found": True,
-                    "code_in_bio": not is_twitter,
-                    "code_in_recent_post": is_twitter,
-                    "account_age_category": account_age_category,
-                    "has_profile_picture": has_profile_picture,
-                    "has_bio_text": has_bio_text,
-                    "post_activity_level": post_activity_level,
-                    "cross_platform_signals": cross_platform_signals,
-                    "bot_indicators": bot_indicators,
-                    "is_likely_bot": is_likely_bot,
-                    "bot_confidence": bot_confidence,
-                    "identity_confidence": confidence,
-                    "reasoning": reasoning,
-                }
-
-            if is_twitter:
-                content_type = "Twitter oEmbed JSON response (the `html` field contains the tweet's text/HTML)"
-            elif is_discord:
-                content_type = "SoulStamp Discord OAuth attestation JSON response"
             else:
-                content_type = "GitHub public user API JSON response (the `bio` field contains the profile bio)"
+                fetch_error = ""
 
-            prompt = f"""You are an identity verification engine for a blockchain platform called SoulStamp.
+            content = content[:12000] if len(content) > 12000 else content
+            if not content:
+                return {
+                    "code_found": False,
+                    "account_match": False,
+                    "platform": platform,
+                    "username": username,
+                    "canonical_platform_id": "",
+                    "proof_strength": "WEAK",
+                    "risk_band": "medium",
+                    "confidence_bucket": 0,
+                    "reason_code": "SOURCE_INACCESSIBLE",
+                    "proof_status": "STALE" if recheck else "STALE",
+                    "reasoning": f"Source inaccessible: {fetch_error}" if fetch_error else "Source inaccessible",
+                }
 
-Your task: verify that a user has posted their verification code publicly on their {plat} account.
+            code_found = code in content
+            parsed = {}
+            try:
+                parsed = json.loads(content)
+            except Exception:
+                parsed = {}
 
-Details:
-  Platform:          {plat}
-  Username:          @{username}
-  Source URL:        {target_url}
-  Content type:      {content_type}
-  Verification Code: {code}
+            account_match = False
+            canonical_id = ""
+            proof_strength = "WEAK"
+            confidence = 0
+            risk_band = "medium"
+            reason_code = "CODE_NOT_FOUND"
+            proof_status = "STALE" if recheck else "STALE"
 
-Source content (excerpt):
+            if platform == "github" and isinstance(parsed, dict):
+                login = str(parsed.get("login", "") or "").lower()
+                canonical_id = str(parsed.get("id", "") or "")
+                account_match = login == username_lc
+                proof_strength = "STRONG" if canonical_id else "MEDIUM"
+                if code_found and account_match:
+                    confidence = 92 if canonical_id else 82
+                    risk_band = "low"
+                    reason_code = "CODE_FOUND_ON_CANONICAL_PROFILE"
+                    proof_status = "ACTIVE"
+                elif code_found:
+                    confidence = 45
+                    risk_band = "high"
+                    reason_code = "CODE_FOUND_ACCOUNT_MISMATCH"
+                    proof_status = "CONFLICTED"
+
+            elif platform == "twitter":
+                html = str(parsed.get("html", "")) if isinstance(parsed, dict) else content
+                author_url = str(parsed.get("author_url", "") or "") if isinstance(parsed, dict) else ""
+                account_match = username_lc in author_url.lower() or f"/{username_lc}/status/" in target_url.lower()
+                proof_strength = "MEDIUM"
+                if code_found and account_match:
+                    confidence = 82
+                    risk_band = "low"
+                    reason_code = "CODE_FOUND_ON_CANONICAL_TWEET"
+                    proof_status = "ACTIVE"
+                elif code in html:
+                    confidence = 45
+                    risk_band = "high"
+                    reason_code = "CODE_FOUND_ACCOUNT_MISMATCH"
+                    proof_status = "CONFLICTED"
+
+            elif platform == "discord" and isinstance(parsed, dict):
+                canonical_id = str(parsed.get("discord_user_id", "") or parsed.get("discord_id", "") or "")
+                attestation_wallet = self._addr(parsed.get("wallet", ""))
+                attestation_code = str(parsed.get("verification_code", "") or "")
+                claimed_username = str(parsed.get("claimed_username", "") or "")
+                attestation_pending_id = str(parsed.get("pending_id", "") or "")
+                account_match = (
+                    attestation_wallet == caller
+                    and attestation_code == code
+                    and canonical_id
+                    and (canonical_id == username.rsplit("#", 1)[-1].strip() or claimed_username == username)
+                    and (not pending_id or attestation_pending_id == pending_id)
+                )
+                proof_strength = "STRONG" if canonical_id else "WEAK"
+                if code_found and account_match:
+                    confidence = 90
+                    risk_band = "low"
+                    reason_code = "OAUTH_ATTESTATION_CONFIRMED"
+                    proof_status = "ACTIVE"
+                elif code_found:
+                    confidence = 35
+                    risk_band = "high"
+                    reason_code = "OAUTH_ATTESTATION_CONFLICT"
+                    proof_status = "CONFLICTED"
+
+            prompt = f"""Return strict JSON only for this SoulStamp v2 identity proof verdict.
+Fields: code_found, account_match, platform, username, canonical_platform_id,
+proof_strength, risk_band, confidence_bucket, reason_code, proof_status, reasoning.
+
+Allowed proof_status: ACTIVE, STALE, CONFLICTED, REVOKED, FLAGGED.
+Allowed proof_strength: STRONG, MEDIUM, WEAK.
+Allowed risk_band: low, medium, high.
+
+Deterministic precheck:
+code_found={code_found}
+account_match={account_match}
+platform={platform}
+username={username}
+canonical_platform_id={canonical_id}
+proof_strength={proof_strength}
+risk_band={risk_band}
+confidence_bucket={confidence}
+reason_code={reason_code}
+proof_status={proof_status}
+
+Source excerpt:
 ---
 {content}
 ---
 
-Analyze the content and return a JSON object with EXACTLY these fields — no extra text:
-{{
-  "verification_code_found":  <true | false>,
-  "code_in_bio":              <true | false>,
-  "code_in_recent_post":      <true | false>,
-  "account_age_category":     <"new" | "moderate" | "established">,
-  "has_profile_picture":      <true | false>,
-  "has_bio_text":             <true | false>,
-  "post_activity_level":      <"none" | "low" | "moderate" | "high">,
-  "cross_platform_signals":   <true | false>,
-  "bot_indicators":           <array of strings describing specific bot-like patterns, or []>,
-  "is_likely_bot":            <true | false>,
-  "bot_confidence":           <integer 0-100; 0=human, 100=bot>,
-  "identity_confidence":      <integer 0-100; overall trustworthiness score>,
-  "reasoning":                <single sentence explaining the decision>
-}}
-
-Rules:
-- verification_code_found must be true ONLY if the exact string "{code}" appears in the source content.
-- For Twitter (oEmbed JSON), the code typically appears inside the `html` field of the response.
-- For Discord, the code must appear in a trusted SoulStamp backend attestation.
-- If the content is empty or inaccessible, set identity_confidence to 0 and verification_code_found to false.
-- bot_confidence and identity_confidence are independent scores.
-- Be concise in reasoning (one sentence max).
+Critical rule: do not set code_found true unless the exact code "{code}" is present.
+Critical rule: do not set proof_status ACTIVE unless code_found and account_match are true.
 """
-            return gl.nondet.exec_prompt(prompt, response_format="json")
+            ai = gl.nondet.exec_prompt(prompt, response_format="json")
+            verdict = self._coerce_verdict(ai, platform, username, code, content, proof_status)
+            if verdict["code_found"] != code_found:
+                raise gl.vm.UserError("GenLayer verdict contradicted exact code scan")
+            if verdict["account_match"] != account_match:
+                raise gl.vm.UserError("GenLayer verdict contradicted account match scan")
+            return verdict
 
         def validator_fn(leader_result) -> bool:
             if not isinstance(leader_result, gl.vm.Return):
@@ -728,177 +434,298 @@ Rules:
             leader_data = leader_result.calldata
             if not isinstance(leader_data, dict):
                 return False
-
-            # Re-run independently to get our own assessment
-            my_result = leader_fn()
-            if not isinstance(my_result, dict):
+            mine = leader_fn()
+            if not isinstance(mine, dict):
                 return False
-
-            # The binary verification decision must match exactly
-            if my_result.get("verification_code_found") != leader_data.get("verification_code_found"):
+            for field in ("code_found", "account_match", "platform", "username", "reason_code", "proof_status"):
+                if mine.get(field) != leader_data.get(field):
+                    return False
+            if mine.get("risk_band") not in RISK_BANDS or leader_data.get("risk_band") not in RISK_BANDS:
                 return False
-
-            # Numeric scores must be within a reasonable tolerance
-            bot_diff  = abs(int(my_result.get("bot_confidence", 0))  - int(leader_data.get("bot_confidence", 0)))
-            conf_diff = abs(int(my_result.get("identity_confidence", 0)) - int(leader_data.get("identity_confidence", 0)))
-
-            if bot_diff > 30 or conf_diff > 25:
-                return False
-
-            return True
+            diff = abs(int(mine.get("confidence_bucket", 0)) - int(leader_data.get("confidence_bucket", 0)))
+            return diff <= 15
 
         result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
-
-        # ── Process the AI result ─────────────────────────────────────────────
-
         if not isinstance(result, dict):
-            raise gl.vm.UserError("AI verification returned an unexpected format. Please try again.")
+            raise gl.vm.UserError("GenLayer proof verdict returned an unexpected format")
+        return self._coerce_verdict(result, platform, username, code, "", "STALE")
 
-        def result_bool(name, default=False):
-            value = result.get(name, default)
-            if isinstance(value, bool):
-                return value
-            if isinstance(value, str):
-                lowered = value.strip().lower()
-                if lowered in ("true", "yes", "1"):
-                    return True
-                if lowered in ("false", "no", "0", ""):
-                    return False
-            return default
+    def _find_account(self, identity: IdentityRecord, platform: str, username: str) -> int:
+        idx = 0
+        for acct in identity.linked_accounts:
+            if acct.platform == platform and acct.username.lower() == username.lower():
+                return idx
+            idx += 1
+        return -1
 
-        def result_int(name, default=0):
-            value = result.get(name, default)
-            try:
-                return int(value)
-            except Exception:
-                digits = "".join(ch for ch in str(value) if ch.isdigit())
-                return int(digits) if digits else default
+    def _append_audit(
+        self,
+        identity: IdentityRecord,
+        action: str,
+        platform: str,
+        username: str,
+        result: str,
+        confidence: int,
+        bot_score: int,
+        proof_status: str,
+        reason_code: str,
+    ) -> u32:
+        marker = self._mark()
+        identity.audit_log.append(AuditEntry(
+            action=action,
+            platform=platform,
+            username=username,
+            result=result,
+            confidence=u32(max(0, min(100, confidence))),
+            bot_score=u32(max(0, min(100, bot_score))),
+            timestamp=marker,
+            proof_status=proof_status,
+            reason_code=reason_code,
+        ))
+        return u32(len(identity.audit_log))
 
-        code_found   = result_bool("verification_code_found", False)
-        confidence   = max(0, min(100, result_int("identity_confidence", 0)))
-        bot_score    = max(0, min(100, result_int("bot_confidence", 0)))
-        is_likely_bot = result_bool("is_likely_bot", False)
-        reasoning    = str(result.get("reasoning", "No reasoning provided"))
-        bot_indicators = result.get("bot_indicators", [])
+    @gl.public.write
+    def request_verification(self, platform: str, username: str, profile_url: str) -> None:
+        caller = self._addr(gl.message.sender_address)
+        plat = self._normalize_platform(platform)
+        clean_user = username.strip()
+        clean_url = profile_url.strip()
 
-        if not code_found:
-            raise gl.vm.UserError(
-                f"Verification code not detected in your {plat} profile. "
-                f"Make sure '{code}' is publicly visible, then try again. "
-                f"Reason: {reasoning}"
-            )
-
-        # ── Create or update identity record ──────────────────────────────────
+        if plat not in SUPPORTED_PLATFORMS:
+            raise gl.vm.UserError(f"Unsupported platform '{plat}'. Supported: {SUPPORTED_PLATFORMS}")
+        if not clean_user or not clean_url:
+            raise gl.vm.UserError("username and profile_url must not be empty")
 
         identity = self.identities.get(caller)
-        is_new   = identity is None
+        if identity is not None:
+            active_count = 0
+            for acct in identity.linked_accounts:
+                if acct.proof_status != "REVOKED":
+                    active_count += 1
+                if acct.platform == plat and acct.username.lower() == clean_user.lower() and acct.proof_status != "REVOKED":
+                    raise gl.vm.UserError(f"Already verified @{clean_user} on {plat}")
+            if active_count >= MAX_ACCOUNTS_PER_ADDRESS:
+                raise gl.vm.UserError(f"Maximum {MAX_ACCOUNTS_PER_ADDRESS} linked accounts reached")
 
-        if is_new:
+        pkey = self._platform_key(plat, clean_user)
+        existing_owner = self.platform_to_address.get(pkey)
+        if existing_owner is not None and existing_owner != caller:
+            raise gl.vm.UserError(f"@{clean_user} on {plat} is already linked to another wallet address")
+
+        self.request_nonce = u32(int(self.request_nonce) + 1)
+        pending_id = self._make_pending_id(caller, plat, clean_user, self.request_nonce)
+        self.pending_verifications[caller] = PendingVerification(
+            platform=plat,
+            username=clean_user,
+            profile_url=clean_url,
+            verification_code=self._make_code(pending_id),
+            pending_id=pending_id,
+            request_nonce=self.request_nonce,
+        )
+
+    @gl.public.write
+    def complete_verification(self, fetch_url: str = "") -> None:
+        caller = self._addr(gl.message.sender_address)
+        pending = self.pending_verifications.get(caller)
+        if pending is None:
+            raise gl.vm.UserError("No pending verification. Call request_verification() first.")
+
+        target_url = self._target_url(pending.platform, pending.username, fetch_url)
+        verdict = self._evaluate_proof(
+            pending.platform,
+            pending.username,
+            pending.verification_code,
+            target_url,
+            caller,
+            pending.pending_id,
+            False,
+        )
+
+        if not verdict["code_found"]:
+            raise gl.vm.UserError(f"Verification code was not confirmed. Reason: {verdict['reason_code']}")
+        if not verdict["account_match"]:
+            raise gl.vm.UserError(f"Account ownership could not be confirmed. Reason: {verdict['reason_code']}")
+        if verdict["proof_status"] != "ACTIVE":
+            raise gl.vm.UserError(f"Proof is not active. Reason: {verdict['reason_code']}")
+
+        marker = self._mark()
+        identity = self.identities.get(caller)
+        if identity is None:
             identity = IdentityRecord(
                 owner=caller,
                 linked_accounts=[],
                 reputation_score=u32(0),
                 is_flagged=False,
                 flag_reason="",
-                created_at=u256(int(datetime.now(timezone.utc).timestamp())),
-                last_updated=u256(int(datetime.now(timezone.utc).timestamp())),
+                created_at=marker,
+                last_updated=marker,
                 verification_count=u32(0),
                 audit_log=[],
             )
             self.all_addresses.append(caller)
             self.total_identities = u32(int(self.total_identities) + 1)
 
+        audit_ref = self._append_audit(
+            identity,
+            "verification_completed",
+            pending.platform,
+            pending.username,
+            "approved",
+            int(verdict["confidence_bucket"]),
+            100 if verdict["risk_band"] == "high" else (50 if verdict["risk_band"] == "medium" else 10),
+            verdict["proof_status"],
+            verdict["reason_code"],
+        )
+
+        dossier = ProofDossier(
+            platform=pending.platform,
+            username=pending.username,
+            canonical_platform_id=verdict["canonical_platform_id"],
+            proof_url=target_url,
+            verification_code=pending.verification_code,
+            pending_id=pending.pending_id,
+            proof_strength=verdict["proof_strength"],
+            risk_band=verdict["risk_band"],
+            confidence_bucket=u32(int(verdict["confidence_bucket"])),
+            reason_code=verdict["reason_code"],
+            proof_status=verdict["proof_status"],
+            verification_method="genlayer-web-consensus",
+            verifier_version=VERIFIER_VERSION,
+            audit_ref=audit_ref,
+            verified_wallet=caller,
+            created_marker=marker,
+            updated_marker=marker,
+        )
+
         identity.linked_accounts.append(LinkedAccount(
-            platform=plat,
-            username=username,
-            profile_url=profile_url,
-            verified_at=u256(int(datetime.now(timezone.utc).timestamp())),
-            confidence_score=u32(confidence),
-            bot_score=u32(bot_score),
-            reasoning=reasoning,
+            platform=pending.platform,
+            username=pending.username,
+            profile_url=pending.profile_url,
+            verified_at=marker,
+            confidence_score=u32(int(verdict["confidence_bucket"])),
+            bot_score=u32(100 if verdict["risk_band"] == "high" else (50 if verdict["risk_band"] == "medium" else 10)),
+            reasoning=verdict["reasoning"],
             is_active=True,
+            proof_status=verdict["proof_status"],
+            proof_strength=verdict["proof_strength"],
+            risk_band=verdict["risk_band"],
+            canonical_platform_id=verdict["canonical_platform_id"],
+            verification_code=pending.verification_code,
+            pending_id=pending.pending_id,
+            proof_url=target_url,
+            reason_code=verdict["reason_code"],
+            last_checked_marker=marker,
+            dossier=dossier,
         ))
 
-        # Weighted rolling average for reputation
         prev_count = int(identity.verification_count)
         prev_score = int(identity.reputation_score)
-        new_score  = (prev_score * prev_count + confidence) // (prev_count + 1)
-        identity.reputation_score   = u32(new_score)
+        confidence = int(verdict["confidence_bucket"])
+        identity.reputation_score = u32((prev_score * prev_count + confidence) // (prev_count + 1))
         identity.verification_count = u32(prev_count + 1)
-        identity.last_updated       = u256(int(datetime.now(timezone.utc).timestamp()))
+        identity.last_updated = marker
+        self.identities[caller] = identity
+        self.platform_to_address[self._platform_key(pending.platform, pending.username)] = caller
 
-        # Auto-flag bots
-        if is_likely_bot or bot_score >= BOT_FLAG_THRESHOLD:
-            identity.is_flagged  = True
-            indicator_text = ", ".join(str(x) for x in bot_indicators) if bot_indicators else "none"
-            identity.flag_reason = (
-                f"Automated bot detection triggered (confidence {bot_score}%). "
-                f"Indicators: {indicator_text}"
-            )
+        if pending.platform == "discord" and fetch_url:
+            self.used_discord_attestations[fetch_url.split("/")[-1]] = True
 
-        # Audit log
-        identity.audit_log.append(AuditEntry(
-            action="verification_completed",
-            platform=plat,
-            username=username,
-            result="approved",
-            confidence=u32(confidence),
-            bot_score=u32(bot_score),
-            timestamp=u256(int(datetime.now(timezone.utc).timestamp())),
-        ))
-
-        # Persist
-        self.identities[caller]                              = identity
-        self.platform_to_address[self._platform_key(plat, username)] = caller
         del self.pending_verifications[caller]
         self.total_verifications = u32(int(self.total_verifications) + 1)
 
     @gl.public.write
-    def revoke_platform(self, platform: str, username: str) -> None:
-        """Admin: remove a verified social media link."""
+    def reverify_platform(self, platform: str, username: str, fetch_url: str = "") -> None:
         caller = self._addr(gl.message.sender_address)
-        if caller != self.admin:
-            raise gl.vm.UserError("Only the admin can revoke verified links")
-
-        plat   = self._normalize_platform(platform)
-        pkey   = self._platform_key(plat, username)
-        owner  = self.platform_to_address.get(pkey)
-
+        plat = self._normalize_platform(platform)
+        pkey = self._platform_key(plat, username)
+        owner = self.platform_to_address.get(pkey)
         if owner is None:
-            raise gl.vm.UserError(f"No verified link found for @{username} on {plat}")
+            raise gl.vm.UserError("No verified platform proof found")
+        if owner != caller and caller != self.admin:
+            raise gl.vm.UserError("Only the owner or admin can reverify this proof")
 
         identity = self.identities.get(owner)
         if identity is None:
-            raise gl.vm.UserError("Identity record for linked account owner was not found")
+            raise gl.vm.UserError("Identity record not found")
+        idx = self._find_account(identity, plat, username)
+        if idx < 0:
+            raise gl.vm.UserError("Linked account not found")
+        acct = identity.linked_accounts[idx]
+        if acct.proof_status in ("REVOKED", "FLAGGED"):
+            raise gl.vm.UserError("Revoked or flagged proofs cannot be reverified until restored")
 
-        found = False
-        for acct in identity.linked_accounts:
-            if acct.platform == plat and acct.username.lower() == username.lower() and acct.is_active:
-                acct.is_active = False
-                found = True
-                break
+        target_url = self._target_url(plat, acct.username, fetch_url or acct.proof_url)
+        verdict = self._evaluate_proof(plat, acct.username, acct.verification_code, target_url, owner, acct.pending_id, True)
+        new_status = verdict["proof_status"]
+        if not verdict["code_found"]:
+            new_status = "STALE"
+        elif not verdict["account_match"]:
+            new_status = "CONFLICTED"
 
-        if not found:
-            raise gl.vm.UserError(f"No active verified link for @{username} on {plat}")
+        marker = self._mark()
+        acct.proof_status = new_status
+        acct.proof_strength = verdict["proof_strength"]
+        acct.risk_band = verdict["risk_band"]
+        acct.confidence_score = u32(int(verdict["confidence_bucket"]))
+        acct.bot_score = u32(100 if verdict["risk_band"] == "high" else (50 if verdict["risk_band"] == "medium" else 10))
+        acct.reason_code = verdict["reason_code"]
+        acct.reasoning = verdict["reasoning"]
+        acct.last_checked_marker = marker
+        acct.dossier.proof_status = new_status
+        acct.dossier.proof_strength = verdict["proof_strength"]
+        acct.dossier.risk_band = verdict["risk_band"]
+        acct.dossier.confidence_bucket = u32(int(verdict["confidence_bucket"]))
+        acct.dossier.reason_code = verdict["reason_code"]
+        acct.dossier.updated_marker = marker
+        acct.dossier.proof_url = target_url
 
-        if self.platform_to_address.get(pkey) == owner:
-            del self.platform_to_address[pkey]
-
-        identity.audit_log.append(AuditEntry(
-            action="revoked",
-            platform=plat,
-            username=username,
-            result="revoked_by_admin",
-            confidence=u32(0),
-            bot_score=u32(0),
-            timestamp=u256(int(datetime.now(timezone.utc).timestamp())),
-        ))
-        identity.last_updated = u256(int(datetime.now(timezone.utc).timestamp()))
+        audit_ref = self._append_audit(
+            identity,
+            "proof_reverified",
+            plat,
+            acct.username,
+            new_status.lower(),
+            int(verdict["confidence_bucket"]),
+            int(acct.bot_score),
+            new_status,
+            verdict["reason_code"],
+        )
+        acct.dossier.audit_ref = audit_ref
+        identity.linked_accounts[idx] = acct
+        identity.last_updated = marker
         self.identities[owner] = identity
 
     @gl.public.write
+    def revoke_platform(self, platform: str, username: str) -> None:
+        caller = self._addr(gl.message.sender_address)
+        plat = self._normalize_platform(platform)
+        pkey = self._platform_key(plat, username)
+        owner = self.platform_to_address.get(pkey)
+        if owner is None:
+            raise gl.vm.UserError(f"No verified link found for @{username} on {plat}")
+        if caller != owner and caller != self.admin:
+            raise gl.vm.UserError("Only the owner or admin can revoke verified links")
+        identity = self.identities.get(owner)
+        idx = self._find_account(identity, plat, username)
+        if idx < 0:
+            raise gl.vm.UserError("Linked account not found")
+        marker = self._mark()
+        acct = identity.linked_accounts[idx]
+        acct.is_active = False
+        acct.proof_status = "REVOKED"
+        acct.reason_code = "REVOKED_BY_OWNER" if caller == owner else "REVOKED_BY_ADMIN"
+        acct.last_checked_marker = marker
+        acct.dossier.proof_status = "REVOKED"
+        acct.dossier.reason_code = acct.reason_code
+        acct.dossier.updated_marker = marker
+        identity.linked_accounts[idx] = acct
+        self._append_audit(identity, "revoked", plat, username, acct.reason_code, 0, 0, "REVOKED", acct.reason_code)
+        identity.last_updated = marker
+        self.identities[owner] = identity
+        del self.platform_to_address[pkey]
+
+    @gl.public.write
     def cancel_pending_verification(self) -> None:
-        """Cancel an in-progress verification request."""
         caller = self._addr(gl.message.sender_address)
         if self.pending_verifications.get(caller) is None:
             raise gl.vm.UserError("No pending verification to cancel")
@@ -906,174 +733,193 @@ Rules:
 
     @gl.public.write
     def flag_identity(self, target: str, reason: str) -> None:
-        """Admin: manually flag a suspicious identity."""
         if self._addr(gl.message.sender_address) != self.admin:
             raise gl.vm.UserError("Only the admin can flag identities")
         target = self._addr(target)
         identity = self.identities.get(target)
         if identity is None:
             raise gl.vm.UserError("Identity not found")
-        identity.is_flagged  = True
+        marker = self._mark()
+        identity.is_flagged = True
         identity.flag_reason = reason
-        identity.last_updated = u256(int(datetime.now(timezone.utc).timestamp()))
-        identity.audit_log.append(AuditEntry(
-            action="admin_flagged",
-            platform="",
-            username="",
-            result=reason,
-            confidence=u32(0),
-            bot_score=u32(0),
-            timestamp=u256(int(datetime.now(timezone.utc).timestamp())),
-        ))
+        for i in range(len(identity.linked_accounts)):
+            acct = identity.linked_accounts[i]
+            if acct.proof_status != "REVOKED":
+                acct.proof_status = "FLAGGED"
+                acct.reason_code = "ADMIN_FLAGGED"
+                acct.last_checked_marker = marker
+                acct.dossier.proof_status = "FLAGGED"
+                acct.dossier.reason_code = "ADMIN_FLAGGED"
+                acct.dossier.updated_marker = marker
+                identity.linked_accounts[i] = acct
+        self._append_audit(identity, "admin_flagged", "", "", reason, 0, 0, "FLAGGED", "ADMIN_FLAGGED")
+        identity.last_updated = marker
         self.identities[target] = identity
 
     @gl.public.write
     def unflag_identity(self, target: str) -> None:
-        """Admin: clear the flag on an identity."""
         if self._addr(gl.message.sender_address) != self.admin:
             raise gl.vm.UserError("Only the admin can unflag identities")
         target = self._addr(target)
         identity = self.identities.get(target)
         if identity is None:
             raise gl.vm.UserError("Identity not found")
-        identity.is_flagged  = False
+        marker = self._mark()
+        identity.is_flagged = False
         identity.flag_reason = ""
-        identity.last_updated = u256(int(datetime.now(timezone.utc).timestamp()))
-        identity.audit_log.append(AuditEntry(
-            action="admin_unflagged",
-            platform="",
-            username="",
-            result="cleared_by_admin",
-            confidence=u32(0),
-            bot_score=u32(0),
-            timestamp=u256(int(datetime.now(timezone.utc).timestamp())),
-        ))
+        self._append_audit(identity, "admin_unflagged", "", "", "cleared_by_admin", 0, 0, "ACTIVE", "ADMIN_UNFLAGGED")
+        identity.last_updated = marker
         self.identities[target] = identity
 
     @gl.public.write
     def set_discord_attestation_base_url(self, base_url: str) -> None:
-        """Admin: configure the trusted Discord attestation backend."""
         if self._addr(gl.message.sender_address) != self.admin:
             raise gl.vm.UserError("Only the admin can configure Discord attestations")
         clean = base_url.strip().rstrip("/")
         if not clean.startswith("https://") and not clean.startswith("http://"):
             raise gl.vm.UserError("Discord attestation backend must be an http(s) URL")
+        old = self.discord_attestation_base_url
         self.discord_attestation_base_url = clean
+        identity = self.identities.get(self.admin)
+        if identity is not None:
+            self._append_audit(identity, "discord_backend_rotated", "discord", "", f"{old}->{clean}", 0, 0, "ACTIVE", "DISCORD_BACKEND_ROTATED")
+            self.identities[self.admin] = identity
 
     @gl.public.write
     def transfer_admin(self, new_admin: str) -> None:
-        """Transfer admin privileges to another address."""
         if self._addr(gl.message.sender_address) != self.admin:
             raise gl.vm.UserError("Only the admin can transfer admin role")
-        self.admin = new_admin
-
-    # ── View Methods ──────────────────────────────────────────────────────────
+        self.admin = self._addr(new_admin)
 
     @gl.public.view
     def get_identity(self, address: str) -> dict:
-        """Full identity record for an address."""
         identity = self.identities.get(self._addr(address))
         if identity is None:
             return {"found": False}
-
         accounts = []
         for acct in identity.linked_accounts:
-            if acct.is_active:
-                accounts.append({
-                    "platform":         acct.platform,
-                    "username":         acct.username,
-                    "profile_url":      acct.profile_url,
-                    "verified_at":      int(acct.verified_at),
-                    "confidence_score": int(acct.confidence_score),
-                    "bot_score":        int(acct.bot_score),
-                    "reasoning":        acct.reasoning,
-                })
-
+            accounts.append({
+                "platform": acct.platform,
+                "username": acct.username,
+                "profile_url": acct.profile_url,
+                "verified_at": int(acct.verified_at),
+                "confidence_score": int(acct.confidence_score),
+                "bot_score": int(acct.bot_score),
+                "reasoning": acct.reasoning,
+                "is_active": acct.is_active,
+                "proof_status": acct.proof_status,
+                "proof_strength": acct.proof_strength,
+                "risk_band": acct.risk_band,
+                "canonical_platform_id": acct.canonical_platform_id,
+                "verification_code": acct.verification_code,
+                "pending_id": acct.pending_id,
+                "proof_url": acct.proof_url,
+                "reason_code": acct.reason_code,
+                "last_checked_marker": int(acct.last_checked_marker),
+                "dossier": {
+                    "platform": acct.dossier.platform,
+                    "username": acct.dossier.username,
+                    "canonical_platform_id": acct.dossier.canonical_platform_id,
+                    "proof_url": acct.dossier.proof_url,
+                    "verification_code": acct.dossier.verification_code,
+                    "pending_id": acct.dossier.pending_id,
+                    "proof_strength": acct.dossier.proof_strength,
+                    "risk_band": acct.dossier.risk_band,
+                    "confidence_bucket": int(acct.dossier.confidence_bucket),
+                    "reason_code": acct.dossier.reason_code,
+                    "proof_status": acct.dossier.proof_status,
+                    "verification_method": acct.dossier.verification_method,
+                    "verifier_version": acct.dossier.verifier_version,
+                    "audit_ref": int(acct.dossier.audit_ref),
+                    "verified_wallet": acct.dossier.verified_wallet,
+                    "created_marker": int(acct.dossier.created_marker),
+                    "updated_marker": int(acct.dossier.updated_marker),
+                },
+            })
         return {
-            "found":              True,
-            "owner":              identity.owner,
-            "linked_accounts":    accounts,
-            "reputation_score":   int(identity.reputation_score),
-            "is_flagged":         identity.is_flagged,
-            "flag_reason":        identity.flag_reason,
-            "created_at":         int(identity.created_at),
-            "last_updated":       int(identity.last_updated),
+            "found": True,
+            "owner": identity.owner,
+            "linked_accounts": accounts,
+            "reputation_score": int(identity.reputation_score),
+            "is_flagged": identity.is_flagged,
+            "flag_reason": identity.flag_reason,
+            "created_at": int(identity.created_at),
+            "last_updated": int(identity.last_updated),
             "verification_count": int(identity.verification_count),
         }
 
     @gl.public.view
     def get_pending_verification(self, address: str) -> dict:
-        """Returns the pending verification including the code the user must post."""
         pending = self.pending_verifications.get(self._addr(address))
         if pending is None:
             return {"found": False}
         return {
-            "found":             True,
-            "platform":          pending.platform,
-            "username":          pending.username,
-            "profile_url":       pending.profile_url,
+            "found": True,
+            "platform": pending.platform,
+            "username": pending.username,
+            "profile_url": pending.profile_url,
             "verification_code": pending.verification_code,
-            "requested_at":      int(pending.requested_at),
-            "expires_at":        int(pending.expires_at),
+            "pending_id": pending.pending_id,
+            "request_nonce": int(pending.request_nonce),
+            "requested_at": int(pending.request_nonce),
+            "expires_at": 0,
         }
 
     @gl.public.view
     def lookup_by_platform(self, platform: str, username: str) -> dict:
-        """Find which address owns a given platform account."""
-        plat  = self._normalize_platform(platform)
+        plat = self._normalize_platform(platform)
         owner = self.platform_to_address.get(self._platform_key(plat, username))
         if owner is None:
             return {"found": False}
         identity = self.identities.get(owner)
         if identity is None:
             return {"found": False}
+        idx = self._find_account(identity, plat, username)
+        status = identity.linked_accounts[idx].proof_status if idx >= 0 else ""
         return {
-            "found":              True,
-            "owner_address":      owner,
-            "reputation_score":   int(identity.reputation_score),
-            "is_flagged":         identity.is_flagged,
+            "found": True,
+            "owner_address": owner,
+            "reputation_score": int(identity.reputation_score),
+            "is_flagged": identity.is_flagged,
             "verification_count": int(identity.verification_count),
+            "proof_status": status,
         }
 
     @gl.public.view
     def is_platform_taken(self, platform: str, username: str) -> bool:
-        """Returns true if this social account is already linked to any wallet."""
-        plat = self._normalize_platform(platform)
-        return self.platform_to_address.get(self._platform_key(plat, username)) is not None
+        return self.platform_to_address.get(self._platform_key(self._normalize_platform(platform), username)) is not None
 
     @gl.public.view
     def get_audit_log(self, address: str) -> list:
-        """Full audit trail for a given address."""
         identity = self.identities.get(self._addr(address))
         if identity is None:
             return []
-        return [
-            {
-                "action":     e.action,
-                "platform":   e.platform,
-                "username":   e.username,
-                "result":     e.result,
-                "confidence": int(e.confidence),
-                "bot_score":  int(e.bot_score),
-                "timestamp":  int(e.timestamp),
-            }
-            for e in identity.audit_log
-        ]
+        return [{
+            "action": e.action,
+            "platform": e.platform,
+            "username": e.username,
+            "result": e.result,
+            "confidence": int(e.confidence),
+            "bot_score": int(e.bot_score),
+            "timestamp": int(e.timestamp),
+            "proof_status": e.proof_status,
+            "reason_code": e.reason_code,
+        } for e in identity.audit_log]
 
     @gl.public.view
     def get_all_addresses(self, offset: u32, limit: u32) -> list:
-        """Paginated list of all registered addresses (for admin/directory use)."""
         start = int(offset)
-        end   = min(start + int(limit), len(self.all_addresses))
+        end = min(start + int(limit), len(self.all_addresses))
         return [self.all_addresses[i] for i in range(start, end)]
 
     @gl.public.view
     def get_stats(self) -> dict:
-        """Platform-wide statistics."""
         return {
             "total_verifications": int(self.total_verifications),
-            "total_identities":    int(self.total_identities),
-            "admin":               self.admin,
+            "total_identities": int(self.total_identities),
+            "admin": self.admin,
             "supported_platforms": SUPPORTED_PLATFORMS,
+            "proof_statuses": PROOF_STATUSES,
+            "verifier_version": VERIFIER_VERSION,
             "discord_attestation_base_url": self.discord_attestation_base_url,
         }

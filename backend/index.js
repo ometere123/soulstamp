@@ -258,6 +258,7 @@ async function handleAttest(request, env) {
   const wallet = String(body.wallet || "").toLowerCase();
   const verificationCode = String(body.verification_code || "").trim();
   const claimedUsername = String(body.claimed_username || "").trim();
+  const pendingId = String(body.pending_id || "").trim();
   const claimedParts = claimedUsername.split("#");
   const claimedId = claimedParts[claimedParts.length - 1];
 
@@ -270,6 +271,9 @@ async function handleAttest(request, env) {
   if (!/^SOULSTAMP-VERIFY-[A-F0-9]{12}$/i.test(verificationCode)) {
     return json({ error: "Invalid SoulStamp verification code." }, 400, env);
   }
+  if (!/^[A-F0-9]{24}$/i.test(pendingId)) {
+    return json({ error: "Invalid SoulStamp pending proof ID." }, 400, env);
+  }
   if (claimedId !== session.user.id) {
     return json({ error: "Claimed Discord user does not match the OAuth account." }, 400, env);
   }
@@ -279,8 +283,12 @@ async function handleAttest(request, env) {
   const attestation = {
     platform: "discord",
     method: "discord_oauth_identify",
+    issuer: publicBaseUrl(env),
+    pending_id: pendingId,
+    nonce: crypto.randomUUID(),
     wallet,
     verification_code: verificationCode,
+    discord_user_id: session.user.id,
     discord_id: session.user.id,
     username: session.user.username || "",
     global_name: session.user.global_name || "",
@@ -300,6 +308,7 @@ async function handleAttest(request, env) {
     attestation,
     exp: attestation.expires_at + 3600,
   }, env);
+  attestation.attestation_token_hint = attestationToken.slice(-16);
 
   return json({
     attestation_url: `${publicBaseUrl(env)}/api/discord/attestations/${attestationToken}`,

@@ -249,6 +249,14 @@ export async function completeVerification(fetchUrl: string = ""): Promise<void>
   await writeAndWait("complete_verification", [fetchUrl]);
 }
 
+export async function reverifyPlatform(
+  platform: string,
+  username: string,
+  fetchUrl: string = ""
+): Promise<void> {
+  await writeAndWait("reverify_platform", [platform, username, fetchUrl]);
+}
+
 export async function cancelPendingVerification(): Promise<void> {
   await writeAndWait("cancel_pending_verification", []);
 }

@@ -5,8 +5,8 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { useWallet } from "../lib/useWallet";
-import { getIdentity } from "../lib/contract";
-import type { IdentityRecord, LinkedAccount } from "../types";
+import { getIdentity, reverifyPlatform } from "../lib/contract";
+import type { IdentityRecord, LinkedAccount, ProofStatus } from "../types";
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   github:  <Github className="w-5 h-5" />,
@@ -40,8 +40,40 @@ function ScoreMeter({ value, label }: { value: number; label: string }) {
   );
 }
 
-function AccountCard({ account }: { account: LinkedAccount }) {
-  const date = new Date(account.verified_at * 1000).toLocaleDateString();
+const STATUS_STYLES: Record<ProofStatus, string> = {
+  ACTIVE: "bg-success/10 text-success border-success/30",
+  STALE: "bg-yellow-400/10 text-yellow-300 border-yellow-400/30",
+  REVOKED: "bg-gray-700 text-gray-300 border-gray-600",
+  CONFLICTED: "bg-red-950 text-red-300 border-red-700",
+  FLAGGED: "bg-red-950 text-red-300 border-red-700",
+};
+
+function ProofHealthBadge({ status }: { status?: ProofStatus }) {
+  const health = status ?? "ACTIVE";
+  return (
+    <span className={clsx("px-2 py-0.5 rounded-full text-[11px] font-semibold border", STATUS_STYLES[health])}>
+      {health}
+    </span>
+  );
+}
+
+function AccountCard({ account, onReverified }: { account: LinkedAccount; onReverified: () => void }) {
+  const [rechecking, setRechecking] = useState(false);
+  const [fetchUrl, setFetchUrl] = useState("");
+
+  async function handleReverify() {
+    setRechecking(true);
+    try {
+      await reverifyPlatform(account.platform, account.username, fetchUrl.trim());
+      setFetchUrl("");
+      onReverified();
+    } finally {
+      setRechecking(false);
+    }
+  }
+
+  const dossier = account.dossier;
+  const badgeText = `SoulStamp proof: ${account.platform}/${account.username} ${account.proof_status ?? "ACTIVE"} ${account.proof_strength ?? "MEDIUM"}`;
 
   return (
     <div className={clsx("rounded-xl p-4 border border-gray-700/50 flex flex-col gap-3", PLATFORM_COLORS[account.platform] ?? "bg-gray-800")}>
@@ -60,11 +92,27 @@ function AccountCard({ account }: { account: LinkedAccount }) {
             <span className="text-xs text-gray-400 capitalize">{account.platform}</span>
           </div>
         </div>
+        <ProofHealthBadge status={account.proof_status} />
       </div>
 
       <div className="space-y-2">
         <ScoreMeter value={account.confidence_score} label="Identity confidence" />
-        <ScoreMeter value={100 - account.bot_score} label="Human score" />
+        <ScoreMeter value={100 - account.bot_score} label="Proof safety" />
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="bg-gray-950/30 rounded-lg p-2">
+          <span className="block text-gray-500">Strength</span>
+          <span className="font-semibold">{account.proof_strength ?? "MEDIUM"}</span>
+        </div>
+        <div className="bg-gray-950/30 rounded-lg p-2">
+          <span className="block text-gray-500">Risk</span>
+          <span className="font-semibold capitalize">{account.risk_band ?? "low"}</span>
+        </div>
+        <div className="bg-gray-950/30 rounded-lg p-2">
+          <span className="block text-gray-500">Check</span>
+          <span className="font-semibold">#{account.last_checked_marker ?? account.verified_at}</span>
+        </div>
       </div>
 
       {account.reasoning && (
@@ -73,9 +121,37 @@ function AccountCard({ account }: { account: LinkedAccount }) {
         </p>
       )}
 
-      <div className="flex items-center gap-1 text-xs text-gray-500">
-        <Clock className="w-3 h-3" />
-        <span>Verified {date}</span>
+      {dossier && (
+        <div className="text-xs text-gray-400 border-t border-gray-700/50 pt-2 space-y-1">
+          <div>Reason: <span className="font-mono text-gray-300">{dossier.reason_code}</span></div>
+          {dossier.canonical_platform_id && (
+            <div>Canonical ID: <span className="font-mono text-gray-300">{dossier.canonical_platform_id}</span></div>
+          )}
+          <div>Verifier: <span className="font-mono text-gray-300">{dossier.verifier_version}</span></div>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <input
+          value={fetchUrl}
+          onChange={e => setFetchUrl(e.target.value)}
+          placeholder={account.platform === "twitter" ? "Tweet URL for recheck" : "Optional proof URL"}
+          className="input text-xs flex-1"
+        />
+        <button onClick={handleReverify} disabled={rechecking} className="btn-secondary text-xs shrink-0">
+          {rechecking ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+          Recheck
+        </button>
+      </div>
+
+      <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
+        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Proof marker #{account.verified_at}</span>
+        <button
+          className="text-brand-300 hover:text-brand-200"
+          onClick={() => navigator.clipboard?.writeText(badgeText)}
+        >
+          Copy badge
+        </button>
       </div>
     </div>
   );
@@ -176,7 +252,7 @@ export function Dashboard({ onStartVerify }: DashboardProps) {
             { label: "Reputation",     value: identity.reputation_score, icon: <Star className="w-4 h-4 text-yellow-400" /> },
             { label: "Accounts",       value: accounts.length,            icon: <Shield className="w-4 h-4 text-brand-400" /> },
             { label: "Verifications",  value: identity.verification_count, icon: <Shield className="w-4 h-4 text-success" /> },
-            { label: "Since",          value: new Date(identity.created_at * 1000).toLocaleDateString(), icon: <Clock className="w-4 h-4 text-gray-400" /> },
+            { label: "Proof checks",   value: identity.last_updated,       icon: <Clock className="w-4 h-4 text-gray-400" /> },
           ].map(stat => (
             <div key={stat.label} className="bg-gray-800 rounded-xl p-4">
               <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
@@ -208,6 +284,7 @@ export function Dashboard({ onStartVerify }: DashboardProps) {
               <AccountCard
                 key={`${acct.platform}:${acct.username}`}
                 account={acct}
+                onReverified={load}
               />
             ))}
           </div>

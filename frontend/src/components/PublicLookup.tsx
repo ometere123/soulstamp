@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Search, Github, Twitter, MessageCircle, Shield, ShieldAlert, Loader2, AlertCircle } from "lucide-react";
 import clsx from "clsx";
 import { getIdentity, lookupByPlatform } from "../lib/contract";
-import type { IdentityRecord, PlatformLookupResult, Platform } from "../types";
+import type { IdentityRecord, PlatformLookupResult, Platform, ProofStatus } from "../types";
 
 type SearchMode = "address" | "platform";
 
@@ -30,6 +30,23 @@ function ReputationBadge({ score }: { score: number }) {
   return (
     <span className={clsx("px-2 py-0.5 rounded-full text-xs font-medium border", color)}>
       {label} ({score})
+    </span>
+  );
+}
+
+const STATUS_STYLES: Record<ProofStatus, string> = {
+  ACTIVE: "text-success border-success/30 bg-success/10",
+  STALE: "text-yellow-300 border-yellow-400/30 bg-yellow-400/10",
+  REVOKED: "text-gray-300 border-gray-600 bg-gray-700",
+  CONFLICTED: "text-red-300 border-red-700 bg-red-950",
+  FLAGGED: "text-red-300 border-red-700 bg-red-950",
+};
+
+function ProofStatusBadge({ status }: { status?: ProofStatus }) {
+  const health = status ?? "ACTIVE";
+  return (
+    <span className={clsx("px-2 py-0.5 rounded-full text-xs font-semibold border", STATUS_STYLES[health])}>
+      {health}
     </span>
   );
 }
@@ -80,7 +97,7 @@ export function PublicLookup() {
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
         <h2 className="text-2xl font-bold mb-1">Public Identity Lookup</h2>
-        <p className="text-gray-400 text-sm">Search any wallet address or social media account to view its on-chain identity.</p>
+        <p className="text-gray-400 text-sm">Search any wallet address or social media account to view its GenLayer-maintained proof health.</p>
       </div>
 
       {/* Mode toggle */}
@@ -180,7 +197,7 @@ export function PublicLookup() {
                     </span>
                   ) : (
                     <span className="flex items-center gap-1 bg-success/10 text-success text-xs px-2 py-0.5 rounded-full">
-                      <Shield className="w-3 h-3" /> Verified
+                      <Shield className="w-3 h-3" /> Proof tracked
                     </span>
                   )}
                 </div>
@@ -194,7 +211,7 @@ export function PublicLookup() {
           <div className="grid grid-cols-3 divide-x divide-gray-800 border-b border-gray-700">
             {[
               { label: "Reputation",    value: identityResult.reputation_score },
-              { label: "Linked",        value: `${identityResult.linked_accounts.length} accounts` },
+              { label: "Healthy",       value: `${identityResult.linked_accounts.filter(a => (a.proof_status ?? "ACTIVE") === "ACTIVE").length} active` },
               { label: "Verifications", value: identityResult.verification_count },
             ].map(s => (
               <div key={s.label} className="p-4 text-center">
@@ -212,7 +229,7 @@ export function PublicLookup() {
                 key={`${acct.platform}:${acct.username}`}
                 className="flex items-center justify-between gap-3 bg-gray-800/50 rounded-xl px-4 py-3"
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <PlatformIcon platform={acct.platform} />
                   <a
                     href={acct.profile_url}
@@ -225,7 +242,9 @@ export function PublicLookup() {
                   <span className="text-xs text-gray-500 capitalize hidden sm:inline">{acct.platform}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400">Confidence</span>
+                  <ProofStatusBadge status={acct.proof_status} />
+                  <span className="text-xs text-gray-400 hidden sm:inline">{acct.proof_strength ?? "MEDIUM"}</span>
+                  <span className="text-xs text-gray-400 hidden sm:inline">Risk {acct.risk_band ?? "low"}</span>
                   <span className={clsx(
                     "text-xs font-mono font-medium",
                     acct.confidence_score >= 75 ? "text-success" :
@@ -234,6 +253,14 @@ export function PublicLookup() {
                     {acct.confidence_score}%
                   </span>
                 </div>
+                {acct.dossier && (
+                  <div className="col-span-2 text-[11px] text-gray-500">
+                    Reason <span className="font-mono text-gray-300">{acct.dossier.reason_code}</span>
+                    {acct.dossier.canonical_platform_id && (
+                      <> · Canonical ID <span className="font-mono text-gray-300">{acct.dossier.canonical_platform_id}</span></>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
