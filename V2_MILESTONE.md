@@ -97,7 +97,6 @@ manual frontend/Discord verification flow: passed after Worker redeploy
 manual read/write wiring: verified against Studionet with a signed transaction test
 ```
 
-Known limitation: the GenLayer CLI was not available on the machine during part of the work, so not every GenLayer CLI test could be rerun locally at that moment. Frontend/backend checks and manual deployed flow testing were completed.
 
 ## Deployed Configuration
 
