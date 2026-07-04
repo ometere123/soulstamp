@@ -151,6 +151,10 @@ export function VerificationFlow() {
   }
 
   async function handleRequest() {
+    if (!address) {
+      setError("Connect your wallet before requesting a verification proof.");
+      return;
+    }
     if (platform === "discord" && !discordSession) {
       startDiscordOAuth();
       return;

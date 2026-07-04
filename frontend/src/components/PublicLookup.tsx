@@ -227,21 +227,21 @@ export function PublicLookup() {
             {identityResult.linked_accounts.map(acct => (
               <div
                 key={`${acct.platform}:${acct.username}`}
-                className="flex items-center justify-between gap-3 bg-gray-800/50 rounded-xl px-4 py-3"
+                className="grid gap-2 bg-gray-800/50 rounded-xl px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto]"
               >
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
                   <PlatformIcon platform={acct.platform} />
                   <a
                     href={acct.profile_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm font-medium hover:underline"
+                    className="text-sm font-medium hover:underline truncate max-w-full"
                   >
                     @{acct.username}
                   </a>
                   <span className="text-xs text-gray-500 capitalize hidden sm:inline">{acct.platform}</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap sm:justify-end">
                   <ProofStatusBadge status={acct.proof_status} />
                   <span className="text-xs text-gray-400 hidden sm:inline">{acct.proof_strength ?? "MEDIUM"}</span>
                   <span className="text-xs text-gray-400 hidden sm:inline">Risk {acct.risk_band ?? "low"}</span>
@@ -254,7 +254,7 @@ export function PublicLookup() {
                   </span>
                 </div>
                 {acct.dossier && (
-                  <div className="col-span-2 text-[11px] text-gray-500">
+                  <div className="text-[11px] text-gray-500 sm:col-span-2">
                     Reason <span className="font-mono text-gray-300">{acct.dossier.reason_code}</span>
                     {acct.dossier.canonical_platform_id && (
                       <> · Canonical ID <span className="font-mono text-gray-300">{acct.dossier.canonical_platform_id}</span></>

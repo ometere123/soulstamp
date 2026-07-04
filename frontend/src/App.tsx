@@ -13,7 +13,9 @@ import { getStats } from "./lib/contract";
 
 function AppInner() {
   const { address } = useWallet();
-  const [tab, setTab] = useState("dashboard");
+  const hasDiscordCallback = typeof window !== "undefined"
+    && (window.location.search.includes("discord_session=") || window.location.search.includes("discord_error="));
+  const [tab, setTab] = useState(hasDiscordCallback ? "verify" : "dashboard");
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {

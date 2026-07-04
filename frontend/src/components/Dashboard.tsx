@@ -110,7 +110,7 @@ function AccountCard({ account, onReverified }: { account: LinkedAccount; onReve
           <span className="font-semibold capitalize">{account.risk_band ?? "low"}</span>
         </div>
         <div className="bg-gray-950/30 rounded-lg p-2">
-          <span className="block text-gray-500">Check</span>
+          <span className="block text-gray-500">Last check</span>
           <span className="font-semibold">#{account.last_checked_marker ?? account.verified_at}</span>
         </div>
       </div>
@@ -145,7 +145,7 @@ function AccountCard({ account, onReverified }: { account: LinkedAccount; onReve
       </div>
 
       <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
-        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Proof marker #{account.verified_at}</span>
+        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Created marker #{account.verified_at}</span>
         <button
           className="text-brand-300 hover:text-brand-200"
           onClick={() => navigator.clipboard?.writeText(badgeText)}
