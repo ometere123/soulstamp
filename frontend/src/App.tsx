@@ -39,7 +39,7 @@ function AppInner() {
       <Header activeTab={tab} onTabChange={setTab} isAdmin={isAdmin} />
 
       <main className="max-w-7xl mx-auto px-4 py-10 flex-1 w-full">
-        {!address ? (
+        {!address && tab !== "verify" ? (
           <LandingPage />
         ) : (
           <>
