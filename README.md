@@ -1,240 +1,201 @@
 # SoulStamp
 
-**On-Chain Identity Verification Platform** powered by GenLayer Intelligent Contracts.
+**SoulStamp v2 is a GenLayer-powered identity proof health protocol.** It links wallets to public GitHub, X/Twitter, and Discord identities, then uses GenLayer consensus to verify and re-check whether each public proof remains healthy over time.
 
-Users verify their real-world social media identity by posting a system-generated code on their profile. GenLayer LLMs autonomously fetch and validate the post — no oracles, no manual review — then cryptographically link the verified identity to their wallet address.
+The main v2 upgrade is not storage. It is **Proof Health + Reverification**: GenLayer acts as an ongoing identity proof judge and marks linked accounts as `ACTIVE`, `STALE`, `REVOKED`, `CONFLICTED`, or `FLAGGED` based on live public evidence and structured validator agreement.
 
 ---
 
-## Features
+## Live Deployment
 
-| Feature | Description |
+| Service | URL |
 |---|---|
-| Social media linking | GitHub, Twitter/X, and Discord |
-| Unique verification codes | Timestamped, address-scoped per request |
-| AI-powered validation | GenLayer validators fetch public proofs or Discord attestations |
-| On-chain identity registry | Immutable, tamper-resistant linked accounts |
-| Sybil resistance | One social account → one wallet, enforced on-chain |
-| Bot detection | LLM scores bot probability; auto-flags suspicious accounts |
-| Reputation scoring | Weighted rolling average across all verified accounts |
-| Revocation | Admin-only moderation revoke |
-| Verification expiry | Codes expire after 7 days |
-| Admin moderation | Flag / unflag identities with audit trail |
-| Public directory | Look up any address or social account |
-| Full audit trail | Every action is logged on-chain |
-| Developer API | All state is queryable via GenLayerJS |
+| Frontend | https://soulstamp-gen.vercel.app |
+| Discord Worker | https://soulstamp-discord.delealufejoel.workers.dev |
+| Repository | https://github.com/ometere123/soulstamp |
+
+Current Studionet contract address used by the frontend:
+
+```text
+0xe1FC3B19791D38bdabe058C8c2be1C915a3319e0
+```
+
+---
+
+## What Changed In v2
+
+| Area | v2 improvement |
+|---|---|
+| Contract hardening | Removed unsafe wall-clock-dependent verification logic and replaced verification codes with deterministic pending proof IDs/codes. |
+| GenLayer verdicts | Verification now uses strict structured verdict fields instead of open-ended LLM text deciding state. |
+| Proof Health | Every linked account has a health status: `ACTIVE`, `STALE`, `REVOKED`, `CONFLICTED`, or `FLAGGED`. |
+| Reverification | Existing proofs can be rechecked against live public evidence without deleting the old proof. |
+| Proof dossiers | Successful proofs store supporting evidence such as source URL, method, strength, risk band, confidence bucket, reason code, canonical ID, and wallet. |
+| Source restrictions | GitHub, X/Twitter, and Discord proofs must come from expected source domains instead of arbitrary URLs. |
+| Discord attestation | Discord verification uses an OAuth-backed Cloudflare Worker attestation with wallet binding, pending proof ID, verification code, Discord ID, expiry, issuer, and nonce. |
+| Canonical IDs | GitHub numeric IDs and Discord user IDs are stored where available, with proof strength based on stable identity evidence. |
+| Frontend | UI now highlights proof health, proof strength, risk band, dossiers, reverification, public lookup, audit timeline, and wallet persistence. |
+| Backend | Discord OAuth moved to a stateless Cloudflare Worker that issues short-lived signed attestations for GenLayer to fetch. |
+
+See [V2_MILESTONE.md](./V2_MILESTONE.md) for the milestone summary.
 
 ---
 
 ## Verification Flow
 
-```
+```text
 1. request_verification(platform, username, profile_url)
-       │
-       └─► Generates unique code: SOULSTAMP-VERIFY-XXXXXXXXXX
-           Stored on-chain with 7-day expiry
+       |
+       +-> Creates a deterministic pending proof ID and public verification code.
 
-2. User posts the code publicly on their profile, or connects Discord through OAuth
+2. User publishes the code publicly, or connects Discord through OAuth.
 
-3. complete_verification()
-       │
-       ├─► GenLayer fetches GitHub API, Twitter oEmbed, or Discord attestation JSON
-       ├─► Validates the exact code is present
-       ├─► Scores identity confidence & bot probability
-       ├─► All validators independently re-run (Optimistic Democracy)
-       └─► If consensus reached: linked account recorded on-chain
+3. complete_verification(fetch_url)
+       |
+       +-> GenLayer fetches the allowed public source or Discord attestation.
+       +-> Validators produce strict structured JSON verdicts.
+       +-> Critical fields are compared by consensus.
+       +-> If valid, the account is stored with proof status ACTIVE and a proof dossier.
+
+4. reverify_platform(platform, username, fetch_url)
+       |
+       +-> GenLayer re-checks live proof evidence.
+       +-> Proof health is updated to ACTIVE, STALE, CONFLICTED, REVOKED, or FLAGGED.
+       +-> A new audit entry is recorded.
 ```
 
 ---
 
-## AI Evaluation
+## Structured GenLayer Verdict
 
-The LLM analysis returns structured JSON covering:
+GenLayer verification produces structured fields such as:
 
-- `verification_code_found` — exact string match required
-- `account_age_category` — new / moderate / established
-- `post_activity_level` — none / low / moderate / high
-- `bot_indicators` — specific patterns detected
-- `bot_confidence` — 0 (human) to 100 (bot)
-- `identity_confidence` — overall trustworthiness 0–100
-- `reasoning` — one-sentence verdict
-
-Validators must agree on the binary `verification_code_found` result, and numeric scores must be within ±25 to reach consensus.
-
----
-
-## Project Structure
-
-```
-SoulStamp/
-├── contracts/
-│   └── soul_stamp.py          # GenLayer Intelligent Contract (Python)
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── Header.tsx
-│   │   │   ├── Dashboard.tsx
-│   │   │   ├── VerificationFlow.tsx
-│   │   │   ├── PublicLookup.tsx
-│   │   │   ├── AuditTrail.tsx
-│   │   │   └── AdminPanel.tsx
-│   │   ├── lib/
-│   │   │   ├── client.ts      # GenLayerJS client & wallet
-│   │   │   └── contract.ts    # Contract read/write helpers
-│   │   ├── types/
-│   │   │   └── index.ts
-│   │   ├── App.tsx
-│   │   └── main.tsx
-│   ├── index.html
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── .env.example
-├── tests/
-│   └── test_soul_stamp.py     # pytest test suite
-└── README.md
+```json
+{
+  "code_found": true,
+  "account_match": true,
+  "platform": "github",
+  "username": "example",
+  "canonical_platform_id": "optional-id-if-available",
+  "proof_strength": "strong",
+  "risk_band": "low",
+  "confidence_bucket": 90,
+  "reason_code": "CODE_FOUND_ON_CANONICAL_PROFILE",
+  "proof_status": "ACTIVE"
+}
 ```
 
----
-
-## Getting Started
-
-### Prerequisites
-
-```bash
-npm install -g genlayer
-```
-
-### 1. Start local GenLayer node
-
-```bash
-genlayer up
-```
-
-### 2. Deploy the contract
-
-```bash
-genlayer deploy contracts/soul_stamp.py
-# Copy the contract address output
-```
-
-### 3. Configure the frontend
-
-```bash
-cd frontend
-cp .env.example .env
-# Edit .env: set VITE_CONTRACT_ADDRESS to the deployed address
-```
-
-### 4. Install and run
-
-```bash
-npm install
-npm run dev
-```
-
-### 5. Deploy Discord backend on Cloudflare Workers
-
-Discord verification needs a Discord application and a public Cloudflare Worker URL reachable by GenLayer validators. The contract does not need to change.
-
-The backend is stateless: it signs short-lived Discord session and attestation tokens instead of using a database.
-
-Install backend dependencies:
-
-```bash
-cd backend
-npm install
-```
-
-Update `backend/wrangler.toml`:
-
-```toml
-[vars]
-FRONTEND_ORIGIN = "https://your-vercel-frontend.vercel.app"
-PUBLIC_BASE_URL = "https://soulstamp-discord.your-cloudflare-subdomain.workers.dev"
-DISCORD_CLIENT_ID = "your-discord-client-id"
-DISCORD_REDIRECT_URI = "https://soulstamp-discord.your-cloudflare-subdomain.workers.dev/api/discord/callback"
-```
-
-Store secrets in Cloudflare:
-
-```bash
-npx wrangler secret put BACKEND_SESSION_SECRET
-npx wrangler secret put DISCORD_CLIENT_SECRET
-```
-
-Deploy the Worker:
-
-```bash
-npm run deploy
-```
-
-Vercel frontend environment variables:
-
-```bash
-VITE_CONTRACT_ADDRESS=0x80e1EDb6996483E7050bb81B4D1a54dD69879719
-VITE_DISCORD_BACKEND_URL=https://soulstamp-discord.your-cloudflare-subdomain.workers.dev
-```
-
-In Discord Developer Portal, add this exact redirect URI:
-
-```text
-https://soulstamp-discord.your-cloudflare-subdomain.workers.dev/api/discord/callback
-```
-
-In the SoulStamp Admin panel, set Discord attestation backend to:
-
-```text
-https://soulstamp-discord.your-cloudflare-subdomain.workers.dev
-```
-
-### 6. Run tests
-
-```bash
-genlayer test tests/
-```
-
----
-
-## Contract API Reference
-
-### Write Methods
-
-| Method | Args | Description |
-|---|---|---|
-| `request_verification` | `platform, username, profile_url` | Step 1: generates verification code |
-| `complete_verification` | `fetch_url` | Step 2: fetches proof source, validates, records |
-| `cancel_pending_verification` | — | Cancel an in-progress request |
-| `revoke_platform` | `platform, username` | Remove a verified account link |
-| `flag_identity` | `target, reason` | Admin: flag suspicious identity |
-| `unflag_identity` | `target` | Admin: clear flag |
-| `set_discord_attestation_base_url` | `base_url` | Admin: trusted Discord backend URL |
-| `transfer_admin` | `new_admin` | Transfer admin role |
-
-### View Methods
-
-| Method | Args | Returns |
-|---|---|---|
-| `get_identity` | `address` | Full identity record |
-| `get_pending_verification` | `address` | Pending code to post |
-| `lookup_by_platform` | `platform, username` | Which address owns this account |
-| `is_platform_taken` | `platform, username` | Sybil check |
-| `get_audit_log` | `address` | Full action history |
-| `get_all_addresses` | `offset, limit` | Paginated address registry |
-| `get_stats` | — | Platform-wide statistics |
+Critical fields are validated strictly. Confidence uses bounded tolerance, and risk/proof values must be from allowed sets.
 
 ---
 
 ## Supported Platforms
 
-- **GitHub** — code detected in public user API bio
-- **Twitter / X** — code detected from a public tweet through Twitter oEmbed
-- **Discord** — OAuth identity attested by the SoulStamp Discord backend
+- **GitHub**: code detected from the expected GitHub public source, with numeric GitHub ID stored when available.
+- **X / Twitter**: code detected from the expected X/Twitter public source.
+- **Discord**: OAuth-backed trusted attestation fetched by GenLayer from the configured Cloudflare Worker.
+
+Discord is not presented as fully trustless cryptographic identity. It is an OAuth-backed attestation that GenLayer validators independently fetch and evaluate.
+
+---
+
+## Project Structure
+
+```text
+SoulStamp/
+├── contracts/
+│   └── soul_stamp.py
+├── backend/
+│   ├── index.js
+│   ├── package.json
+│   └── wrangler.toml
+├── frontend/
+│   └── src/
+├── tests/
+│   └── test_soul_stamp.py
+├── README.md
+└── V2_MILESTONE.md
+```
+
+---
+
+## Local Setup
+
+### Contract
+
+```bash
+genlayer up
+genlayer deploy contracts/soul_stamp.py
+genlayer test tests/
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+npm run dev
+npm run build
+```
+
+### Discord Worker
+
+```bash
+cd backend
+npm install
+npm run check
+npm run deploy
+```
+
+Required Worker variables/secrets:
+
+```text
+PUBLIC_BASE_URL=https://soulstamp-discord.your-subdomain.workers.dev
+FRONTEND_ORIGIN=https://your-frontend.vercel.app
+DISCORD_CLIENT_ID=your-discord-client-id
+DISCORD_REDIRECT_URI=https://soulstamp-discord.your-subdomain.workers.dev/api/discord/callback
+BACKEND_SESSION_SECRET=stored as Cloudflare secret
+DISCORD_CLIENT_SECRET=stored as Cloudflare secret
+```
+
+The same callback URL must be registered in the Discord Developer Portal.
+
+---
+
+## Contract API Overview
+
+### Write Methods
+
+| Method | Purpose |
+|---|---|
+| `request_verification` | Start a platform proof and create deterministic pending proof data. |
+| `complete_verification` | Use GenLayer consensus to validate a public proof or Discord attestation. |
+| `reverify_platform` | Re-check an already linked proof and update health. |
+| `cancel_pending_verification` | Cancel the current pending proof. |
+| `revoke_platform` | Revoke an existing linked proof. |
+| `flag_identity` / `unflag_identity` | Admin moderation for risky or abusive identities. |
+| `set_discord_attestation_base_url` | Admin config for the trusted Discord Worker base URL. |
+| `transfer_admin` | Transfer admin role. |
+
+### View Methods
+
+| Method | Purpose |
+|---|---|
+| `get_identity` | Read a wallet identity, linked accounts, dossiers, and health data. |
+| `get_pending_verification` | Read the active pending proof for a wallet. |
+| `lookup_by_platform` | Find which wallet owns a platform account. |
+| `get_audit_log` | Read proof and moderation history. |
+| `get_all_addresses` | Paginated wallet registry. |
+| `get_stats` | Platform statistics and configuration. |
 
 ---
 
 ## Security Notes
 
-- Verification codes are SHA-256 derived from `address + platform + username + block_timestamp` — not guessable or reusable
-- Sybil protection is enforced at the smart contract level, not application level
-- The LLM uses the profile HTML content, not API tokens — no privileged access required
-- All validator decisions are recorded via GenLayer's Optimistic Democracy consensus
+- Verification codes are public, deterministic proof markers, not secrets.
+- Proof decisions remain in the GenLayer contract flow; the backend does not become the final verifier.
+- Fetch URLs are restricted to expected sources for each platform.
+- Discord attestations are short-lived and bound to wallet, proof code, pending proof ID, Discord ID, issuer, and nonce.
+- Removed unsafe contract dependence on local wall-clock timestamps for proof creation and strict expiry behavior.
+- GenLayer consensus stores structured evidence and maintains proof health over time.
