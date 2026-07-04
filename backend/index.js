@@ -313,6 +313,9 @@ async function handleAttest(request, env) {
   return json({
     attestation_url: `${publicBaseUrl(env)}/api/discord/attestations/${attestationToken}`,
     expires_at: attestation.expires_at,
+    pending_id: pendingId,
+    wallet,
+    verification_code: verificationCode,
     discord_id: session.user.id,
     claimed_username: claimedUsername,
   }, 201, env);
