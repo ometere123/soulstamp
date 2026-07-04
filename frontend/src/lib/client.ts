@@ -12,6 +12,7 @@ const STUDIONET_CHAIN_PARAMS = {
   rpcUrls:           ["https://studio.genlayer.com/api"],
   blockExplorerUrls: ["https://explorer-studio.genlayer.com"],
 };
+const CONNECTED_ADDRESS_KEY = "soulstamp.connectedAddress";
 
 // ── Add + switch to Studionet ─────────────────────────────────────────────────
 // Runs before account request so the wallet is already on the right chain
@@ -41,7 +42,28 @@ export const readClient = createClient({ chain: studionet });
 
 // ── Write client (created after wallet connects) ──────────────────────────────
 let _writeClient: ReturnType<typeof createClient> | null = null;
-let _connectedAddress: string | null = null;
+let _connectedAddress: string | null = typeof window !== "undefined"
+  ? window.localStorage.getItem(CONNECTED_ADDRESS_KEY)
+  : null;
+
+function setConnectedAddress(address: string | null) {
+  _connectedAddress = address;
+  if (typeof window === "undefined") return;
+  if (address) {
+    window.localStorage.setItem(CONNECTED_ADDRESS_KEY, address);
+  } else {
+    window.localStorage.removeItem(CONNECTED_ADDRESS_KEY);
+  }
+}
+
+function buildWriteClient(address: `0x${string}`) {
+  _writeClient = createClient({
+    chain: studionet,
+    account: address,
+    provider: window.ethereum,
+  });
+  setConnectedAddress(address);
+}
 
 export function getConnectedAddress(): string | null {
   return _connectedAddress;
@@ -50,6 +72,26 @@ export function getConnectedAddress(): string | null {
 export function getWriteClient(): ReturnType<typeof createClient> {
   if (!_writeClient) throw new Error("Wallet not connected");
   return _writeClient;
+}
+
+export async function restoreWalletConnection(): Promise<string | null> {
+  if (!window.ethereum) return null;
+  const remembered = getConnectedAddress();
+  if (!remembered) return null;
+
+  const accounts = await window.ethereum.request({
+    method: "eth_accounts",
+  }) as string[];
+
+  const address = accounts.find(a => a.toLowerCase() === remembered.toLowerCase()) ?? accounts[0];
+  if (!address) {
+    disconnectWallet();
+    return null;
+  }
+
+  await ensureStudionet();
+  buildWriteClient(address as `0x${string}`);
+  return address;
 }
 
 export async function connectWallet(): Promise<string> {
@@ -69,25 +111,13 @@ export async function connectWallet(): Promise<string> {
   const address = accounts[0] as `0x${string}`;
 
   // 3. Build write client with injected provider (already on correct chain)
-  _writeClient = createClient({
-    chain: studionet,
-    account: address,
-    provider: window.ethereum,
-  });
-
-  _connectedAddress = address;
+  buildWriteClient(address);
   return address;
 }
 
 export function disconnectWallet() {
   _writeClient = null;
-  _connectedAddress = null;
-}
-
-// Auto-disconnect when user switches account or chain in their wallet
-if (typeof window !== "undefined" && window.ethereum) {
-  window.ethereum.on?.("accountsChanged", () => disconnectWallet());
-  window.ethereum.on?.("chainChanged",    () => disconnectWallet());
+  setConnectedAddress(null);
 }
 
 declare global {
@@ -95,6 +125,7 @@ declare global {
     ethereum?: {
       request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
       on?: (event: string, handler: (...args: unknown[]) => void) => void;
+      removeListener?: (event: string, handler: (...args: unknown[]) => void) => void;
     };
   }
 }
