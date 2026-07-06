@@ -17,7 +17,7 @@ The main v2 upgrade is not storage. It is **Proof Health + Reverification**: Gen
 Current Studionet contract address used by the frontend:
 
 ```text
-0xe1FC3B19791D38bdabe058C8c2be1C915a3319e0
+0x3108dafFCBC24E261137056c56aFCAE17677BDfB
 ```
 
 ---
@@ -199,3 +199,4 @@ The same callback URL must be registered in the Discord Developer Portal.
 - Discord attestations are short-lived and bound to wallet, proof code, pending proof ID, Discord ID, issuer, and nonce.
 - Removed unsafe contract dependence on local wall-clock timestamps for proof creation and strict expiry behavior.
 - GenLayer consensus stores structured evidence and maintains proof health over time.
+

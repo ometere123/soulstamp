@@ -103,7 +103,7 @@ manual read/write wiring: verified against Studionet with a signed transaction t
 Frontend contract address:
 
 ```text
-0xe1FC3B19791D38bdabe058C8c2be1C915a3319e0
+0x3108dafFCBC24E261137056c56aFCAE17677BDfB
 ```
 
 Admin wallet observed from live contract stats:
@@ -117,3 +117,4 @@ Admin wallet observed from live contract stats:
 This milestone should not be judged as “more storage” or a UI refresh. The meaningful progress is that SoulStamp now uses GenLayer more deeply as an ongoing identity proof judge.
 
 **SoulStamp v2 turns one-time social verification into an ongoing GenLayer-powered identity proof health protocol. GenLayer verifies public proof, structures the consensus verdict, stores evidence, and rechecks whether identity proofs remain active, stale, conflicted, revoked, or flagged over time.**
+
