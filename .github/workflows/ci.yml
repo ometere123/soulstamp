@@ -4,6 +4,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      run_live:
+        description: "Run the real Studionet deployment and lifecycle proof"
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   gates:
@@ -38,7 +45,7 @@ jobs:
         run: npm --prefix backend run check
 
   live-studionet:
-    if: ${{ vars.RUN_STUDIONET_LIVE == 'true' }}
+    if: ${{ vars.RUN_STUDIONET_LIVE == 'true' || (github.event_name == 'workflow_dispatch' && inputs.run_live == true) }}
     runs-on: ubuntu-latest
     needs: gates
     env:

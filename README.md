@@ -270,3 +270,8 @@ source byte-for-byte. It never prints or stores signing keys. A successful run
 writes transaction hashes, execution outcomes, contract address, source hash,
 and explorer link to `artifacts/live/studionet-v3-proof.json`.
 
+The GitHub Actions live job is intentionally opt-in. Configure the repository
+secret `GENLAYER_PRIVATE_KEY` and public Actions variable
+`SOULSTAMP_ADMIN_ADDRESS`, then manually run **SoulStamp CI** with
+`run_live=true`. A normal push runs all gates but never deploys.
+
