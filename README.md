@@ -164,7 +164,7 @@ python -m pytest tests/direct tests/test_soul_stamp.py -q
 ```
 
 The semantic gate selects the repository-compatible cached GenVM runner with
-`GENVM_VERSION=v0.3.0-rc7`. The contract header pins the exact py-genlayer
+`GENVM_VERSION=v0.2.16`. The contract header pins the exact py-genlayer
 runner dependency; do not remove either pin without rerunning semantic validation.
 
 ### Frontend

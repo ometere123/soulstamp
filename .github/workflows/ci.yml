@@ -9,7 +9,7 @@ jobs:
   gates:
     runs-on: ubuntu-latest
     env:
-      GENVM_VERSION: v0.3.0-rc7
+      GENVM_VERSION: v0.2.16
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: gates
     env:
-      GENVM_VERSION: v0.3.0-rc7
+      GENVM_VERSION: v0.2.16
       RUN_LIVE_STUDIONET: "1"
     steps:
       - uses: actions/checkout@v4

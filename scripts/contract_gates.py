@@ -19,7 +19,7 @@ LINTER = Path(configured_linter) if configured_linter else (
 
 def main() -> int:
     env = os.environ.copy()
-    env.setdefault("GENVM_VERSION", "v0.3.0-rc7")
+    env.setdefault("GENVM_VERSION", "v0.2.16")
     command = [str(LINTER), "check", str(CONTRACT), "--json"]
     completed = subprocess.run(command, cwd=ROOT, env=env, text=True, capture_output=True)
     output = completed.stdout.strip() or completed.stderr.strip()
