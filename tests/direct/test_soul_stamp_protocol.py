@@ -289,6 +289,24 @@ def test_rebuttal_statement_is_bounded(direct_vm, direct_deploy):
     assert contract.get_challenge(challenge["challenge_id"])["status"] == "AWAITING_REBUTTAL"
 
 
+def test_owner_cannot_rebut_before_challenger_evidence(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    direct_vm.clear_mocks()
+    direct_vm.sender = CHALLENGER
+    contract.request_ownership_challenge("github", "alice")
+    challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
+
+    direct_vm.sender = OWNER
+    with direct_vm.expect_revert("Submit challenger evidence"):
+        contract.respond_to_challenge(
+            challenge["challenge_id"],
+            "https://github.com/alice",
+            "I retain the account.",
+        )
+    assert contract.get_challenge(challenge["challenge_id"])["status"] == "OPEN"
+
+
 def test_flag_keeps_status_and_active_consistent(direct_vm, direct_deploy):
     contract = deploy(direct_deploy)
     verify_github(direct_vm, contract, OWNER)

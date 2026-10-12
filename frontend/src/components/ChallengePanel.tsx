@@ -266,7 +266,7 @@ export function ChallengePanel() {
                     </div>
                   )}
 
-                  {isOwner && ["AWAITING_REBUTTAL", "OPEN"].includes(challenge.status) && !(challenge.status === "OPEN" && deadlinePassed) && (
+                  {isOwner && challenge.status === "AWAITING_REBUTTAL" && !deadlinePassed && (
                     <div className="border border-orange-500/20 bg-orange-500/5 rounded-xl p-4 space-y-3">
                       <div className="text-xs text-orange-200">Your fresh rebuttal code: <code className="font-mono text-white">{challenge.owner_rebuttal_code}</code></div>
                       <p className="text-xs text-gray-400">You have until the bounded deadline to publish fresh evidence and a concise rebuttal. The resolver receives both evidence paths.</p>
