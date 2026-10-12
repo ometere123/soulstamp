@@ -1,6 +1,6 @@
 {
   "protocol": "SoulStamp v3 identity continuity",
-  "evidence_status": "deployment_verified_only",
+  "evidence_status": "deployment_verified_at_prior_revision; redeployment_required_for_current_source",
   "network": {
     "name": "Studionet",
     "chain_id": 61999,
@@ -17,7 +17,14 @@
   },
   "source_parity": {
     "result": "exact",
-    "sha256": "c5a070bc3119152ca2e519f3c2aef293bc651917076d7451390e2979ca0a9c9d"
+    "sha256": "c5a070bc3119152ca2e519f3c2aef293bc651917076d7451390e2979ca0a9c9d",
+    "deployed_source_revision": "77386b860a857e05069a84517f137de84fd161f5"
+  },
+  "current_repository_source": {
+    "revision": "45cd95827dadd6169a4365ee5edd6961dd2c1a63",
+    "sha256": "39b82cae4f4818512a07903815cf9738418f1a59f26e05c84eaee524ae2a0072",
+    "parity_with_deployed_contract": "not_verified_after_contract_consistency_fix",
+    "redeployment_required": true
   },
   "deployed_state_at_recording": {
     "method": "get_stats",
