@@ -227,6 +227,21 @@ def test_invalid_challenger_evidence_does_not_advance_challenge(direct_vm, direc
     assert contract.get_challenge(challenge["challenge_id"])["status"] == "OPEN"
 
 
+def test_challenge_evidence_cannot_switch_canonical_platform_id(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    direct_vm.clear_mocks()
+    direct_vm.sender = CHALLENGER
+    contract.request_ownership_challenge("github", "alice")
+    challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
+    github_web(direct_vm, "alice", challenge["challenger_code"], canonical_id="99")
+    proof_llm(direct_vm, canonical_id="99")
+
+    with direct_vm.expect_revert("challenged canonical platform ID"):
+        contract.submit_challenge_evidence(challenge["challenge_id"], "https://github.com/alice")
+    assert contract.get_challenge(challenge["challenge_id"])["status"] == "OPEN"
+
+
 def test_unanswered_challenge_expires_and_releases_slot(direct_vm, direct_deploy):
     contract = deploy(direct_deploy)
     verify_github(direct_vm, contract, OWNER, "alice", "42")
@@ -286,6 +301,30 @@ def test_rebuttal_statement_is_bounded(direct_vm, direct_deploy):
     direct_vm.sender = OWNER
     with direct_vm.expect_revert("2000 characters"):
         contract.respond_to_challenge(challenge["challenge_id"], "https://github.com/alice", "x" * 2001)
+    assert contract.get_challenge(challenge["challenge_id"])["status"] == "AWAITING_REBUTTAL"
+
+
+def test_owner_rebuttal_cannot_switch_canonical_platform_id(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    direct_vm.clear_mocks()
+    direct_vm.sender = CHALLENGER
+    contract.request_ownership_challenge("github", "alice")
+    challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
+    github_web(direct_vm, "alice", challenge["challenger_code"], canonical_id="42")
+    proof_llm(direct_vm, canonical_id="42")
+    contract.submit_challenge_evidence(challenge["challenge_id"], "https://github.com/alice")
+
+    direct_vm.sender = OWNER
+    direct_vm.clear_mocks()
+    github_web(direct_vm, "alice", challenge["owner_rebuttal_code"], canonical_id="99")
+    proof_llm(direct_vm, canonical_id="99")
+    with direct_vm.expect_revert("challenged canonical platform ID"):
+        contract.respond_to_challenge(
+            challenge["challenge_id"],
+            "https://github.com/alice",
+            "I retain the account.",
+        )
     assert contract.get_challenge(challenge["challenge_id"])["status"] == "AWAITING_REBUTTAL"
 
 

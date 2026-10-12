@@ -927,6 +927,7 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         target_url = self._target_url(challenge.platform, challenge.username, clean_evidence_url)
         verdict = self._evaluate_proof(challenge.platform, challenge.username, challenge.challenger_code, target_url, challenger, challenge.challenge_id, True)
         self._require(verdict["proof_status"] == "ACTIVE", f"Fresh challenger evidence was not accepted: {verdict['reason_code']}")
+        self._require(verdict["canonical_platform_id"] == challenge.canonical_platform_id, "Fresh challenger evidence must match the challenged canonical platform ID")
         challenge.challenger_evidence_url = clean_evidence_url
         challenge.challenger_evidence_status = verdict["proof_status"]
         challenge.challenger_canonical_id = verdict["canonical_platform_id"]
@@ -953,6 +954,7 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         target_url = self._target_url(challenge.platform, challenge.username, clean_rebuttal_url)
         verdict = self._evaluate_proof(challenge.platform, challenge.username, challenge.owner_rebuttal_code, target_url, owner, challenge.challenge_id, True)
         self._require(verdict["proof_status"] == "ACTIVE", f"Fresh owner rebuttal evidence was not accepted: {verdict['reason_code']}")
+        self._require(verdict["canonical_platform_id"] == challenge.canonical_platform_id, "Fresh owner evidence must match the challenged canonical platform ID")
         challenge.owner_rebuttal_url = clean_rebuttal_url
         challenge.owner_rebuttal_statement = clean_statement
         challenge.owner_evidence_status = verdict["proof_status"]
