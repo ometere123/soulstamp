@@ -12,6 +12,7 @@ import {
   cancelPendingVerification,
   isPlatformTaken,
   getIdentity,
+  transactionExplorerUrl,
 } from "../lib/contract";
 import {
   clearDiscordOAuthParams,
@@ -66,6 +67,7 @@ export function VerificationFlow() {
   const [postUrl, setPostUrl]   = useState("");   // Twitter tweet URL
   const [discordSession, setDiscordSession] = useState<string | null>(null);
   const [discordDisplay, setDiscordDisplay] = useState<string | null>(null);
+  const [lastTxHash, setLastTxHash] = useState<string | null>(null);
 
   useEffect(() => {
     const oauthError = discordOAuthError(window.location.search);
@@ -165,7 +167,8 @@ export function VerificationFlow() {
       }
 
       const url = profileUrl(platform, username.trim());
-      await requestVerification(platform, username.trim(), url);
+      const result = await requestVerification(platform, username.trim(), url);
+      setLastTxHash(result.hash);
 
       const p = await getPendingVerification(address!);
       if (p.found) {
@@ -214,7 +217,8 @@ export function VerificationFlow() {
         });
         fetchUrl = attestation.attestation_url;
       }
-      await completeVerification(fetchUrl);
+      const result = await completeVerification(fetchUrl);
+      setLastTxHash(result.hash);
       const confirmed = await confirmVerifiedLink(targetPlatform, targetUsername);
       if (!confirmed) {
         throw new Error("The transaction finalized, but the expected identity link was not readable yet. Refresh and retry before treating verification as complete.");
@@ -242,6 +246,7 @@ export function VerificationFlow() {
     setError(null);
     setDiscordSession(null);
     setDiscordDisplay(null);
+    setLastTxHash(null);
   }
 
   const pendingId = pending?.pending_id ?? "pending";
@@ -515,6 +520,11 @@ export function VerificationFlow() {
           <p className="text-sm text-gray-400">
             Your social media account has been cryptographically linked to your wallet on GenLayer.
           </p>
+          {lastTxHash && (
+            <a className="text-xs text-brand-300 underline break-all block" href={transactionExplorerUrl(lastTxHash)} target="_blank" rel="noopener noreferrer">
+              View finalized verification transaction {lastTxHash}
+            </a>
+          )}
           <button
             onClick={() => { setStep("idle"); setUsername(""); setError(null); }}
             className="btn-secondary"

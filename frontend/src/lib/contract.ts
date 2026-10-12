@@ -10,6 +10,10 @@ import type {
   PlatformStats,
 } from "../types";
 
+export function transactionExplorerUrl(hash: string): string {
+  return `https://explorer-studio.genlayer.com/tx/${hash}`;
+}
+
 function addr(): `0x${string}` {
   if (!CONTRACT_ADDRESS) throw new Error("CONTRACT_ADDRESS not set in .env");
   return CONTRACT_ADDRESS;

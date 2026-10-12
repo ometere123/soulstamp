@@ -13,6 +13,7 @@ import {
   respondToChallenge,
   resolveOwnershipChallenge,
   submitChallengeEvidence,
+  transactionExplorerUrl,
 } from "../lib/contract";
 import {
   clearDiscordOAuthParams,
@@ -73,6 +74,7 @@ export function ChallengePanel() {
   const [action, setAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [lastTxHash, setLastTxHash] = useState<string | null>(null);
 
   async function load() {
     if (!address) return;
@@ -117,8 +119,12 @@ export function ChallengePanel() {
     setAction(id);
     setError(null);
     setNotice(null);
+    setLastTxHash(null);
     try {
-      await operation();
+      const result = await operation();
+      if (result && typeof result === "object" && "hash" in result && typeof result.hash === "string") {
+        setLastTxHash(result.hash);
+      }
       setNotice(success);
       await load();
     } catch (e: any) {
@@ -182,7 +188,14 @@ export function ChallengePanel() {
       {(error || notice) && (
         <div className={clsx("rounded-xl border p-4 text-sm flex gap-3", error ? "bg-red-950/40 border-red-800 text-red-300" : "bg-success/10 border-success/30 text-green-200")}>
           {error ? <AlertCircle className="w-5 h-5 shrink-0" /> : <CheckCircle2 className="w-5 h-5 shrink-0" />}
-          <span>{error ?? notice}</span>
+          <div className="space-y-1">
+            <span>{error ?? notice}</span>
+            {lastTxHash && (
+              <a className="block text-xs underline break-all" href={transactionExplorerUrl(lastTxHash)} target="_blank" rel="noreferrer">
+                View finalized transaction {lastTxHash}
+              </a>
+            )}
+          </div>
         </div>
       )}
 
