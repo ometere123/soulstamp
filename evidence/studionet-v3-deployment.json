@@ -21,7 +21,7 @@
     "deployed_source_revision": "77386b860a857e05069a84517f137de84fd161f5"
   },
   "current_repository_source": {
-    "revision": "eb82ead0fddd4c38a6ce5f2aa4434f28f91e0252",
+    "revision": "6aeecea0d54ba208574233faa38eccb7d51073d2",
     "sha256": "0a66bd49e366895dbf624aea91ba502603088785d137d6a2665c683d58b60512",
     "parity_with_deployed_contract": "not_verified_after_contract_consistency_fix",
     "redeployment_required": true
