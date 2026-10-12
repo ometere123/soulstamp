@@ -38,7 +38,7 @@ jobs:
       - name: GenVM lint and semantic validation
         run: python scripts/contract_gates.py
       - name: Direct Mode and regression tests
-        run: python -m pytest tests/direct tests/test_soul_stamp.py -q
+        run: npm run test:all
       - name: Frontend production build
         run: npm --prefix frontend run build
       - name: Discord Worker syntax check
