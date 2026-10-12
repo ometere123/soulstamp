@@ -328,14 +328,21 @@ Example plan shape (replace every hash and state value with real observations):
 [
   {"method":"request_verification","tx":"0x...","verify":{"method":"get_pending_verification","args":["0x..."],"assertions":[{"path":"found","value":true}]}},
   {"method":"complete_verification","tx":"0x...","verify":{"method":"get_identity","args":["0x..."],"assertions":[{"path":"found","value":true}]}},
-  {"method":"request_ownership_challenge","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"EVIDENCE_PENDING"}]}},
-  {"method":"submit_challenge_evidence","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"evidence_submitted","value":true}]}},
-  {"method":"respond_to_challenge","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"rebuttal_submitted","value":true}]}},
+  {"method":"request_ownership_challenge","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"OPEN"}]}},
+  {"method":"submit_challenge_evidence","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"AWAITING_REBUTTAL"},{"path":"challenger_evidence_status","value":"ACTIVE"}]}},
+  {"method":"respond_to_challenge","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"RESPONDED"},{"path":"owner_evidence_status","value":"ACTIVE"}]}},
   {"method":"resolve_ownership_challenge","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"RESOLVED_CHALLENGER"}]}},
-  {"method":"execute_wallet_recovery","tx":"0x...","verify":{"method":"get_identity","args":["0x..."],"assertions":[{"path":"found","value":true}]}},
+  {"method":"execute_wallet_recovery","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"EXECUTED"}]}},
   {"method":"revoke_platform","tx":"0x...","verify":{"method":"get_identity","args":["0x..."],"assertions":[{"path":"eligible","value":false}]}}
 ]
 ```
+
+`CHALLENGE_ID` is the deterministic ID returned by the finalized
+`request_ownership_challenge` state read. The challenge state names above are
+the contract’s actual enum values; there is no `EVIDENCE_PENDING`,
+`evidence_submitted`, or `rebuttal_submitted` field. For the recovery step,
+use the winning challenger wallet in the `get_identity` arguments if you also
+want to assert the new principal’s `identity_state` and `eligible` result.
 
 Run the public verifier after saving that plan:
 
