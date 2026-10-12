@@ -184,6 +184,35 @@ def test_expired_proof_cannot_be_challenged(direct_vm, direct_deploy):
         contract.request_ownership_challenge("github", "alice")
 
 
+def test_expired_proof_is_reported_stale_and_ineligible(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    account = contract.get_identity(OWNER)["linked_accounts"][0]
+    direct_vm.warp(datetime.fromtimestamp(account["dossier"]["evidence_expires_at"] + 1, tz=timezone.utc).isoformat())
+
+    reported = contract.get_identity(OWNER)
+    assert reported["linked_accounts"][0]["proof_status"] == "STALE"
+    assert reported["linked_accounts"][0]["is_active"] is False
+    assert reported["linked_accounts"][0]["reason_code"] == "EVIDENCE_EXPIRED"
+    assert reported["eligible"] is False
+    assert contract.lookup_by_platform("github", "alice")["proof_status"] == "STALE"
+
+
+def test_unflag_does_not_restore_expired_proof_to_active(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    account = contract.get_identity(OWNER)["linked_accounts"][0]
+    direct_vm.warp(datetime.fromtimestamp(account["dossier"]["evidence_expires_at"] + 1, tz=timezone.utc).isoformat())
+    direct_vm.sender = ADMIN
+    contract.flag_identity(OWNER, "manual review")
+    contract.unflag_identity(OWNER)
+
+    reported = contract.get_identity(OWNER)
+    assert reported["linked_accounts"][0]["proof_status"] == "STALE"
+    assert reported["linked_accounts"][0]["is_active"] is False
+    assert reported["eligible"] is False
+
+
 def test_invalid_challenger_evidence_does_not_advance_challenge(direct_vm, direct_deploy):
     contract = deploy(direct_deploy)
     verify_github(direct_vm, contract, OWNER, "alice", "42")

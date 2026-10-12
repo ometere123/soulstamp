@@ -308,6 +308,20 @@ class SoulStamp(gl.Contract):
         current = now if int(now) > 0 else self._now()
         return acct.is_active and acct.proof_status == "ACTIVE" and int(acct.dossier.evidence_expires_at) >= int(current)
 
+    def _effective_proof_status(self, acct: LinkedAccount, now: u256 = u256(0)) -> str:
+        """Return the consumer-visible status, including automatic expiry."""
+        current = now if int(now) > 0 else self._now()
+        if acct.proof_status == "ACTIVE" and (
+            not acct.is_active or int(acct.dossier.evidence_expires_at) < int(current)
+        ):
+            return "STALE"
+        return acct.proof_status
+
+    def _effective_reason_code(self, acct: LinkedAccount, now: u256 = u256(0)) -> str:
+        if self._effective_proof_status(acct, now) == "STALE" and acct.proof_status == "ACTIVE":
+            return "EVIDENCE_EXPIRED"
+        return acct.reason_code
+
     def _set_account_status(self, acct: LinkedAccount, status: str, reason: str, marker: u256) -> None:
         self._require(status in PROOF_STATUSES, f"Invalid proof status '{status}'")
         acct.proof_status = status
@@ -1133,6 +1147,7 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         identity = self.identities.get(target)
         self._require(identity is not None, "Identity not found")
         marker = self._mark()
+        now = self._now()
         identity.is_flagged = False
         identity.identity_state = "ACTIVE"
         identity.flag_reason = ""
@@ -1140,6 +1155,8 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
             acct = identity.linked_accounts[i]
             if acct.proof_status == "FLAGGED":
                 restore = acct.status_before_flag if acct.status_before_flag in PROOF_STATUSES else "STALE"
+                if restore == "ACTIVE" and int(acct.dossier.evidence_expires_at) < int(now):
+                    restore = "STALE"
                 self._set_account_status(acct, restore, "ADMIN_UNFLAGGED", marker)
                 identity.linked_accounts[i] = acct
         self._append_audit(identity, "admin_unflagged", "", "", "cleared_by_admin", 0, 0, "ACTIVE", "ADMIN_UNFLAGGED", actor=caller)
@@ -1258,20 +1275,24 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         identity = self.identities.get(self._addr(address))
         if identity is None:
             return {"found": False}
+        now = self._now()
         accounts = []
         for acct in identity.linked_accounts:
+            effective_status = self._effective_proof_status(acct, now)
+            effective_active = effective_status == "ACTIVE"
+            effective_reason = self._effective_reason_code(acct, now)
             accounts.append({
                 "platform": acct.platform, "username": acct.username, "profile_url": acct.profile_url,
                 "verified_at": int(acct.verified_at), "confidence_score": int(acct.confidence_score), "bot_score": int(acct.bot_score),
-                "reasoning": acct.reasoning, "is_active": acct.is_active, "proof_status": acct.proof_status,
+                "reasoning": acct.reasoning, "is_active": effective_active, "proof_status": effective_status,
                 "proof_strength": acct.proof_strength, "risk_band": acct.risk_band, "canonical_platform_id": acct.canonical_platform_id,
                 "verification_code": acct.verification_code, "pending_id": acct.pending_id, "proof_url": acct.proof_url,
-                "reason_code": acct.reason_code, "last_checked_marker": int(acct.last_checked_marker), "status_before_flag": acct.status_before_flag,
+                "reason_code": effective_reason, "last_checked_marker": int(acct.last_checked_marker), "status_before_flag": acct.status_before_flag,
                 "dossier": {
                     "platform": acct.dossier.platform, "username": acct.dossier.username, "canonical_platform_id": acct.dossier.canonical_platform_id,
                     "proof_url": acct.dossier.proof_url, "verification_code": acct.dossier.verification_code, "pending_id": acct.dossier.pending_id,
                     "proof_strength": acct.dossier.proof_strength, "risk_band": acct.dossier.risk_band, "confidence_bucket": int(acct.dossier.confidence_bucket),
-                    "reason_code": acct.dossier.reason_code, "proof_status": acct.dossier.proof_status, "verification_method": acct.dossier.verification_method,
+                    "reason_code": effective_reason, "proof_status": effective_status, "verification_method": acct.dossier.verification_method,
                     "verifier_version": acct.dossier.verifier_version, "audit_ref": int(acct.dossier.audit_ref), "verified_wallet": acct.dossier.verified_wallet,
                     "created_marker": int(acct.dossier.created_marker), "updated_marker": int(acct.dossier.updated_marker),
                     "evidence_issued_at": int(acct.dossier.evidence_issued_at), "evidence_expires_at": int(acct.dossier.evidence_expires_at),
@@ -1337,10 +1358,12 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         if idx < 0:
             return {"found": False}
         acct = identity.linked_accounts[idx]
+        now = self._now()
+        effective_status = self._effective_proof_status(acct, now)
         eligibility = self._eligibility(owner)
         return {
             "found": True, "owner_address": owner, "reputation_score": int(identity.reputation_score), "is_flagged": identity.is_flagged,
-            "verification_count": int(identity.verification_count), "proof_status": acct.proof_status, "canonical_platform_id": acct.canonical_platform_id,
+            "verification_count": int(identity.verification_count), "proof_status": effective_status, "canonical_platform_id": acct.canonical_platform_id,
             "identity_state": identity.identity_state, "eligible": bool(eligibility["eligible"]), "eligibility_reason": eligibility["reason"],
         }
 
