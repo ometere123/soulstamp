@@ -385,7 +385,7 @@ class SoulStamp(gl.Contract):
             evidence_issued_at=u256(0), evidence_expires_at=u256(0),
         )
 
-    # ── Evidence and independent GenLayer resolution ──────────────────────────
+    # -- Evidence and independent GenLayer resolution --------------------------
 
     def _coerce_verdict(self, value, platform: str, username: str, code: str, content: str, fallback_status: str, expected_canonical_id: str, evidence_issued_at: int = 0, evidence_expires_at: int = 0) -> dict:
         if not isinstance(value, dict):
@@ -643,7 +643,7 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
             raise gl.vm.UserError(f"{ERROR_LLM} Challenge resolution returned an unexpected format")
         return result
 
-    # ── Verification lifecycle ────────────────────────────────────────────────
+    # -- Verification lifecycle -------------------------------------------------
 
     @gl.public.write
     def request_verification(self, platform: str, username: str, profile_url: str) -> None:
@@ -1087,7 +1087,7 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         self.challenges[challenge_id] = challenge
         self.total_recoveries = u32(int(self.total_recoveries) + 1)
 
-    # ── Admin and migration ───────────────────────────────────────────────────
+    # -- Admin and migration ----------------------------------------------------
 
     @gl.public.write
     def flag_identity(self, target: str, reason: str) -> None:
@@ -1220,7 +1220,7 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         identity.last_updated = marker
         self.identities[owner] = identity
 
-    # ── Public and consumer interfaces ────────────────────────────────────────
+    # -- Public and consumer interfaces ----------------------------------------
 
     def _eligibility(self, address: str) -> dict:
         wallet = self._addr(address)

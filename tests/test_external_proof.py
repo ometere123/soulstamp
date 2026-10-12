@@ -52,3 +52,8 @@ def test_external_verifier_has_no_signing_path():
     assert "SOULSTAMP_ADMIN_PRIVATE_KEY" not in source
     assert "subprocess.run" in source
     assert "os.environ" not in source
+
+
+def test_contract_source_is_ascii_safe_for_rpc_source_parity():
+    source = Path("contracts/soul_stamp.py").read_text(encoding="utf-8")
+    assert source.isascii()
