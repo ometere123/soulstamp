@@ -1,7 +1,9 @@
 from pathlib import Path
 import os
 
-from scripts.live_studionet_proof import load_local_release_env
+import pytest
+
+from scripts.live_studionet_proof import load_local_release_env, parse_lifecycle_plan
 
 
 PROOF_SCRIPT = Path("scripts/live_studionet_proof.py")
@@ -45,3 +47,21 @@ def test_local_release_env_loader_is_scoped_and_does_not_override_process(monkey
     assert os.environ["GENLAYER_PRIVATE_KEY"] == "0x" + "1" * 64
     assert os.environ["SOULSTAMP_ADMIN_ADDRESS"] == "process-admin-wins"
     assert "UNSUPPORTED_RELEASE_SECRET" not in os.environ
+
+
+def test_full_live_plan_fails_closed_when_required_lifecycle_step_is_missing():
+    with pytest.raises(RuntimeError, match="missing successful steps"):
+        parse_lifecycle_plan(
+            '[{"method":"request_verification","verify":{"method":"get_pending_verification","assertions":[{"path":"found","value":true}]}}]',
+            require_full=True,
+        )
+
+
+def test_live_plan_rejects_unnamed_steps():
+    with pytest.raises(RuntimeError, match="must name a contract method"):
+        parse_lifecycle_plan('[{"args":[]}]')
+
+
+def test_live_plan_rejects_success_without_post_state_assertions():
+    with pytest.raises(RuntimeError, match="non-empty post-state assertions"):
+        parse_lifecycle_plan('[{"method":"complete_verification"}]')

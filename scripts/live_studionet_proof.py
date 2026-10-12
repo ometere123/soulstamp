@@ -27,6 +27,16 @@ SDK_SUBMITTER = ROOT / "scripts" / "live_submit.mjs"
 KEY_ADDRESS_READER = ROOT / "scripts" / "key_address.mjs"
 LIVE_DIR = ROOT / "artifacts" / "live"
 OLD_CONTRACT = os.environ.get("SOULSTAMP_LEGACY_CONTRACT", "0x3108dafFCBC24E261137056c56aFCAE17677BDfB")
+REQUIRED_FULL_LIFECYCLE_METHODS = {
+    "request_verification",
+    "complete_verification",
+    "request_ownership_challenge",
+    "submit_challenge_evidence",
+    "respond_to_challenge",
+    "resolve_ownership_challenge",
+    "execute_wallet_recovery",
+    "revoke_platform",
+}
 
 
 def load_local_release_env(path: Path = ROOT / ".env") -> None:
@@ -132,21 +142,40 @@ def derived_signer_address(signer: str) -> str | None:
     return address.lower()
 
 
-def parse_lifecycle_plan(raw: str | None) -> list[dict]:
+def parse_lifecycle_plan(raw: str | None, require_full: bool = False) -> list[dict]:
     if not raw:
+        if require_full:
+            raise RuntimeError(
+                "SOULSTAMP_LIVE_LIFECYCLE_JSON is required when full live lifecycle proof is enabled"
+            )
         return []
     plan = json.loads(raw)
     if not isinstance(plan, list):
         raise RuntimeError("SOULSTAMP_LIVE_LIFECYCLE_JSON must be a JSON list")
     allowed = {"deployer", "owner", "admin", "challenger"}
+    successful_methods = set()
     for item in plan:
         if not isinstance(item, dict):
             raise RuntimeError("Every live lifecycle step must be a JSON object")
+        method = str(item.get("method", "")).strip()
+        if not method:
+            raise RuntimeError("Every live lifecycle step must name a contract method")
         signer = str(item.get("signer", "deployer"))
         if signer not in allowed:
             raise RuntimeError(f"Unsupported live signer '{signer}'")
         if signer in ("admin", "challenger") and not os.environ.get("SOULSTAMP_ADMIN_PRIVATE_KEY"):
             raise RuntimeError("SOULSTAMP_ADMIN_PRIVATE_KEY is required by the live lifecycle plan")
+        if bool(item.get("expect_success", True)):
+            verify = item.get("verify")
+            if not isinstance(verify, dict) or not isinstance(verify.get("assertions"), list) or not verify["assertions"]:
+                raise RuntimeError(f"Successful lifecycle step {method} requires non-empty post-state assertions")
+            successful_methods.add(method)
+    if require_full:
+        missing = sorted(REQUIRED_FULL_LIFECYCLE_METHODS - successful_methods)
+        if missing:
+            raise RuntimeError(
+                "Full live lifecycle proof is missing successful steps: " + ", ".join(missing)
+            )
     return plan
 
 
@@ -252,7 +281,13 @@ def main() -> int:
     if not re.fullmatch(r"0x[0-9a-fA-F]{40}", admin):
         raise RuntimeError("SOULSTAMP_ADMIN_ADDRESS must be a 0x-prefixed 20-byte address")
 
-    lifecycle_plan = parse_lifecycle_plan(os.environ.get("SOULSTAMP_LIVE_LIFECYCLE_JSON"))
+    lifecycle_plan = parse_lifecycle_plan(
+        os.environ.get("SOULSTAMP_LIVE_LIFECYCLE_JSON"),
+        # Full lifecycle evidence is the safe default. An operator may set
+        # SOULSTAMP_REQUIRE_FULL_LIFECYCLE=0 only for an explicitly partial
+        # deployment probe; that artifact must not be presented as completion.
+        require_full=os.environ.get("SOULSTAMP_REQUIRE_FULL_LIFECYCLE", "1") != "0",
+    )
     admin_signer = derived_signer_address("admin")
     if admin_signer is not None and admin_signer != admin.lower():
         raise RuntimeError("SOULSTAMP_ADMIN_PRIVATE_KEY does not match SOULSTAMP_ADMIN_ADDRESS")
@@ -272,6 +307,10 @@ def main() -> int:
     if remote_source.stdout != local_source:
         raise RuntimeError("Exact source parity check failed; deployment is not recorded as valid.")
 
+    deployed_stats = read_view(contract_address, "get_stats", [])
+    if not isinstance(deployed_stats, dict) or deployed_stats.get("verifier_version") != "soulstamp-v3.0-continuity":
+        raise RuntimeError("Deployed contract did not expose the expected v3 verifier state")
+
     proof = {
         "protocol": "SoulStamp v3 identity continuity",
         "network": {"name": "Studionet", "chain_id": 61999, "rpc": RPC},
@@ -280,6 +319,11 @@ def main() -> int:
         "deployment_transaction": transaction_record(deploy_tx, deploy_finality),
         "source_sha256": __import__("hashlib").sha256(local_source.encode()).hexdigest(),
         "source_parity": "exact",
+        "deployed_state": {
+            "method": "get_stats",
+            "assertions": [{"path": "verifier_version", "expected": "soulstamp-v3.0-continuity", "actual": deployed_stats.get("verifier_version")}],
+            "result": deployed_stats,
+        },
         "recorded_at": datetime.now(timezone.utc).isoformat(),
         "explorer": f"{EXPLORER}/address/{contract_address}",
         "legacy_contract_address": OLD_CONTRACT,
@@ -322,7 +366,7 @@ def main() -> int:
                 if not isinstance(verify_spec, dict):
                     raise RuntimeError(f"Successful lifecycle step {method} requires a post-state verify specification")
                 entry["state_verification"] = verify_view(contract_address, verify_spec)
-            proof["lifecycle"].append(entry)
+            (proof["lifecycle"] if expect_success else proof["negative_lifecycle"]).append(entry)
 
     LIVE_DIR.mkdir(parents=True, exist_ok=True)
     (LIVE_DIR / "studionet-v3-proof.json").write_text(json.dumps(proof, indent=2) + "\n", encoding="utf-8")

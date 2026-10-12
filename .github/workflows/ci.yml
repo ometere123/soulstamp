@@ -51,6 +51,7 @@ jobs:
     env:
       GENVM_VERSION: v0.2.16
       RUN_LIVE_STUDIONET: "1"
+      SOULSTAMP_REQUIRE_FULL_LIFECYCLE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -76,4 +77,5 @@ jobs:
           GENLAYER_PRIVATE_KEY: ${{ secrets.GENLAYER_PRIVATE_KEY }}
           SOULSTAMP_ADMIN_PRIVATE_KEY: ${{ secrets.SOULSTAMP_ADMIN_PRIVATE_KEY }}
           SOULSTAMP_ADMIN_ADDRESS: ${{ vars.SOULSTAMP_ADMIN_ADDRESS }}
+          SOULSTAMP_LIVE_LIFECYCLE_JSON: ${{ secrets.SOULSTAMP_LIVE_LIFECYCLE_JSON }}
         run: python scripts/live_studionet_proof.py

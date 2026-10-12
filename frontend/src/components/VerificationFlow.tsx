@@ -21,7 +21,8 @@ import {
   hasDiscordBackend,
   parseDiscordOAuthResult,
 } from "../lib/discord";
-import type { IdentityRecord, Platform, PendingVerification, VerificationStep } from "../types";
+import { hasLinkedAccount } from "../lib/identity";
+import type { Platform, PendingVerification, VerificationStep } from "../types";
 
 const PLATFORMS: { id: Platform; label: string; icon: React.ReactNode; placeholder: string }[] = [
   { id: "github",  label: "GitHub",  icon: <Github className="w-5 h-5" />,  placeholder: "octocat" },
@@ -38,16 +39,6 @@ function profileUrl(platform: Platform, username: string): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function hasLinkedAccount(identity: IdentityRecord, platform: Platform, username: string): boolean {
-  const usernameLc = username.toLowerCase();
-  return Boolean(
-    identity.found &&
-    identity.linked_accounts?.some(acct =>
-      acct.platform === platform && acct.username.toLowerCase() === usernameLc
-    )
-  );
 }
 
 function StepDot({ n, active, done }: { n: number; active: boolean; done: boolean }) {
@@ -224,7 +215,10 @@ export function VerificationFlow() {
         fetchUrl = attestation.attestation_url;
       }
       await completeVerification(fetchUrl);
-      await confirmVerifiedLink(targetPlatform, targetUsername);
+      const confirmed = await confirmVerifiedLink(targetPlatform, targetUsername);
+      if (!confirmed) {
+        throw new Error("The transaction finalized, but the expected identity link was not readable yet. Refresh and retry before treating verification as complete.");
+      }
       finishSuccess();
     } catch (e: any) {
       const confirmed = await confirmVerifiedLink(targetPlatform, targetUsername);

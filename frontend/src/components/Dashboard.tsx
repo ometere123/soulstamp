@@ -61,13 +61,17 @@ function ProofHealthBadge({ status }: { status?: ProofStatus }) {
 function AccountCard({ account, onReverified }: { account: LinkedAccount; onReverified: () => void }) {
   const [rechecking, setRechecking] = useState(false);
   const [fetchUrl, setFetchUrl] = useState("");
+  const [reverifyError, setReverifyError] = useState<string | null>(null);
 
   async function handleReverify() {
     setRechecking(true);
+    setReverifyError(null);
     try {
       await reverifyPlatform(account.platform, account.username, fetchUrl.trim());
       setFetchUrl("");
       onReverified();
+    } catch (e: any) {
+      setReverifyError(e?.message ?? "Reverification did not finalize successfully");
     } finally {
       setRechecking(false);
     }
@@ -144,6 +148,7 @@ function AccountCard({ account, onReverified }: { account: LinkedAccount; onReve
           Recheck
         </button>
       </div>
+      {reverifyError && <p className="text-xs text-red-300" role="alert">{reverifyError}</p>}
 
       <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
         <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Created marker #{account.verified_at}</span>

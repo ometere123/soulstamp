@@ -294,8 +294,21 @@ Each lifecycle item may set `"signer":"deployer"` (default) or
 public constructor admin address. This permits a real two-wallet challenge
 and recovery proof without putting either key in the frontend or Worker.
 
+The live runner requires full lifecycle evidence by default; the opt-in GitHub
+job makes this explicit with `SOULSTAMP_REQUIRE_FULL_LIFECYCLE=1` and also
+requires the masked secret `SOULSTAMP_LIVE_LIFECYCLE_JSON`. That plan must
+contain successful, post-state-asserted steps for verification, challenge
+evidence, owner rebuttal, independent resolution, wallet recovery, and
+revocation. The runner rejects a missing step before deployment and records
+negative steps separately. The operator must prepare real public evidence for
+the generated codes; a plan containing fabricated URLs or assertions is not a
+live proof. Setting `SOULSTAMP_REQUIRE_FULL_LIFECYCLE=0` is reserved for an
+explicit partial deployment probe and does not satisfy the milestone.
+
 The GitHub Actions live job is intentionally opt-in. Configure the repository
 secret `GENLAYER_PRIVATE_KEY` and public Actions variable
-`SOULSTAMP_ADMIN_ADDRESS`, then manually run **SoulStamp CI** with
+`SOULSTAMP_ADMIN_ADDRESS`, the admin signer secret
+`SOULSTAMP_ADMIN_PRIVATE_KEY`, and the full lifecycle plan secret
+`SOULSTAMP_LIVE_LIFECYCLE_JSON`, then manually run **SoulStamp CI** with
 `run_live=true`. A normal push runs all gates but never deploys.
 
