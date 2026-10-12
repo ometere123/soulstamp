@@ -330,6 +330,21 @@ transaction hash, and a JSON plan containing the finalized transaction hash for
 each lifecycle step. The plan must contain successful, post-state-asserted
 steps for all required methods and may contain expected-failure steps as well.
 
+If lifecycle transactions are not available yet, record deployment evidence
+without overstating completion:
+
+```powershell
+python scripts/verify_external_studionet_proof.py `
+  --contract 0x... `
+  --deployment-tx 0x... `
+  --deployment-only `
+  --artifact .\artifacts\live\studionet-v3-deployment-proof.json
+```
+
+This deployment-only mode verifies finality, successful execution, source
+parity, and v3 state, and explicitly records lifecycle proof as
+`not_recorded`. It never substitutes for the full lifecycle plan below.
+
 Example plan shape (replace every hash and state value with real observations):
 
 ```json

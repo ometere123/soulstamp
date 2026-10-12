@@ -1,8 +1,9 @@
 from pathlib import Path
+import sys
 
 import pytest
 
-from scripts.verify_external_studionet_proof import canonical_source, load_plan, source_sha256
+from scripts.verify_external_studionet_proof import canonical_source, load_plan, parse_args, run_node, source_sha256
 
 
 def plan_item(method: str, number: int, *, expect_success: bool = True) -> dict:
@@ -63,3 +64,27 @@ def test_external_source_parity_normalizes_rpc_line_endings():
     source = "line one\nline two\n"
     assert canonical_source(source.replace("\n", "\r\n")) == source
     assert source_sha256(source.replace("\n", "\r\n")) == source_sha256(source)
+
+
+def test_deployment_only_mode_does_not_require_a_lifecycle_plan(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "verify_external_studionet_proof.py",
+            "--contract",
+            "0x" + "1" * 40,
+            "--deployment-tx",
+            "0x" + "2" * 64,
+            "--deployment-only",
+        ],
+    )
+    args = parse_args()
+    assert args.deployment_only is True
+    assert args.plan_file is None
+
+
+def test_external_source_reader_preserves_trailing_newline(tmp_path: Path):
+    script = tmp_path / "emit.mjs"
+    script.write_text("process.stdout.write('source\\n')\n", encoding="utf-8")
+    assert run_node(script) == "source\n"

@@ -62,7 +62,10 @@ def run_node(script: Path, *args: str) -> str:
     )
     if completed.returncode:
         raise RuntimeError(completed.stderr.strip() or f"{script.name} failed")
-    return completed.stdout.strip()
+    # Preserve source trailing newlines. JSON consumers below use splitlines()
+    # and take the final record, while source parity must compare the complete
+    # deployed text after canonical line-ending normalization.
+    return completed.stdout
 
 
 def finalized_transaction(tx_hash: str, rpc: str, expect_success: bool = True) -> dict:
@@ -163,7 +166,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--contract", required=True, help="deployed SoulStamp contract address")
     parser.add_argument("--deployment-tx", required=True, help="finalized deployment transaction hash")
-    parser.add_argument("--plan-file", required=True, type=Path, help="JSON file containing public lifecycle tx hashes")
+    parser.add_argument("--plan-file", type=Path, help="JSON file containing public lifecycle tx hashes")
+    parser.add_argument(
+        "--deployment-only",
+        action="store_true",
+        help="verify deployment finality, source parity, and v3 state without claiming lifecycle proof",
+    )
     parser.add_argument(
         "--artifact",
         type=Path,
@@ -180,7 +188,12 @@ def main() -> int:
         raise RuntimeError("External proof verification is restricted to Studionet 61999")
     contract = validate_hex(args.contract, ADDRESS_RE, "Contract address")
     deployment_tx = validate_hex(args.deployment_tx, TX_RE, "Deployment transaction")
-    plan = load_plan(args.plan_file)
+    if args.deployment_only:
+        plan = []
+    else:
+        if args.plan_file is None:
+            raise RuntimeError("--plan-file is required unless --deployment-only is selected")
+        plan = load_plan(args.plan_file)
 
     deployment_finality = finalized_transaction(deployment_tx, args.rpc)
     returned_contract = deployment_finality.get("contractAddress")
@@ -218,7 +231,8 @@ def main() -> int:
     artifact = {
         "protocol": "SoulStamp v3 identity continuity",
         "network": {"name": "Studionet", "chain_id": 61999, "rpc": args.rpc},
-        "verification_mode": "external-read-only",
+        "verification_mode": "external-read-only-deployment-only" if args.deployment_only else "external-read-only",
+        "lifecycle_proof_status": "not_recorded" if args.deployment_only else "verified",
         "contract_address": contract,
         "deployment_transaction": transaction_record(deployment_tx, deployment_finality),
         "source_sha256": source_sha256(local_source),
@@ -238,6 +252,11 @@ def main() -> int:
         },
         "lifecycle": lifecycle,
         "negative_lifecycle": negative_lifecycle,
+        "lifecycle_proof": {
+            "status": "not_recorded" if args.deployment_only else "verified",
+            "required_successful_methods": sorted(REQUIRED_FULL_LIFECYCLE_METHODS),
+            "negative_transition_required": True,
+        },
         "recorded_at": datetime.now(timezone.utc).isoformat(),
         "explorer": f"{EXPLORER}/address/{contract}",
         "local_source_revision": subprocess.run(
@@ -252,6 +271,7 @@ def main() -> int:
                 "contract_address": contract,
                 "deployment_tx": deployment_tx,
                 "source_parity": "exact_after_line_ending_normalization",
+                "lifecycle_proof_status": "not_recorded" if args.deployment_only else "verified",
                 "lifecycle_steps": len(lifecycle),
                 "negative_lifecycle_steps": len(negative_lifecycle),
                 "artifact": str(args.artifact),
