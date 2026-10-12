@@ -312,3 +312,45 @@ secret `GENLAYER_PRIVATE_KEY` and public Actions variable
 `SOULSTAMP_LIVE_LIFECYCLE_JSON`, then manually run **SoulStamp CI** with
 `run_live=true`. A normal push runs all gates but never deploys.
 
+### Operator-deployed external proof
+
+The operator may deploy and exercise the contract outside this workspace. This
+is a supported read-only handoff path and does not require sending either
+private key. Deploy the exact CI-tested revision with the repository-local CLI
+on Studionet only, then provide the public contract address, deployment
+transaction hash, and a JSON plan containing the finalized transaction hash for
+each lifecycle step. The plan must contain successful, post-state-asserted
+steps for all required methods and may contain expected-failure steps as well.
+
+Example plan shape (replace every hash and state value with real observations):
+
+```json
+[
+  {"method":"request_verification","tx":"0x...","verify":{"method":"get_pending_verification","args":["0x..."],"assertions":[{"path":"found","value":true}]}},
+  {"method":"complete_verification","tx":"0x...","verify":{"method":"get_identity","args":["0x..."],"assertions":[{"path":"found","value":true}]}},
+  {"method":"request_ownership_challenge","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"EVIDENCE_PENDING"}]}},
+  {"method":"submit_challenge_evidence","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"evidence_submitted","value":true}]}},
+  {"method":"respond_to_challenge","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"rebuttal_submitted","value":true}]}},
+  {"method":"resolve_ownership_challenge","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"RESOLVED_CHALLENGER"}]}},
+  {"method":"execute_wallet_recovery","tx":"0x...","verify":{"method":"get_identity","args":["0x..."],"assertions":[{"path":"found","value":true}]}},
+  {"method":"revoke_platform","tx":"0x...","verify":{"method":"get_identity","args":["0x..."],"assertions":[{"path":"eligible","value":false}]}}
+]
+```
+
+Run the public verifier after saving that plan:
+
+```powershell
+python scripts/verify_external_studionet_proof.py `
+  --contract 0x... `
+  --deployment-tx 0x... `
+  --plan-file .\external-lifecycle.json
+```
+
+It checks Studionet chain 61999, FINALIZED status, successful execution as
+`FINISHED_WITH_RETURN`, expected failed execution for negative steps, exact
+deployed-source parity, the v3 verifier version, and each supplied post-state
+assertion. It writes only public evidence to
+`artifacts/live/studionet-v3-external-proof.json`. A contract address by itself
+is not a lifecycle proof; include the deployment and lifecycle transaction
+hashes plus the generated challenge IDs and observed state values.
+
