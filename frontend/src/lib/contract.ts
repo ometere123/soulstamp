@@ -179,6 +179,10 @@ export async function resolveOwnershipChallenge(challengeId: string) {
   return writeAndWait("resolve_ownership_challenge", [challengeId]);
 }
 
+export async function expireOwnershipChallenge(challengeId: string) {
+  return writeAndWait("expire_ownership_challenge", [challengeId]);
+}
+
 export async function executeWalletRecovery(challengeId: string) {
   return writeAndWait("execute_wallet_recovery", [challengeId]);
 }

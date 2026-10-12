@@ -19,6 +19,7 @@ X/Twitter submitted URLs are locators only. The contract validates the exact cla
 ```text
 OPEN
   -> AWAITING_REBUTTAL       challenger evidence passes precheck
+  -> EXPIRED                  no challenger evidence before the deadline
   -> RESPONDED                owner submits bounded rebuttal
   -> RESOLVED_OWNER           owner evidence is upheld
   -> RESOLVED_CHALLENGER      challenger evidence is upheld
@@ -32,7 +33,9 @@ validators must agree on the material outcome. Recovery has a safety delay and
 can only be executed by the winning challenger into a wallet without an
 existing identity. The old identity is retained as `RECOVERED`; its audit
 history is copied into the new principal record and the new active indexes are
-reserved atomically.
+reserved atomically. An unanswered `OPEN` challenge can be expired by any
+caller after the deadline, and a later challenge attempt also performs this
+bounded cleanup so an abandoned challenge cannot permanently lock a link.
 
 ## Eligibility
 

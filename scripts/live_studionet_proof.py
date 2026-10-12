@@ -27,6 +27,37 @@ LIVE_DIR = ROOT / "artifacts" / "live"
 OLD_CONTRACT = os.environ.get("SOULSTAMP_LEGACY_CONTRACT", "0x3108dafFCBC24E261137056c56aFCAE17677BDfB")
 
 
+def load_local_release_env(path: Path = ROOT / ".env") -> None:
+    """Load only ignored local release values, without overriding the process.
+
+    CI injects its values directly. Local operators may keep the authorized
+    signer and public admin address in the ignored repository-root `.env`; the
+    parser intentionally accepts no other release credentials and never logs a
+    value.
+    """
+    if not path.is_file():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key not in ("GENLAYER_PRIVATE_KEY", "SOULSTAMP_ADMIN_ADDRESS") or key in os.environ:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        os.environ[key] = value
+
+
+load_local_release_env()
+
+
 def run_cli(*args: str, allow_failure: bool = False) -> str:
     completed = subprocess.run([str(CLI), *args, "--rpc", RPC], cwd=ROOT, text=True, capture_output=True)
     output = (completed.stdout + "\n" + completed.stderr).strip()

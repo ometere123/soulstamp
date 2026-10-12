@@ -198,6 +198,25 @@ def test_invalid_challenger_evidence_does_not_advance_challenge(direct_vm, direc
     assert contract.get_challenge(challenge["challenge_id"])["status"] == "OPEN"
 
 
+def test_unanswered_challenge_expires_and_releases_slot(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    direct_vm.sender = CHALLENGER
+    contract.request_ownership_challenge("github", "alice")
+    challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
+    direct_vm.warp(datetime.fromtimestamp(challenge["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
+    direct_vm.sender = OTHER
+    contract.expire_ownership_challenge(challenge["challenge_id"])
+    expired = contract.get_challenge(challenge["challenge_id"])
+    assert expired["status"] == "EXPIRED"
+    assert expired["outcome"] == "NO_CHALLENGER_EVIDENCE"
+
+    contract.request_ownership_challenge("github", "alice")
+    replacement = contract.get_challenges(OTHER, 0, 10)[0]
+    assert replacement["status"] == "OPEN"
+    assert replacement["challenge_id"] != challenge["challenge_id"]
+
+
 def test_revocation_expires_an_open_challenge(direct_vm, direct_deploy):
     contract = deploy(direct_deploy)
     verify_github(direct_vm, contract, OWNER, "alice", "42")
@@ -210,6 +229,19 @@ def test_revocation_expires_an_open_challenge(direct_vm, direct_deploy):
     assert challenge["status"] == "EXPIRED"
     assert challenge["outcome"] == "OWNER_REVOKED"
     assert contract.is_platform_taken("github", "alice") is False
+
+
+def test_admin_flag_expires_an_open_challenge(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    direct_vm.sender = CHALLENGER
+    contract.request_ownership_challenge("github", "alice")
+    challenge_id = contract.get_challenges(CHALLENGER, 0, 10)[0]["challenge_id"]
+    direct_vm.sender = ADMIN
+    contract.flag_identity(OWNER, "manual review")
+    challenge = contract.get_challenge(challenge_id)
+    assert challenge["status"] == "EXPIRED"
+    assert challenge["outcome"] == "OWNER_FLAGGED"
 
 
 def test_rebuttal_statement_is_bounded(direct_vm, direct_deploy):

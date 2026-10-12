@@ -829,6 +829,36 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         self._require(self.pending_verifications.get(caller) is not None, "No pending verification to cancel")
         del self.pending_verifications[caller]
 
+    def _expire_unanswered_challenge(self, challenge_id: str, challenge: OwnershipChallenge, actor: str) -> None:
+        marker = self._mark()
+        challenge.status = "EXPIRED"
+        challenge.outcome = "NO_CHALLENGER_EVIDENCE"
+        challenge.reason_code = "CHALLENGER_EVIDENCE_DEADLINE_EXPIRED"
+        challenge.resolved_at = marker
+        self.challenges[challenge_id] = challenge
+        pkey = self._platform_key(challenge.platform, challenge.username)
+        if self.open_challenges_by_platform.get(pkey) == challenge_id:
+            del self.open_challenges_by_platform[pkey]
+        identity = self.identities.get(challenge.current_owner)
+        if identity is not None:
+            self._append_audit(
+                identity, "challenge_expired", challenge.platform, challenge.username,
+                "expired", 0, 0, "ACTIVE", challenge.reason_code,
+                details=f"challenge={challenge_id}", actor=actor,
+            )
+            identity.last_updated = self.event_marker
+            self.identities[challenge.current_owner] = identity
+
+    @gl.public.write
+    def expire_ownership_challenge(self, challenge_id: str) -> None:
+        """Release an unanswered challenge after its bounded evidence deadline."""
+        actor = self._addr(gl.message.sender_address)
+        challenge = self.challenges.get(challenge_id)
+        self._require(challenge is not None, "Challenge not found")
+        self._require(challenge.status == "OPEN", "Only an unanswered challenge can expire")
+        self._require(int(self._now()) > int(challenge.rebuttal_deadline), "Challenge evidence deadline has not passed")
+        self._expire_unanswered_challenge(challenge_id, challenge, actor)
+
     @gl.public.write
     def request_ownership_challenge(self, platform: str, username: str) -> None:
         challenger = self._addr(gl.message.sender_address)
@@ -842,6 +872,11 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         self._require(identity is not None and identity.identity_state == "ACTIVE", "Identity is not challengeable in its current state")
         idx = self._find_account(identity, plat, clean_user)
         self._require(idx >= 0 and self._is_active_account(identity.linked_accounts[idx]), "Only a fresh active proof can be challenged")
+        existing_id = self.open_challenges_by_platform.get(pkey)
+        if existing_id is not None:
+            existing = self.challenges.get(existing_id)
+            if existing is not None and existing.status == "OPEN" and int(self._now()) > int(existing.rebuttal_deadline):
+                self._expire_unanswered_challenge(existing_id, existing, challenger)
         self._require(self.open_challenges_by_platform.get(pkey) is None, "An ownership challenge is already open")
         self.request_nonce = u32(int(self.request_nonce) + 1)
         challenge_id = hashlib.sha256(f"SOULSTAMP-CHALLENGE:{challenger}:{pkey}:{int(self.request_nonce)}".encode()).hexdigest()[:24].upper()
@@ -1071,6 +1106,21 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
                 acct.status_before_flag = acct.proof_status
                 self._set_account_status(acct, "FLAGGED", "ADMIN_FLAGGED", marker)
                 identity.linked_accounts[i] = acct
+            pkey = self._platform_key(acct.platform, acct.username)
+            open_challenge_id = self.open_challenges_by_platform.get(pkey)
+            open_challenge = self.challenges.get(open_challenge_id) if open_challenge_id is not None else None
+            if open_challenge is not None and open_challenge.status in ("OPEN", "AWAITING_REBUTTAL", "RESPONDED"):
+                open_challenge.status = "EXPIRED"
+                open_challenge.outcome = "OWNER_FLAGGED"
+                open_challenge.reason_code = "IDENTITY_FLAGGED_DURING_CHALLENGE"
+                open_challenge.resolved_at = marker
+                self.challenges[open_challenge_id] = open_challenge
+                del self.open_challenges_by_platform[pkey]
+                self._append_audit(
+                    identity, "challenge_expired", acct.platform, acct.username,
+                    "expired", 0, 0, "FLAGGED", open_challenge.reason_code,
+                    details=f"challenge={open_challenge_id}", actor=caller,
+                )
         self._append_audit(identity, "admin_flagged", "", "", reason, 0, 0, "FLAGGED", "ADMIN_FLAGGED", actor=caller)
         identity.last_updated = marker
         self.identities[target] = identity

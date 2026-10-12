@@ -13,6 +13,7 @@ import {
   revokePlatform,
   setDiscordAttestationBaseUrl,
   getAllChallenges,
+  expireOwnershipChallenge,
   resolveOwnershipChallenge,
 } from "../lib/contract";
 import type { OwnershipChallenge, PlatformStats, IdentityRecord } from "../types";
@@ -162,6 +163,18 @@ export function AdminPanel() {
     }
   }
 
+  async function handleExpireChallenge(challengeId: string) {
+    setActionId(`expire:${challengeId}`);
+    try {
+      await expireOwnershipChallenge(challengeId);
+      await load();
+    } catch (e: any) {
+      alert(e?.message ?? "Challenge expiry failed");
+    } finally {
+      setActionId(null);
+    }
+  }
+
   if (loading && !stats && rows.length === 0) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -252,6 +265,11 @@ export function AdminPanel() {
                 {["AWAITING_REBUTTAL", "RESPONDED"].includes(challenge.status) && (
                   <button onClick={() => handleResolveChallenge(challenge.challenge_id)} disabled={actionId === `challenge:${challenge.challenge_id}`} className="btn-secondary text-xs">
                     {actionId === `challenge:${challenge.challenge_id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Resolve"}
+                  </button>
+                )}
+                {challenge.status === "OPEN" && Number(challenge.rebuttal_deadline) < Math.floor(Date.now() / 1000) && (
+                  <button onClick={() => handleExpireChallenge(challenge.challenge_id)} disabled={actionId === `expire:${challenge.challenge_id}`} className="btn-secondary text-xs">
+                    {actionId === `expire:${challenge.challenge_id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Expire unanswered"}
                   </button>
                 )}
               </div>

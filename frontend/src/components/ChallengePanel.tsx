@@ -7,6 +7,7 @@ import clsx from "clsx";
 import { useWallet } from "../lib/useWallet";
 import {
   executeWalletRecovery,
+  expireOwnershipChallenge,
   getChallenges,
   requestOwnershipChallenge,
   respondToChallenge,
@@ -232,6 +233,7 @@ export function ChallengePanel() {
               const evidenceUrl = evidence[challenge.challenge_id] ?? "";
               const rebuttalUrl = rebuttals[challenge.challenge_id] ?? "";
               const statement = statements[challenge.challenge_id] ?? "";
+              const deadlinePassed = Number(challenge.rebuttal_deadline) < Math.floor(Date.now() / 1000);
               const canRecover = isChallenger && challenge.status === "RESOLVED_CHALLENGER" && Number(challenge.recovery_not_before) <= Math.floor(Date.now() / 1000);
               return (
                 <article key={challenge.challenge_id} className="bg-gray-900 border border-gray-700 rounded-2xl p-5 space-y-4">
@@ -252,7 +254,7 @@ export function ChallengePanel() {
                     <div className="bg-gray-800/70 rounded-lg p-3"><ShieldCheck className="w-3.5 h-3.5 inline mr-1" />Outcome {challenge.outcome || "pending"}</div>
                   </div>
 
-                  {isChallenger && ["OPEN", "AWAITING_REBUTTAL"].includes(challenge.status) && (
+                  {isChallenger && ["OPEN", "AWAITING_REBUTTAL"].includes(challenge.status) && !(challenge.status === "OPEN" && deadlinePassed) && (
                     <div className="border border-brand-500/20 bg-brand-500/5 rounded-xl p-4 space-y-3">
                       <div className="text-xs text-brand-200">Your fresh challenger code: <code className="font-mono text-white">{challenge.challenger_code}</code></div>
                       <p className="text-xs text-gray-400">Publish this code on the claimed account, then submit the exact public URL. Evidence is independently fetched and checked against the canonical account ID.</p>
@@ -264,7 +266,7 @@ export function ChallengePanel() {
                     </div>
                   )}
 
-                  {isOwner && ["AWAITING_REBUTTAL", "OPEN"].includes(challenge.status) && (
+                  {isOwner && ["AWAITING_REBUTTAL", "OPEN"].includes(challenge.status) && !(challenge.status === "OPEN" && deadlinePassed) && (
                     <div className="border border-orange-500/20 bg-orange-500/5 rounded-xl p-4 space-y-3">
                       <div className="text-xs text-orange-200">Your fresh rebuttal code: <code className="font-mono text-white">{challenge.owner_rebuttal_code}</code></div>
                       <p className="text-xs text-gray-400">You have until the bounded deadline to publish fresh evidence and a concise rebuttal. The resolver receives both evidence paths.</p>
@@ -281,6 +283,15 @@ export function ChallengePanel() {
                     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-800 pt-3">
                       <span className="text-xs text-gray-500">Resolution requires fresh challenger evidence and either a rebuttal or an elapsed deadline.</span>
                       <button onClick={() => runAction(`resolve:${challenge.challenge_id}`, () => resolveOwnershipChallenge(challenge.challenge_id), "Independent resolution finalized.")} disabled={action === `resolve:${challenge.challenge_id}`} className="btn-secondary text-xs"><Gavel className="w-3.5 h-3.5" /> Resolve challenge</button>
+                    </div>
+                  )}
+
+                  {challenge.status === "OPEN" && deadlinePassed && (isChallenger || isOwner) && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-800 pt-3">
+                      <span className="text-xs text-gray-500">No challenger evidence arrived before the bounded deadline.</span>
+                      <button onClick={() => runAction(`expire:${challenge.challenge_id}`, () => expireOwnershipChallenge(challenge.challenge_id), "Unanswered challenge expired and the link is challengeable again.")} disabled={action === `expire:${challenge.challenge_id}`} className="btn-secondary text-xs">
+                        {action === `expire:${challenge.challenge_id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Expire unanswered challenge"}
+                      </button>
                     </div>
                   )}
 

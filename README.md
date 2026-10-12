@@ -85,6 +85,7 @@ See [V2_MILESTONE.md](./V2_MILESTONE.md) for the milestone summary.
        +-> A challenger submits fresh evidence before the rebuttal deadline.
        +-> The current owner may submit a bounded rebuttal with fresh evidence.
        +-> Independent GenLayer resolution yields OWNER_UPHOLDS, CHALLENGER_UPHOLDS, or INCONCLUSIVE.
+       +-> If no challenger evidence arrives, expire_ownership_challenge releases the slot after the deadline.
 
 6. execute_wallet_recovery(challenge_id)
        |
@@ -225,6 +226,7 @@ The same callback URL must be registered in the Discord Developer Portal.
 | `submit_challenge_evidence` | Submit challenger evidence before the deadline. |
 | `respond_to_challenge` | Submit the current owner’s bounded rebuttal. |
 | `resolve_ownership_challenge` | Run independent GenLayer challenge resolution. |
+| `expire_ownership_challenge` | Expire an unanswered challenge after its evidence deadline and release the slot. |
 | `execute_wallet_recovery` | Execute safety-delayed principal recovery for the winning challenger. |
 | `migrate_legacy_identity` | Admin-controlled, explicit v2 continuity migration. |
 
@@ -263,6 +265,11 @@ $env:SOULSTAMP_ADMIN_ADDRESS="0x..."
 $env:GENLAYER_PRIVATE_KEY="0x..."
 python scripts/live_studionet_proof.py
 ```
+
+For local use, the same two names may be kept in the ignored repository-root
+`.env` instead; the release script reads only those names and never prints
+them. Existing process environment values take precedence. Do not commit that
+file or place signing keys in frontend or Worker configuration.
 
 The admin address must be the public address corresponding to the signer. With
 no `GENLAYER_PRIVATE_KEY`, the script uses the CLI 0.39.1 OS-keychain account;

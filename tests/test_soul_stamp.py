@@ -13,6 +13,7 @@ def test_contract_declares_v3_continuity_protocol():
         "submit_challenge_evidence",
         "respond_to_challenge",
         "resolve_ownership_challenge",
+        "expire_ownership_challenge",
         "execute_wallet_recovery",
         "consumer_eligibility",
         "migrate_legacy_identity",
