@@ -750,7 +750,13 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         acct = identity.linked_accounts[idx]
         self._require(acct.proof_status not in ("REVOKED", "FLAGGED", "RECOVERED"), "Revoked, flagged, or recovered proofs cannot be reverified")
         self._require(plat != "discord" or bool(fetch_url), "Discord reverification requires a fresh OAuth attestation")
-        target_url = self._target_url(plat, acct.username, fetch_url or acct.proof_url)
+        # `proof_url` is the fetched API/oEmbed/attestation endpoint stored by
+        # the verifier. Reverification must start from the user-facing source
+        # locator where the platform requires one (notably GitHub profiles and
+        # X status URLs), otherwise a valid GitHub proof would be rejected when
+        # the optional URL is omitted.
+        fallback_url = acct.profile_url if plat in ("github", "twitter") else acct.proof_url
+        target_url = self._target_url(plat, acct.username, fetch_url or fallback_url)
         verdict = self._evaluate_proof(plat, acct.username, acct.verification_code, target_url, owner, acct.pending_id, True)
         marker = self._mark()
         old_canonical = acct.canonical_platform_id
@@ -917,6 +923,11 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         self._require(challenge.challenger_evidence_status == "ACTIVE", "Fresh challenger evidence has not been accepted")
         now = self._now()
         self._require(challenge.status == "RESPONDED" or int(now) >= int(challenge.rebuttal_deadline), "Wait for the rebuttal deadline or submit a rebuttal before resolving")
+        identity = self.identities.get(challenge.current_owner)
+        self._require(self.platform_to_address.get(self._platform_key(challenge.platform, challenge.username)) == challenge.current_owner, "The challenged link changed; this challenge is no longer valid")
+        self._require(identity is not None and identity.identity_state == "ACTIVE", "The challenged identity is not active")
+        current_idx = self._find_account(identity, challenge.platform, challenge.username)
+        self._require(current_idx >= 0 and self._is_active_account(identity.linked_accounts[current_idx]), "The challenged proof is no longer fresh")
         resolution = self._resolve_challenge_consensus(challenge)
         decision = resolution["decision"]
         marker = self._mark()
@@ -924,11 +935,6 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         challenge.resolution_reasoning = str(resolution.get("reasoning", ""))[:2000]
         challenge.outcome = decision
         challenge.reason_code = "GENLAYER_INDEPENDENT_RESOLUTION"
-        identity = self.identities.get(challenge.current_owner)
-        self._require(self.platform_to_address.get(self._platform_key(challenge.platform, challenge.username)) == challenge.current_owner, "The challenged link changed; this challenge is no longer valid")
-        self._require(identity is not None and identity.identity_state == "ACTIVE", "The challenged identity is not active")
-        current_idx = self._find_account(identity, challenge.platform, challenge.username)
-        self._require(current_idx >= 0 and self._is_active_account(identity.linked_accounts[current_idx]), "The challenged proof is no longer fresh")
         if decision == "CHALLENGER_UPHOLDS":
             challenge.status = "RESOLVED_CHALLENGER"
             challenge.recovery_not_before = u256(int(now) + RECOVERY_DELAY_SECONDS)
@@ -1016,12 +1022,17 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
                 # The winning challenge supplied fresh evidence. Start a new
                 # proof-validity window from the finalized recovery event.
                 acct.dossier.evidence_expires_at = u256(int(self._now()) + PROOF_VALIDITY_SECONDS)
-            elif acct.proof_status == "ACTIVE":
+            else:
+                # Recovery transfers the principal, not only the challenged
+                # proof. Keep every retained dossier bound to the new wallet.
                 acct.dossier.verified_wallet = new_wallet
             self._remove_indexes(challenge.current_owner, acct)
             copied = self._clone_account(acct, new_wallet, marker)
             new_identity.linked_accounts.append(copied)
-            if copied.proof_status == "ACTIVE":
+            # Non-revoked historical links remain reserved during recovery so
+            # a stale/conflicted record cannot be claimed by a third party
+            # while its immutable history is carried to the new wallet.
+            if copied.proof_status not in ("REVOKED", "RECOVERED"):
                 self._reserve_indexes(new_wallet, copied)
             self._set_account_status(acct, "RECOVERED", "WALLET_RECOVERED", marker)
             old_identity.linked_accounts[i] = acct

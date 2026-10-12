@@ -159,6 +159,20 @@ def test_revoke_clears_indexes_and_allows_relink(direct_vm, direct_deploy):
     assert contract.is_platform_taken("github", "alice") is True
 
 
+def test_github_reverification_uses_public_profile_locator(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    verification_code = contract.get_identity(OWNER)["linked_accounts"][0]["verification_code"]
+    direct_vm.clear_mocks()
+    direct_vm.sender = OWNER
+    github_web(direct_vm, "alice", verification_code, canonical_id="42")
+    proof_llm(direct_vm, canonical_id="42")
+    contract.reverify_platform("github", "alice")
+    account = contract.get_identity(OWNER)["linked_accounts"][0]
+    assert account["proof_status"] == "ACTIVE"
+    assert account["dossier"]["proof_url"] == "https://api.github.com/users/alice"
+
+
 def test_expired_proof_cannot_be_challenged(direct_vm, direct_deploy):
     contract = deploy(direct_deploy)
     verify_github(direct_vm, contract, OWNER, "alice", "42")
@@ -337,6 +351,55 @@ def test_challenge_owner_rebuttal_can_force_inconclusive(direct_vm, direct_deplo
     proof_llm(direct_vm, decision="CHALLENGER_UPHOLDS")
     contract.resolve_ownership_challenge(challenge_id)
     assert contract.get_challenge(challenge_id)["status"] == "RESOLVED_INCONCLUSIVE"
+
+
+def test_recovery_preserves_non_revoked_historical_indexes(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    direct_vm.clear_mocks()
+    verify_github(direct_vm, contract, OWNER, "bob", "43")
+
+    direct_vm.clear_mocks()
+    direct_vm.sender = OWNER
+    direct_vm.mock_web(
+        r".*api\.github\.com/users/bob$",
+        {"status": 200, "body": json.dumps({"login": "bob", "id": 43, "bio": "no current proof"})},
+    )
+    direct_vm.mock_llm(
+        r"(?s).*SoulStamp identity evidence decision.*",
+        json.dumps({
+            "code_found": False, "account_match": True, "canonical_platform_id": "43",
+            "proof_strength": "STRONG", "risk_band": "low", "confidence_bucket": 10,
+            "reason_code": "CODE_NOT_FOUND", "reasoning": "expired public proof",
+        }),
+    )
+    contract.reverify_platform("github", "bob")
+    assert contract.lookup_by_platform("github", "bob")["proof_status"] == "STALE"
+    assert contract.is_platform_taken("github", "bob") is True
+
+    direct_vm.clear_mocks()
+    direct_vm.sender = CHALLENGER
+    contract.request_ownership_challenge("github", "alice")
+    challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
+    github_web(direct_vm, "alice", challenge["challenger_code"], canonical_id="42")
+    proof_llm(direct_vm, canonical_id="42")
+    contract.submit_challenge_evidence(challenge["challenge_id"], "https://github.com/alice")
+    direct_vm.mock_web(
+        r"https://github\.com/alice$",
+        {"status": 200, "body": json.dumps({"bio": challenge["challenger_code"], "login": "alice", "id": 42})},
+    )
+    direct_vm.warp(datetime.fromtimestamp(challenge["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
+    proof_llm(direct_vm, decision="CHALLENGER_UPHOLDS")
+    contract.resolve_ownership_challenge(challenge["challenge_id"])
+    resolved = contract.get_challenge(challenge["challenge_id"])
+    direct_vm.warp(datetime.fromtimestamp(resolved["recovery_not_before"] + 1, tz=timezone.utc).isoformat())
+    direct_vm.sender = CHALLENGER
+    contract.execute_wallet_recovery(challenge["challenge_id"])
+
+    bob_after = contract.lookup_by_platform("github", "bob")
+    assert bob_after["owner_address"] == CHALLENGER
+    assert bob_after["proof_status"] == "STALE"
+    assert contract.is_platform_taken("github", "bob") is True
 
 
 def test_discord_challenge_attestation_is_consumed_once(direct_vm, direct_deploy):
