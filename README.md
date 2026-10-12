@@ -11,21 +11,21 @@ The v3 contribution is a lifecycle state machine, not a UI-only refresh: a consu
 | Service | URL |
 |---|---|
 | Frontend | https://soulstamp-gen.vercel.app |
+| Preview deployment | https://soulstamp-gxbdokqle-delealufejoel-4184s-projects.vercel.app |
 | Discord Worker | https://soulstamp-discord.delealufejoel.workers.dev |
 | Repository | https://github.com/ometere123/soulstamp |
 
 Current v3 Studionet deployment:
 
 ```text
-Contract: 0x4717b4e830e9111AAF97aCb0159f58D750085D1A
-Deployment: https://explorer-studio.genlayer.com/tx/0x9fb9eb57d68540408d1731ae06d24a985ae9534be80cc5020099f893e3fe8ef7
-Status: FINALIZED / FINISHED_WITH_RETURN / SUCCESS, SUCCESS
-Deployed source: exact after CRLF normalization for revision 7560ad4
-Deployed source hash: 3bce13a6a00ef101a02f5d78c93d9e86e38c224ff7f6636f2f57b574209110bf
-Local consensus-fix candidate hash: b46addab5800fab8d87d7019efb76866b13e15644d3b7b4361fb3435c35d96bf
-Local candidate status: not deployed; live source parity is intentionally not claimed
-Lifecycle proof: pending finalized verification, challenge, recovery, revocation,
-and negative-transition receipts.
+Contract: 0xa3B01Cf1512734C7747e75520751BC2220880041
+Deployment: https://explorer-studio.genlayer.com/tx/0x93a2177a733f2a0851abde6fb053289d363c05dc03d08afccdd72c7e388cb949
+Status: FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN / SUCCESS, SUCCESS
+Deployed source: exact after CRLF normalization for commit b291e60
+Deployed source hash: b46addab5800fab8d87d7019efb76866b13e15644d3b7b4361fb3435c35d96bf
+Vercel: Production READY; Preview READY; both use this contract address
+Lifecycle proof: not recorded; real identity verification, challenge,
+rebuttal, recovery, revocation, and negative-transition testing remain operator-owned.
 ```
 
 The deployment and source-parity record is in

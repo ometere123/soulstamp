@@ -105,3 +105,29 @@ claimed as a fully traced causal proof. Regression tests cover wording/reason
 variance, HTTP source failures, canonical-ID changes, replay, invalid challenge
 decisions, misleading finality receipts, and exact signer/method/argument
 metadata.
+
+## Verified deployment handoff
+
+The corrected v3 revision was deployed by the operator and independently
+verified from the public Studionet RPC:
+
+- Commit: `b291e6091d0025102c75874501d625ea63855d23`
+- Contract: `0xa3B01Cf1512734C7747e75520751BC2220880041`
+- Deployment: [0x93a2177a733f2a0851abde6fb053289d363c05dc03d08afccdd72c7e388cb949](https://explorer-studio.genlayer.com/tx/0x93a2177a733f2a0851abde6fb053289d363c05dc03d08afccdd72c7e388cb949)
+- Receipt: `FINALIZED`, `MAJORITY_AGREE`, `FINISHED_WITH_RETURN`, raw
+  executions `SUCCESS`, `SUCCESS`
+- Source parity: exact after CRLF normalization; normalized SHA-256
+  `b46addab5800fab8d87d7019efb76866b13e15644d3b7b4361fb3435c35d96bf`.
+  The API's CRLF-preserving raw SHA-256 is
+  `b9a9c57940d48881f693592b89fa494b918f50722c27318f220ea170c76f292b`.
+- Initial state: verifier `soulstamp-v3.0-continuity`, configured admin
+  `0x4e44636494650386b89c64011c10f48d4b344c4f`, legacy contract
+  `0x3108daffcbc24e261137056c56afcae17677bdfb`, and zero verifications,
+  identities, challenges, and recoveries.
+- Vercel Production and Preview both report `READY`; their public bundles
+  contain the new address and not the superseded v3 address.
+
+Lifecycle proof is intentionally still `not_recorded`. Real social
+verification, challenge, rebuttal, recovery, revocation, eligibility, and
+negative-transition transactions remain operator-owned and are not implied by
+deployment finality.
