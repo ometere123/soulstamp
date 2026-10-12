@@ -12,6 +12,27 @@ describe("frontend transaction finality gate", () => {
     })).toBe(true);
   });
 
+  it("accepts the current Studionet leader-receipt shape only when every leader succeeds", () => {
+    expect(isFinalizedSuccessfulReceipt({
+      status_name: "FINALIZED",
+      consensus_data: {
+        leader_receipt: [
+          { execution_result: "SUCCESS" },
+          { execution_result: "SUCCESS" },
+        ],
+      },
+    })).toBe(true);
+    expect(isFinalizedSuccessfulReceipt({
+      status_name: "FINALIZED",
+      consensus_data: {
+        leader_receipt: [
+          { execution_result: "SUCCESS" },
+          { execution_result: "ERROR" },
+        ],
+      },
+    })).toBe(false);
+  });
+
   it("rejects an accepted transaction even when execution looks successful", () => {
     expect(isFinalizedSuccessfulReceipt({
       statusName: "ACCEPTED",
@@ -26,5 +47,12 @@ describe("frontend transaction finality gate", () => {
     };
     expect(isFinalizedSuccessfulReceipt(receipt)).toBe(false);
     expect(executionFailureDescription(receipt)).toBe("FAILED");
+  });
+
+  it("describes a current-shape leader failure", () => {
+    expect(executionFailureDescription({
+      status_name: "FINALIZED",
+      consensus_data: { leader_receipt: [{ execution_result: "ERROR" }] },
+    })).toBe("leader execution results: ERROR");
   });
 });

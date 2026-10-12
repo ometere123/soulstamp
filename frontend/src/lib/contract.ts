@@ -112,7 +112,7 @@ async function writeAndWait(functionName: string, args: unknown[]): Promise<{ ha
     throw new Error(`Transaction ${hash} did not reach FINALIZED: ${error?.shortMessage ?? error?.message ?? String(error)}`);
   }
 
-  const statusName = receipt?.statusName ?? receipt?.status;
+  const statusName = receipt?.statusName ?? receipt?.status_name ?? receipt?.status;
   if (statusName !== TransactionStatus.FINALIZED && statusName !== "FINALIZED") {
     throw new Error(`Transaction ${hash} ended in ${String(statusName)}; no finalized success was proven.`);
   }
