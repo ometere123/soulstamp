@@ -1,0 +1,46 @@
+{
+  "protocol": "SoulStamp v3 identity continuity",
+  "evidence_status": "deployment_verified_only",
+  "network": {
+    "name": "Studionet",
+    "chain_id": 61999,
+    "rpc": "https://studio.genlayer.com/api"
+  },
+  "contract_address": "0xe2E6E2dDC52Ed996C5d3EAfADF52BDd736B48703",
+  "deployment_transaction": {
+    "hash": "0x5852a9d26f4ea641ecdf6be087b109b6ee94c009bf66a13c82c935ae115e5be7",
+    "explorer": "https://explorer-studio.genlayer.com/tx/0x5852a9d26f4ea641ecdf6be087b109b6ee94c009bf66a13c82c935ae115e5be7",
+    "status": "FINALIZED",
+    "execution": "FINISHED_WITH_RETURN",
+    "consensus_result": "MAJORITY_AGREE",
+    "raw_execution_results": ["SUCCESS", "SUCCESS"]
+  },
+  "source_parity": {
+    "result": "exact",
+    "sha256": "c5a070bc3119152ca2e519f3c2aef293bc651917076d7451390e2979ca0a9c9d"
+  },
+  "deployed_state_at_recording": {
+    "method": "get_stats",
+    "verifier_version": "soulstamp-v3.0-continuity",
+    "total_verifications": 0,
+    "total_identities": 0,
+    "total_challenges": 0,
+    "total_recoveries": 0,
+    "admin": "0x4e44636494650386b89c64011c10f48d4b344c4f",
+    "legacy_contract_address": "0x3108daffcbc24e261137056c56afcae17677bdfb"
+  },
+  "lifecycle_proof": {
+    "status": "not_yet_recorded",
+    "required_next_evidence": [
+      "request_verification",
+      "complete_verification",
+      "request_ownership_challenge",
+      "submit_challenge_evidence",
+      "respond_to_challenge",
+      "resolve_ownership_challenge",
+      "execute_wallet_recovery",
+      "revoke_platform",
+      "one_finalized_negative_transition"
+    ]
+  }
+}
