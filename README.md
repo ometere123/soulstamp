@@ -20,7 +20,8 @@ Current v3 Studionet deployment:
 Contract: 0x6Ad350E2486bE0F277A017D4Fa9124661f750263
 Deployment: https://explorer-studio.genlayer.com/tx/0x1f13804a4180f88cb8a8b6e92a712c261fc90f7d9afc36d8a95f1e7b2b8f29e1
 Status: FINALIZED / FINISHED_WITH_RETURN / SUCCESS, SUCCESS
-Source: exact after CRLF-to-LF normalization
+Source: exact for the previously deployed source revision; redeployment required
+for the current X provider-origin hardening fix
 Lifecycle proof: pending finalized verification, challenge, recovery, revocation,
 and negative-transition receipts.
 ```

@@ -112,6 +112,24 @@ def test_x_requires_provider_author_id_not_handle_fallback(direct_vm, direct_dep
         contract.complete_verification("https://x.com/claimed/status/123456")
 
 
+def test_x_rejects_non_provider_author_url_even_when_path_matches(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    direct_vm.sender = OWNER
+    contract.request_verification("twitter", "claimed", "https://x.com/claimed/status/123456")
+    pending = contract.get_pending_verification(OWNER)
+    direct_vm.mock_web(
+        r".*publish\.twitter\.com/oembed.*",
+        {"status": 200, "body": json.dumps({
+            "author_url": "https://evil.example/claimed",
+            "author_id": "555",
+            "html": f"<p>{pending['verification_code']}</p>",
+        })},
+    )
+    proof_llm(direct_vm, account_match=False, canonical_id="id:555")
+    with direct_vm.expect_revert("ownership"):
+        contract.complete_verification("https://x.com/claimed/status/123456")
+
+
 def test_canonical_id_is_unique_across_handles(direct_vm, direct_deploy):
     contract = deploy(direct_deploy)
     verify_github(direct_vm, contract, OWNER, "alice", "42")

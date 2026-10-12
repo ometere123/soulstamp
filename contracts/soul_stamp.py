@@ -494,9 +494,10 @@ class SoulStamp(gl.Contract):
                     confidence, reason_code = 35, "ACCOUNT_MISMATCH"
             elif platform == "twitter" and isinstance(parsed, dict):
                 author_url = str(parsed.get("author_url", "") or "")
+                author_host = urlparse(author_url).netloc.lower().split(":")[0] if author_url else ""
                 author_path = urlparse(author_url).path.strip("/").split("/")[0].lower() if author_url else ""
                 # Never infer authorship from the submitted URL.
-                account_match = author_path == username_lc and bool(canonical_id)
+                account_match = author_host in ("x.com", "twitter.com") and author_path == username_lc and bool(canonical_id)
                 proof_strength = "STRONG" if str(parsed.get("author_id", "") or "") else "MEDIUM"
                 if code_found and account_match:
                     confidence, risk_band, reason_code = 88, "low", "CODE_FOUND_ON_CANONICAL_TWEET"
