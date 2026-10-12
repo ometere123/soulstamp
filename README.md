@@ -269,6 +269,9 @@ The script fails closed unless deployment reaches FINALIZED with
 source byte-for-byte. It never prints or stores signing keys. A successful run
 writes transaction hashes, execution outcomes, contract address, source hash,
 and explorer link to `artifacts/live/studionet-v3-proof.json`.
+The artifact includes a finalized failed recovery transition as a negative
+guard proof; additional positive lifecycle steps are supplied explicitly with
+`SOULSTAMP_LIVE_LIFECYCLE_JSON`.
 
 The GitHub Actions live job is intentionally opt-in. Configure the repository
 secret `GENLAYER_PRIVATE_KEY` and public Actions variable

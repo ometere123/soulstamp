@@ -78,7 +78,7 @@ def extract_address(output: str) -> str:
     return matches[-1]
 
 
-def finalize(tx_hash: str) -> dict:
+def finalize(tx_hash: str, expect_success: bool = True) -> dict:
     completed = subprocess.run(["node", str(FINALIZER), tx_hash, RPC], cwd=ROOT, text=True, capture_output=True)
     output = completed.stdout.strip().splitlines()
     if not output:
@@ -86,18 +86,22 @@ def finalize(tx_hash: str) -> dict:
     evidence = json.loads(output[-1])
     if evidence.get("statusName") not in ("FINALIZED", 5):
         raise RuntimeError(f"Transaction {tx_hash} was not FINALIZED: {evidence}")
-    if evidence.get("txExecutionResultName") not in ("FINISHED_WITH_RETURN", 1):
+    execution = evidence.get("txExecutionResultName")
+    succeeded = execution in ("FINISHED_WITH_RETURN", 1)
+    if expect_success and not succeeded:
         raise RuntimeError(f"Transaction {tx_hash} finalized with failed execution: {evidence}")
+    if not expect_success and (succeeded or execution in (None, "NOT_VOTED", 0)):
+        raise RuntimeError(f"Transaction {tx_hash} did not provide a finalized failed execution: {evidence}")
     return evidence
 
 
-def write(contract: str, method: str, args: list[str]) -> tuple[str, dict]:
+def write(contract: str, method: str, args: list[str], expect_success: bool = True) -> tuple[str, dict]:
     if os.environ.get("GENLAYER_PRIVATE_KEY"):
         output = submit("write", contract, method, json.dumps(args))
     else:
         output = submit("write", contract, method, "--args", *args)
     tx_hash = extract_hash(output)
-    return tx_hash, finalize(tx_hash)
+    return tx_hash, finalize(tx_hash, expect_success=expect_success)
 
 
 def main() -> int:
@@ -135,7 +139,26 @@ def main() -> int:
         "explorer": f"https://genlayer-explorer.vercel.app/address/{contract_address}",
         "legacy_contract_address": OLD_CONTRACT,
         "lifecycle": [],
+        "negative_lifecycle": [],
     }
+
+    # Prove that the deployed contract rejects an unauthorized/nonexistent
+    # recovery transition. This is intentionally a real signed transaction;
+    # the finality inspector records the failed execution rather than hiding
+    # it behind an ACCEPTED receipt.
+    negative_id = "0" * 24
+    negative_hash, negative_finality = write(
+        contract_address,
+        "execute_wallet_recovery",
+        [negative_id],
+        expect_success=False,
+    )
+    proof["negative_lifecycle"].append({
+        "method": "execute_wallet_recovery",
+        "args": [negative_id],
+        "expected_success": False,
+        "transaction": {"hash": negative_hash, **negative_finality},
+    })
 
     # A deployment plus source parity is safe to automate. Full positive
     # challenge/recovery requires real fresh social evidence; run the explicit
@@ -146,12 +169,13 @@ def main() -> int:
         for item in plan:
             method = str(item["method"])
             args = [str(value) for value in item.get("args", [])]
-            tx_hash, finality = write(contract_address, method, args)
-            proof["lifecycle"].append({"method": method, "args": args, "transaction": {"hash": tx_hash, **finality}})
+            expect_success = bool(item.get("expect_success", True))
+            tx_hash, finality = write(contract_address, method, args, expect_success=expect_success)
+            proof["lifecycle"].append({"method": method, "args": args, "expected_success": expect_success, "transaction": {"hash": tx_hash, **finality}})
 
     LIVE_DIR.mkdir(parents=True, exist_ok=True)
     (LIVE_DIR / "studionet-v3-proof.json").write_text(json.dumps(proof, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"contract_address": contract_address, "deployment_tx": deploy_tx, "source_parity": "exact", "lifecycle_steps": len(proof["lifecycle"])}))
+    print(json.dumps({"contract_address": contract_address, "deployment_tx": deploy_tx, "source_parity": "exact", "lifecycle_steps": len(proof["lifecycle"]), "negative_lifecycle_steps": len(proof["negative_lifecycle"])}))
     return 0
 
 

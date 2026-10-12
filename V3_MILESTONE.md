@@ -67,6 +67,9 @@ Required pre-deployment gates are:
 `scripts/live_studionet_proof.py` is fail-closed. It records a lifecycle step
 only after a separate SDK finality inspector confirms `FINALIZED` and
 `FINISHED_WITH_RETURN`, and it refuses to record a deployment when exact source
-parity fails. Missing external evidence, locked accounts, rate limits, or
-failed transactions are reported as blockers rather than converted into a
-success claim.
+parity fails. After deployment it also submits a deliberately invalid recovery
+transition and records it only when the transaction is finalized with a
+terminal failed execution. Additional verification, challenge, rebuttal,
+recovery, revocation, and eligibility steps remain explicit operator inputs so
+missing external evidence, locked accounts, rate limits, or failed transactions
+are reported as blockers rather than converted into success claims.
