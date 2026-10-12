@@ -16,6 +16,14 @@ def test_live_proof_requires_finality_for_success_and_failure_paths():
     assert "did not provide a finalized failed execution" in source
 
 
+def test_finality_inspector_supports_current_studionet_receipt_shape():
+    source = Path("scripts/finalized_tx.mjs").read_text(encoding="utf-8")
+    assert "status_name" in source
+    assert "consensus_data?.leader_receipt" in source
+    assert "rawExecutionResults" in source
+    assert "FINISHED_WITH_ERROR" in source
+
+
 def test_live_proof_records_a_real_negative_recovery_transition():
     source = PROOF_SCRIPT.read_text(encoding="utf-8")
     assert '"execute_wallet_recovery"' in source
