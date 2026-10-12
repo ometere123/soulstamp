@@ -17,11 +17,10 @@ The v3 contribution is a lifecycle state machine, not a UI-only refresh: a consu
 Current v3 Studionet deployment:
 
 ```text
-Contract: 0x6Ad350E2486bE0F277A017D4Fa9124661f750263
-Deployment: https://explorer-studio.genlayer.com/tx/0x1f13804a4180f88cb8a8b6e92a712c261fc90f7d9afc36d8a95f1e7b2b8f29e1
+Contract: 0x4717b4e830e9111AAF97aCb0159f58D750085D1A
+Deployment: https://explorer-studio.genlayer.com/tx/0x9fb9eb57d68540408d1731ae06d24a985ae9534be80cc5020099f893e3fe8ef7
 Status: FINALIZED / FINISHED_WITH_RETURN / SUCCESS, SUCCESS
-Source: exact for the previously deployed source revision; redeployment required
-for the current X provider-origin hardening fix
+Source: exact after CRLF normalization for revision 7560ad4
 Lifecycle proof: pending finalized verification, challenge, recovery, revocation,
 and negative-transition receipts.
 ```

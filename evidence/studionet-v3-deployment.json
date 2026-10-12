@@ -6,10 +6,10 @@
     "chain_id": 61999,
     "rpc": "https://studio.genlayer.com/api"
   },
-  "contract_address": "0x6Ad350E2486bE0F277A017D4Fa9124661f750263",
+  "contract_address": "0x4717b4e830e9111AAF97aCb0159f58D750085D1A",
   "deployment_transaction": {
-    "hash": "0x1f13804a4180f88cb8a8b6e92a712c261fc90f7d9afc36d8a95f1e7b2b8f29e1",
-    "explorer": "https://explorer-studio.genlayer.com/tx/0x1f13804a4180f88cb8a8b6e92a712c261fc90f7d9afc36d8a95f1e7b2b8f29e1",
+    "hash": "0x9fb9eb57d68540408d1731ae06d24a985ae9534be80cc5020099f893e3fe8ef7",
+    "explorer": "https://explorer-studio.genlayer.com/tx/0x9fb9eb57d68540408d1731ae06d24a985ae9534be80cc5020099f893e3fe8ef7",
     "status": "FINALIZED",
     "execution": "FINISHED_WITH_RETURN",
     "consensus_result": "MAJORITY_AGREE",
@@ -17,15 +17,15 @@
   },
   "source_parity": {
     "result": "exact_after_crlf_normalization",
-    "sha256_normalized_lf": "0a66bd49e366895dbf624aea91ba502603088785d137d6a2665c683d58b60512",
-    "repository_raw_sha256": "0a66bd49e366895dbf624aea91ba502603088785d137d6a2665c683d58b60512",
-    "api_raw_sha256": "8a99a13dd0c7576305433ab58fdc9bad44cab6f7eb8121c4bcd9fe1fc74e4d96",
+    "sha256_normalized_lf": "3bce13a6a00ef101a02f5d78c93d9e86e38c224ff7f6636f2f57b574209110bf",
+    "repository_raw_sha256": "3bce13a6a00ef101a02f5d78c93d9e86e38c224ff7f6636f2f57b574209110bf",
+    "api_raw_sha256": "78bbc6e6c6ad961579f96007652bb86f7fc29583daf706c3328c0f0a88f4a69d",
     "line_ending_note": "The Studionet API returns the identical source with CRLF line endings; repository source uses LF.",
-    "deployed_source_revision": "e2d5ebff970a6c246659a3ed035624164d396fa7"
+    "deployed_source_revision": "7560ad4a8d9ce88d775b1c26cf20999717aae925"
   },
   "current_repository_source": {
-    "revision": "e2d5ebff970a6c246659a3ed035624164d396fa7",
-    "sha256": "0a66bd49e366895dbf624aea91ba502603088785d137d6a2665c683d58b60512",
+    "revision": "7560ad4a8d9ce88d775b1c26cf20999717aae925",
+    "sha256": "3bce13a6a00ef101a02f5d78c93d9e86e38c224ff7f6636f2f57b574209110bf",
     "parity_with_deployed_contract": "exact_after_crlf_normalization",
     "redeployment_required": false
   },
@@ -38,6 +38,13 @@
     "total_recoveries": 0,
     "admin": "0x4e44636494650386b89c64011c10f48d4b344c4f",
     "legacy_contract_address": "0x3108daffcbc24e261137056c56afcae17677bdfb"
+  },
+  "previous_deployment": {
+    "contract_address": "0x6Ad350E2486bE0F277A017D4Fa9124661f750263",
+    "deployment_transaction": "0x1f13804a4180f88cb8a8b6e92a712c261fc90f7d9afc36d8a95f1e7b2b8f29e1",
+    "source_sha256": "0a66bd49e366895dbf624aea91ba502603088785d137d6a2665c683d58b60512",
+    "deployed_source_revision": "e2d5ebff970a6c246659a3ed035624164d396fa7",
+    "superseded_by": "0x4717b4e830e9111AAF97aCb0159f58D750085D1A"
   },
   "predecessor_deployment": {
     "contract_address": "0xe2E6E2dDC52Ed996C5d3EAfADF52BDd736B48703",
