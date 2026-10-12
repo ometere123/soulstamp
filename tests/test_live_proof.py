@@ -26,6 +26,8 @@ def test_live_positive_steps_require_post_state_assertions():
     assert "VIEW_READER" in source
     assert "requires a post-state verify specification" in source
     assert "state_verification" in source
+    assert "EXPLORER" in source
+    assert "/tx/" in source
 
 
 def test_local_release_env_loader_is_scoped_and_does_not_override_process(monkeypatch, tmp_path):

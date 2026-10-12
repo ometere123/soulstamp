@@ -288,6 +288,11 @@ guard proof; additional positive lifecycle steps are supplied explicitly with
 object such as `{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"RESOLVED_CHALLENGER"}]}`;
 the runner reads that view after finality and records the checked state. A
 successful receipt without a matching state assertion is rejected.
+Each lifecycle item may set `"signer":"deployer"` (default) or
+`"signer":"admin"`; the latter uses the separate local/Actions secret
+`SOULSTAMP_ADMIN_PRIVATE_KEY`, while `SOULSTAMP_ADMIN_ADDRESS` remains the
+public constructor admin address. This permits a real two-wallet challenge
+and recovery proof without putting either key in the frontend or Worker.
 
 The GitHub Actions live job is intentionally opt-in. Configure the repository
 secret `GENLAYER_PRIVATE_KEY` and public Actions variable

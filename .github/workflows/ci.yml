@@ -65,6 +65,7 @@ jobs:
       - name: Verify live signer configuration without revealing secrets
         env:
           GENLAYER_PRIVATE_KEY: ${{ secrets.GENLAYER_PRIVATE_KEY }}
+          SOULSTAMP_ADMIN_PRIVATE_KEY: ${{ secrets.SOULSTAMP_ADMIN_PRIVATE_KEY }}
           SOULSTAMP_ADMIN_ADDRESS: ${{ vars.SOULSTAMP_ADMIN_ADDRESS }}
         run: |
           test -n "$GENLAYER_PRIVATE_KEY" || { echo "GENLAYER_PRIVATE_KEY Actions secret is missing"; exit 1; }
@@ -73,5 +74,6 @@ jobs:
       - name: Execute real Studionet lifecycle proof
         env:
           GENLAYER_PRIVATE_KEY: ${{ secrets.GENLAYER_PRIVATE_KEY }}
+          SOULSTAMP_ADMIN_PRIVATE_KEY: ${{ secrets.SOULSTAMP_ADMIN_PRIVATE_KEY }}
           SOULSTAMP_ADMIN_ADDRESS: ${{ vars.SOULSTAMP_ADMIN_ADDRESS }}
         run: python scripts/live_studionet_proof.py

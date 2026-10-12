@@ -18,11 +18,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RPC = "https://studio.genlayer.com/api"
+EXPLORER = "https://explorer-studio.genlayer.com"
 CLI = ROOT / "node_modules" / ".bin" / ("genlayer.cmd" if os.name == "nt" else "genlayer")
 FINALIZER = ROOT / "scripts" / "finalized_tx.mjs"
 CODE_READER = ROOT / "scripts" / "contract_code.mjs"
 VIEW_READER = ROOT / "scripts" / "live_read.mjs"
 SDK_SUBMITTER = ROOT / "scripts" / "live_submit.mjs"
+KEY_ADDRESS_READER = ROOT / "scripts" / "key_address.mjs"
 LIVE_DIR = ROOT / "artifacts" / "live"
 OLD_CONTRACT = os.environ.get("SOULSTAMP_LEGACY_CONTRACT", "0x3108dafFCBC24E261137056c56aFCAE17677BDfB")
 
@@ -47,7 +49,7 @@ def load_local_release_env(path: Path = ROOT / ".env") -> None:
             continue
         key, value = line.split("=", 1)
         key = key.strip()
-        if key not in ("GENLAYER_PRIVATE_KEY", "SOULSTAMP_ADMIN_ADDRESS") or key in os.environ:
+        if key not in ("GENLAYER_PRIVATE_KEY", "SOULSTAMP_ADMIN_PRIVATE_KEY", "SOULSTAMP_ADMIN_ADDRESS") or key in os.environ:
             continue
         value = value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
@@ -74,7 +76,7 @@ def assert_cli_version() -> str:
     return version
 
 
-def submit(operation: str, *args: str) -> str:
+def submit(operation: str, *args: str, signer: str = "deployer") -> str:
     """Submit without exposing a private key in argv or logs.
 
     CI can provide GENLAYER_PRIVATE_KEY as a masked environment secret. Local
@@ -82,18 +84,70 @@ def submit(operation: str, *args: str) -> str:
     pinned to the repository-local CLI/SDK dependency set and are finalized by
     this script before any result is recorded.
     """
-    if os.environ.get("GENLAYER_PRIVATE_KEY"):
+    signer_env = {
+        "deployer": "GENLAYER_PRIVATE_KEY",
+        "owner": "GENLAYER_PRIVATE_KEY",
+        "admin": "SOULSTAMP_ADMIN_PRIVATE_KEY",
+        "challenger": "SOULSTAMP_ADMIN_PRIVATE_KEY",
+    }.get(signer)
+    if signer_env is None:
+        raise RuntimeError(f"Unsupported live signer '{signer}'")
+    selected_key = os.environ.get(signer_env)
+    if signer_env != "GENLAYER_PRIVATE_KEY" and not selected_key:
+        raise RuntimeError(f"{signer_env} is required for live signer '{signer}'")
+    if selected_key:
+        child_env = os.environ.copy()
+        child_env["GENLAYER_PRIVATE_KEY"] = selected_key
         completed = subprocess.run(
             ["node", str(SDK_SUBMITTER), operation, *args],
             cwd=ROOT,
             text=True,
             capture_output=True,
+            env=child_env,
         )
         output = (completed.stdout + "\n" + completed.stderr).strip()
         if completed.returncode:
             raise RuntimeError(output)
         return output
     return run_cli(operation, *args, allow_failure=False)
+
+
+def derived_signer_address(signer: str) -> str | None:
+    key_name = {
+        "deployer": "GENLAYER_PRIVATE_KEY",
+        "owner": "GENLAYER_PRIVATE_KEY",
+        "admin": "SOULSTAMP_ADMIN_PRIVATE_KEY",
+        "challenger": "SOULSTAMP_ADMIN_PRIVATE_KEY",
+    }.get(signer)
+    if key_name is None or not os.environ.get(key_name):
+        return None
+    child_env = os.environ.copy()
+    child_env["GENLAYER_PRIVATE_KEY"] = os.environ[key_name]
+    completed = subprocess.run(["node", str(KEY_ADDRESS_READER)], cwd=ROOT, text=True, capture_output=True, env=child_env)
+    if completed.returncode:
+        raise RuntimeError(f"Unable to derive the {signer} signer address")
+    address = completed.stdout.strip()
+    if not re.fullmatch(r"0x[0-9a-fA-F]{40}", address):
+        raise RuntimeError(f"Unable to derive a valid {signer} signer address")
+    return address.lower()
+
+
+def parse_lifecycle_plan(raw: str | None) -> list[dict]:
+    if not raw:
+        return []
+    plan = json.loads(raw)
+    if not isinstance(plan, list):
+        raise RuntimeError("SOULSTAMP_LIVE_LIFECYCLE_JSON must be a JSON list")
+    allowed = {"deployer", "owner", "admin", "challenger"}
+    for item in plan:
+        if not isinstance(item, dict):
+            raise RuntimeError("Every live lifecycle step must be a JSON object")
+        signer = str(item.get("signer", "deployer"))
+        if signer not in allowed:
+            raise RuntimeError(f"Unsupported live signer '{signer}'")
+        if signer in ("admin", "challenger") and not os.environ.get("SOULSTAMP_ADMIN_PRIVATE_KEY"):
+            raise RuntimeError("SOULSTAMP_ADMIN_PRIVATE_KEY is required by the live lifecycle plan")
+    return plan
 
 
 def extract_hash(output: str) -> str:
@@ -127,9 +181,13 @@ def finalize(tx_hash: str, expect_success: bool = True) -> dict:
     return evidence
 
 
-def write(contract: str, method: str, args: list[str], expect_success: bool = True) -> tuple[str, dict]:
-    if os.environ.get("GENLAYER_PRIVATE_KEY"):
-        output = submit("write", contract, method, json.dumps(args))
+def transaction_record(tx_hash: str, finality: dict) -> dict:
+    return {"hash": tx_hash, "explorer": f"{EXPLORER}/tx/{tx_hash}", **finality}
+
+
+def write(contract: str, method: str, args: list[str], expect_success: bool = True, signer: str = "deployer") -> tuple[str, dict]:
+    if os.environ.get("GENLAYER_PRIVATE_KEY") or (signer in ("admin", "challenger") and os.environ.get("SOULSTAMP_ADMIN_PRIVATE_KEY")):
+        output = submit("write", contract, method, json.dumps(args), signer=signer)
     else:
         output = submit("write", contract, method, "--args", *args)
     tx_hash = extract_hash(output)
@@ -194,8 +252,13 @@ def main() -> int:
     if not re.fullmatch(r"0x[0-9a-fA-F]{40}", admin):
         raise RuntimeError("SOULSTAMP_ADMIN_ADDRESS must be a 0x-prefixed 20-byte address")
 
+    lifecycle_plan = parse_lifecycle_plan(os.environ.get("SOULSTAMP_LIVE_LIFECYCLE_JSON"))
+    admin_signer = derived_signer_address("admin")
+    if admin_signer is not None and admin_signer != admin.lower():
+        raise RuntimeError("SOULSTAMP_ADMIN_PRIVATE_KEY does not match SOULSTAMP_ADMIN_ADDRESS")
+
     if os.environ.get("GENLAYER_PRIVATE_KEY"):
-        deploy_output = submit("deploy", "contracts/soul_stamp.py", admin, OLD_CONTRACT)
+        deploy_output = submit("deploy", "contracts/soul_stamp.py", admin, OLD_CONTRACT, signer="deployer")
     else:
         deploy_output = submit("deploy", "--contract", "contracts/soul_stamp.py", "--args", admin, OLD_CONTRACT)
     deploy_tx = extract_hash(deploy_output)
@@ -214,11 +277,11 @@ def main() -> int:
         "network": {"name": "Studionet", "chain_id": 61999, "rpc": RPC},
         "cli_version": cli_version,
         "contract_address": contract_address,
-        "deployment_transaction": {"hash": deploy_tx, **deploy_finality},
+        "deployment_transaction": transaction_record(deploy_tx, deploy_finality),
         "source_sha256": __import__("hashlib").sha256(local_source.encode()).hexdigest(),
         "source_parity": "exact",
         "recorded_at": datetime.now(timezone.utc).isoformat(),
-        "explorer": f"https://genlayer-explorer.vercel.app/address/{contract_address}",
+        "explorer": f"{EXPLORER}/address/{contract_address}",
         "legacy_contract_address": OLD_CONTRACT,
         "lifecycle": [],
         "negative_lifecycle": [],
@@ -234,28 +297,26 @@ def main() -> int:
         "execute_wallet_recovery",
         [negative_id],
         expect_success=False,
+        signer="deployer",
     )
     proof["negative_lifecycle"].append({
         "method": "execute_wallet_recovery",
         "args": [negative_id],
         "expected_success": False,
-        "transaction": {"hash": negative_hash, **negative_finality},
+        "transaction": transaction_record(negative_hash, negative_finality),
     })
 
     # A deployment plus source parity is safe to automate. Full positive
     # challenge/recovery requires real fresh social evidence; run the explicit
     # phase below only when the operator supplies it and accepts the proof.
-    lifecycle_plan = os.environ.get("SOULSTAMP_LIVE_LIFECYCLE_JSON")
     if lifecycle_plan:
-        plan = json.loads(lifecycle_plan)
-        if not isinstance(plan, list):
-            raise RuntimeError("SOULSTAMP_LIVE_LIFECYCLE_JSON must be a JSON list")
-        for item in plan:
+        for item in lifecycle_plan:
             method = str(item["method"])
             args = [str(value) for value in item.get("args", [])]
             expect_success = bool(item.get("expect_success", True))
-            tx_hash, finality = write(contract_address, method, args, expect_success=expect_success)
-            entry = {"method": method, "args": args, "expected_success": expect_success, "transaction": {"hash": tx_hash, **finality}}
+            signer = str(item.get("signer", "deployer"))
+            tx_hash, finality = write(contract_address, method, args, expect_success=expect_success, signer=signer)
+            entry = {"method": method, "args": args, "signer": signer, "expected_success": expect_success, "transaction": transaction_record(tx_hash, finality)}
             if expect_success:
                 verify_spec = item.get("verify")
                 if not isinstance(verify_spec, dict):
