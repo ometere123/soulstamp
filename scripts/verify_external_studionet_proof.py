@@ -38,6 +38,15 @@ REQUIRED_FULL_LIFECYCLE_METHODS = {
 }
 
 
+def canonical_source(source: str) -> str:
+    """Compare source content independently of RPC line-ending transport."""
+    return source.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def source_sha256(source: str) -> str:
+    return hashlib.sha256(canonical_source(source).encode("utf-8")).hexdigest()
+
+
 def validate_hex(value: str, pattern: re.Pattern[str], label: str) -> str:
     if not pattern.fullmatch(value):
         raise RuntimeError(f"{label} must be a valid 0x-prefixed value")
@@ -182,8 +191,8 @@ def main() -> int:
 
     remote_source = run_node(CODE_READER, contract, args.rpc)
     local_source = SOURCE.read_text(encoding="utf-8")
-    if remote_source != local_source:
-        raise RuntimeError("Exact source parity check failed; external deployment is not recorded as valid")
+    if canonical_source(remote_source) != canonical_source(local_source):
+        raise RuntimeError("Exact source parity check failed after line-ending normalization; external deployment is not recorded as valid")
 
     deployed_stats = read_view(contract, "get_stats", [], args.rpc)
     if not isinstance(deployed_stats, dict) or deployed_stats.get("verifier_version") != "soulstamp-v3.0-continuity":
@@ -212,8 +221,10 @@ def main() -> int:
         "verification_mode": "external-read-only",
         "contract_address": contract,
         "deployment_transaction": transaction_record(deployment_tx, deployment_finality),
-        "source_sha256": hashlib.sha256(local_source.encode()).hexdigest(),
-        "source_parity": "exact",
+        "source_sha256": source_sha256(local_source),
+        "api_source_sha256": source_sha256(remote_source),
+        "source_parity": "exact_after_line_ending_normalization",
+        "source_line_ending_note": "Studionet source is compared after CRLF/CR to LF normalization.",
         "deployed_state": {
             "method": "get_stats",
             "assertions": [
@@ -240,7 +251,7 @@ def main() -> int:
             {
                 "contract_address": contract,
                 "deployment_tx": deployment_tx,
-                "source_parity": "exact",
+                "source_parity": "exact_after_line_ending_normalization",
                 "lifecycle_steps": len(lifecycle),
                 "negative_lifecycle_steps": len(negative_lifecycle),
                 "artifact": str(args.artifact),

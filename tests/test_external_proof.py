@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.verify_external_studionet_proof import load_plan
+from scripts.verify_external_studionet_proof import canonical_source, load_plan, source_sha256
 
 
 def plan_item(method: str, number: int, *, expect_success: bool = True) -> dict:
@@ -57,3 +57,9 @@ def test_external_verifier_has_no_signing_path():
 def test_contract_source_is_ascii_safe_for_rpc_source_parity():
     source = Path("contracts/soul_stamp.py").read_text(encoding="utf-8")
     assert source.isascii()
+
+
+def test_external_source_parity_normalizes_rpc_line_endings():
+    source = "line one\nline two\n"
+    assert canonical_source(source.replace("\n", "\r\n")) == source
+    assert source_sha256(source.replace("\n", "\r\n")) == source_sha256(source)

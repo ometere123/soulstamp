@@ -17,10 +17,16 @@ The v3 contribution is a lifecycle state machine, not a UI-only refresh: a consu
 Current v3 Studionet deployment:
 
 ```text
-Pending release gate. Do not point the frontend at a contract until
-scripts/live_studionet_proof.py records FINALIZED + FINISHED_WITH_RETURN and
-exact source parity in artifacts/live/studionet-v3-proof.json.
+Contract: 0x6Ad350E2486bE0F277A017D4Fa9124661f750263
+Deployment: https://explorer-studio.genlayer.com/tx/0x1f13804a4180f88cb8a8b6e92a712c261fc90f7d9afc36d8a95f1e7b2b8f29e1
+Status: FINALIZED / FINISHED_WITH_RETURN / SUCCESS, SUCCESS
+Source: exact after CRLF-to-LF normalization
+Lifecycle proof: pending finalized verification, challenge, recovery, revocation,
+and negative-transition receipts.
 ```
+
+The deployment and source-parity record is in
+[evidence/studionet-v3-deployment.json](./evidence/studionet-v3-deployment.json).
 
 ---
 
@@ -278,10 +284,12 @@ putting the key in command-line arguments. Neither path prints or stores the
 key.
 
 The script fails closed unless deployment reaches FINALIZED with
-`FINISHED_WITH_RETURN` and the RPC-returned contract source equals the local
-source byte-for-byte. It never prints or stores signing keys. A successful run
-writes transaction hashes, execution outcomes, contract address, source hash,
-and explorer link to `artifacts/live/studionet-v3-proof.json`.
+`FINISHED_WITH_RETURN` and the RPC-returned contract source matches the local
+source after line-ending normalization. It records both normalized source
+hashes and the normalization rule, never prints or stores signing keys, and a
+successful run writes transaction hashes, execution outcomes, contract
+address, source hash, and explorer link to
+`artifacts/live/studionet-v3-proof.json`.
 The artifact includes a finalized failed recovery transition as a negative
 guard proof; additional positive lifecycle steps are supplied explicitly with
 `SOULSTAMP_LIVE_LIFECYCLE_JSON`. Every successful step must include a `verify`
@@ -355,8 +363,8 @@ python scripts/verify_external_studionet_proof.py `
 
 It checks Studionet chain 61999, FINALIZED status, successful execution as
 `FINISHED_WITH_RETURN`, expected failed execution for negative steps, exact
-deployed-source parity, the v3 verifier version, and each supplied post-state
-assertion. It writes only public evidence to
+deployed-source parity after line-ending normalization, the v3 verifier
+version, and each supplied post-state assertion. It writes only public evidence to
 `artifacts/live/studionet-v3-external-proof.json`. A contract address by itself
 is not a lifecycle proof; include the deployment and lifecycle transaction
 hashes plus the generated challenge IDs and observed state values.

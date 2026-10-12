@@ -8,6 +8,7 @@ The CLI uses its configured keystore; no private key is read or printed here.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import subprocess
@@ -37,6 +38,15 @@ REQUIRED_FULL_LIFECYCLE_METHODS = {
     "execute_wallet_recovery",
     "revoke_platform",
 }
+
+
+def canonical_source(source: str) -> str:
+    """Compare source content independently of RPC line-ending transport."""
+    return source.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def source_sha256(source: str) -> str:
+    return hashlib.sha256(canonical_source(source).encode("utf-8")).hexdigest()
 
 
 def load_local_release_env(path: Path = ROOT / ".env") -> None:
@@ -303,9 +313,10 @@ def main() -> int:
     remote_source = subprocess.run(["node", str(CODE_READER), contract_address, RPC], cwd=ROOT, text=True, capture_output=True)
     if remote_source.returncode:
         raise RuntimeError(remote_source.stderr or "Unable to read deployed source")
+    remote_source_text = remote_source.stdout
     local_source = (ROOT / "contracts" / "soul_stamp.py").read_text(encoding="utf-8")
-    if remote_source.stdout != local_source:
-        raise RuntimeError("Exact source parity check failed; deployment is not recorded as valid.")
+    if canonical_source(remote_source_text) != canonical_source(local_source):
+        raise RuntimeError("Exact source parity check failed after line-ending normalization; deployment is not recorded as valid.")
 
     deployed_stats = read_view(contract_address, "get_stats", [])
     if not isinstance(deployed_stats, dict) or deployed_stats.get("verifier_version") != "soulstamp-v3.0-continuity":
@@ -317,8 +328,10 @@ def main() -> int:
         "cli_version": cli_version,
         "contract_address": contract_address,
         "deployment_transaction": transaction_record(deploy_tx, deploy_finality),
-        "source_sha256": __import__("hashlib").sha256(local_source.encode()).hexdigest(),
-        "source_parity": "exact",
+        "source_sha256": source_sha256(local_source),
+        "api_source_sha256": source_sha256(remote_source_text),
+        "source_parity": "exact_after_line_ending_normalization",
+        "source_line_ending_note": "Studionet source is compared after CRLF/CR to LF normalization.",
         "deployed_state": {
             "method": "get_stats",
             "assertions": [{"path": "verifier_version", "expected": "soulstamp-v3.0-continuity", "actual": deployed_stats.get("verifier_version")}],
@@ -370,7 +383,7 @@ def main() -> int:
 
     LIVE_DIR.mkdir(parents=True, exist_ok=True)
     (LIVE_DIR / "studionet-v3-proof.json").write_text(json.dumps(proof, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"contract_address": contract_address, "deployment_tx": deploy_tx, "source_parity": "exact", "lifecycle_steps": len(proof["lifecycle"]), "negative_lifecycle_steps": len(proof["negative_lifecycle"])}))
+    print(json.dumps({"contract_address": contract_address, "deployment_tx": deploy_tx, "source_parity": "exact_after_line_ending_normalization", "lifecycle_steps": len(proof["lifecycle"]), "negative_lifecycle_steps": len(proof["negative_lifecycle"])}))
     return 0
 
 

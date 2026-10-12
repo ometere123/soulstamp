@@ -16,6 +16,12 @@ def test_live_proof_requires_finality_for_success_and_failure_paths():
     assert "did not provide a finalized failed execution" in source
 
 
+def test_live_proof_normalizes_rpc_source_line_endings():
+    source = PROOF_SCRIPT.read_text(encoding="utf-8")
+    assert "canonical_source" in source
+    assert "exact_after_line_ending_normalization" in source
+
+
 def test_finality_inspector_supports_current_studionet_receipt_shape():
     source = Path("scripts/finalized_tx.mjs").read_text(encoding="utf-8")
     assert "status_name" in source
