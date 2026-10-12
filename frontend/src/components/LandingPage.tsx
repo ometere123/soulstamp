@@ -26,8 +26,8 @@ const FLOW_STEPS = [
     icon: <CheckCircle2 className="h-5 w-5" />,
   },
   {
-    title: "Maintain proof health",
-    body: "GenLayer can re-check live public evidence and mark proofs active, stale, conflicted, revoked, or flagged.",
+    title: "Challenge and recover",
+    body: "Fresh evidence, bounded rebuttals, independent resolution, and a safety-delayed recovery path protect identity continuity when a wallet is lost or ownership is contested.",
     icon: <ShieldCheck className="h-5 w-5" />,
   },
 ];
@@ -36,7 +36,7 @@ const SIGNALS = [
   "Structured proof verdicts",
   "Live reverification",
   "Proof dossiers",
-  "Admin flag and revoke trail",
+  "Immutable challenge and recovery history",
 ];
 
 export function LandingPage() {
@@ -46,7 +46,7 @@ export function LandingPage() {
         <div className="mx-auto flex max-w-3xl flex-col items-center">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-brand-500/30 bg-brand-500/10 px-3 py-1 text-xs font-medium text-brand-200">
             <BrainCircuit className="h-3.5 w-3.5" />
-            GenLayer proof health protocol
+            GenLayer identity continuity protocol
           </div>
 
           <img
@@ -56,14 +56,14 @@ export function LandingPage() {
           />
 
           <h1 className="mt-7 max-w-3xl text-4xl font-bold tracking-normal text-white sm:text-5xl">
-            Identity proofs kept healthy by GenLayer consensus.
+            Identity continuity enforced by GenLayer consensus.
           </h1>
 
           <p className="mt-5 max-w-2xl text-base leading-7 text-gray-400">
             SoulStamp links a wallet to controlled GitHub, X, and Discord accounts,
-            then uses GenLayer to verify public proof, store structured evidence,
-            and re-check whether each proof remains active, stale, conflicted,
-            revoked, or flagged.
+            then uses GenLayer to verify fresh evidence, preserve immutable history,
+            resolve contested ownership, and expose an enforceable eligibility result
+            to consumers.
           </p>
 
           <div className="mt-7 flex flex-wrap justify-center gap-2">

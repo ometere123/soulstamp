@@ -11,6 +11,8 @@ const ACTION_META: Record<string, { label: string; icon: React.ReactNode; color:
   revoked:                { label: "Revoked",        icon: <XCircle className="w-4 h-4" />,      color: "text-gray-400" },
   admin_flagged:          { label: "Admin Flagged",  icon: <ShieldAlert className="w-4 h-4" />,  color: "text-danger" },
   admin_unflagged:        { label: "Flag Cleared",   icon: <ShieldOff className="w-4 h-4" />,    color: "text-success" },
+  challenge_resolved:    { label: "Challenge Resolved", icon: <ShieldAlert className="w-4 h-4" />, color: "text-brand-300" },
+  wallet_recovery_executed: { label: "Wallet Recovered", icon: <CheckCircle2 className="w-4 h-4" />, color: "text-success" },
 };
 
 function getActionMeta(action: string) {
@@ -124,6 +126,13 @@ export function AuditTrail() {
                           entry.bot_score < 60 ? "text-yellow-400" : "text-danger"
                         )}>{entry.bot_score}%</span></span>
                       )}
+                    </div>
+                  )}
+                  {(entry.actor || entry.details || entry.event_hash) && (
+                    <div className="mt-3 border-t border-gray-800 pt-2 text-[11px] text-gray-500 space-y-1">
+                      {entry.actor && <div>Actor: <span className="font-mono text-gray-300">{entry.actor}</span></div>}
+                      {entry.details && <div>Details: <span className="text-gray-300">{entry.details}</span></div>}
+                      {entry.event_hash && <div>Immutable event hash: <span className="font-mono text-gray-300 break-all">{entry.event_hash}</span></div>}
                     </div>
                   )}
                 </div>

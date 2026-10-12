@@ -1,0 +1,17 @@
+{
+  "name": "soulstamp-protocol",
+  "version": "3.0.0",
+  "private": true,
+  "description": "SoulStamp identity continuity protocol tooling",
+  "scripts": {
+    "genlayer": "genlayer",
+    "lint:contract": "python scripts/contract_gates.py",
+    "test:direct": "python -m pytest tests/direct tests/test_soul_stamp.py -q",
+    "test:live": "python -m pytest tests/integration -m live -v -s",
+    "ci": "npm run lint:contract && npm run test:direct && npm --prefix frontend run build && npm --prefix backend run check"
+  },
+  "devDependencies": {
+    "genlayer": "0.39.1",
+    "genlayer-js": "1.1.8"
+  }
+}

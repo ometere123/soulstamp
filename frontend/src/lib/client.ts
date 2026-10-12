@@ -35,6 +35,11 @@ export async function ensureStudionet(): Promise<void> {
       throw err;
     }
   }
+
+  const chainId = String(await window.ethereum.request({ method: "eth_chainId" })).toLowerCase();
+  if (chainId !== STUDIONET_CHAIN_ID.toLowerCase()) {
+    throw new Error(`Wrong network selected (${chainId}). SoulStamp only accepts Studionet 61999.`);
+  }
 }
 
 // ── Read-only client (no wallet needed) ──────────────────────────────────────

@@ -12,8 +12,10 @@ import {
   unflagIdentity,
   revokePlatform,
   setDiscordAttestationBaseUrl,
+  getAllChallenges,
+  resolveOwnershipChallenge,
 } from "../lib/contract";
-import type { PlatformStats, IdentityRecord } from "../types";
+import type { OwnershipChallenge, PlatformStats, IdentityRecord } from "../types";
 
 interface IdentityRow {
   address: string;
@@ -33,6 +35,7 @@ export function AdminPanel() {
   const [searching, setSearching]   = useState(false);
   const [discordBaseUrl, setDiscordBaseUrl] = useState("");
   const [savingDiscordBase, setSavingDiscordBase] = useState(false);
+  const [challenges, setChallenges] = useState<OwnershipChallenge[]>([]);
 
   async function load() {
     setLoading(true);
@@ -64,6 +67,12 @@ export function AdminPanel() {
       setListError(e?.message ?? "Failed to load identity list");
     } finally {
       setLoading(false);
+    }
+
+    try {
+      setChallenges(await getAllChallenges(0, 100, 60_000));
+    } catch (e: any) {
+      console.log("[soulstamp] challenge list unavailable:", e?.message ?? e);
     }
   }
 
@@ -141,6 +150,18 @@ export function AdminPanel() {
     }
   }
 
+  async function handleResolveChallenge(challengeId: string) {
+    setActionId(`challenge:${challengeId}`);
+    try {
+      await resolveOwnershipChallenge(challengeId);
+      await load();
+    } catch (e: any) {
+      alert(e?.message ?? "Challenge resolution failed");
+    } finally {
+      setActionId(null);
+    }
+  }
+
   if (loading && !stats && rows.length === 0) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -209,6 +230,35 @@ export function AdminPanel() {
           </button>
         </div>
       </div>
+
+      <section className="bg-gray-900 border border-gray-700 rounded-xl p-5 mb-6">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="font-semibold">Ownership challenge oversight</h3>
+            <p className="text-xs text-gray-500 mt-1">Independent GenLayer resolution remains evidence-bound. Admins can resolve only when fresh challenger evidence and the deadline/rebuttal gate are satisfied.</p>
+          </div>
+          <span className="text-xs text-gray-500">{challenges.length} total</span>
+        </div>
+        {challenges.length === 0 ? (
+          <p className="text-sm text-gray-500">No ownership challenges recorded.</p>
+        ) : (
+          <div className="space-y-3">
+            {challenges.map(challenge => (
+              <div key={challenge.challenge_id} className="border border-gray-800 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">{challenge.platform} / @{challenge.username} <span className="text-gray-500 font-mono text-[11px]">{challenge.challenge_id}</span></div>
+                  <div className="text-xs text-gray-500 mt-1">{challenge.status} · challenger {challenge.challenger_wallet.slice(0, 8)}… · owner {challenge.current_owner.slice(0, 8)}…</div>
+                </div>
+                {["AWAITING_REBUTTAL", "RESPONDED"].includes(challenge.status) && (
+                  <button onClick={() => handleResolveChallenge(challenge.challenge_id)} disabled={actionId === `challenge:${challenge.challenge_id}`} className="btn-secondary text-xs">
+                    {actionId === `challenge:${challenge.challenge_id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Resolve"}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Address search */}
       <div className="flex gap-2 mb-6">

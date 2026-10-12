@@ -3,7 +3,7 @@ const DISCORD_API = "https://discord.com/api/v10";
 const DISCORD_TOKEN_ENDPOINT = "https://discord.com/api/oauth2/token";
 const DISCORD_EPOCH_MS = 1420070400000n;
 const SESSION_TTL_SECONDS = 10 * 60;
-const ATTESTATION_TTL_SECONDS = 10 * 60;
+const ATTESTATION_TTL_SECONDS = 5 * 60;
 
 function publicBaseUrl(env) {
   return (env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
@@ -78,7 +78,7 @@ async function verifyToken(token, purpose, env) {
 
   const payload = JSON.parse(new TextDecoder().decode(base64urlDecode(body)));
   if (payload.purpose !== purpose) throw new Error("Invalid signed token purpose");
-  if (!payload.exp || payload.exp < nowSeconds()) throw new Error("Signed token expired");
+  if (!payload.exp || payload.exp <= nowSeconds()) throw new Error("Signed token expired");
   return payload;
 }
 
@@ -258,7 +258,7 @@ async function handleAttest(request, env) {
   const wallet = String(body.wallet || "").toLowerCase();
   const verificationCode = String(body.verification_code || "").trim();
   const claimedUsername = String(body.claimed_username || "").trim();
-  const pendingId = String(body.pending_id || "").trim();
+  const pendingId = String(body.pending_id || "").trim().toUpperCase();
   const claimedParts = claimedUsername.split("#");
   const claimedId = claimedParts[claimedParts.length - 1];
 
@@ -268,8 +268,8 @@ async function handleAttest(request, env) {
   if (!/^0x[a-f0-9]{40}$/i.test(wallet)) {
     return json({ error: "Invalid wallet address." }, 400, env);
   }
-  if (!/^SOULSTAMP-VERIFY-[A-F0-9]{12}$/i.test(verificationCode)) {
-    return json({ error: "Invalid SoulStamp verification code." }, 400, env);
+  if (!/^SOULSTAMP-(VERIFY|CHALLENGE|REBUT)-[A-F0-9]{12}$/i.test(verificationCode)) {
+    return json({ error: "Invalid SoulStamp evidence code." }, 400, env);
   }
   if (!/^[A-F0-9]{24}$/i.test(pendingId)) {
     return json({ error: "Invalid SoulStamp pending proof ID." }, 400, env);
@@ -279,6 +279,9 @@ async function handleAttest(request, env) {
   }
 
   const now = nowSeconds();
+  if (session.exp <= now) {
+    return json({ error: "Discord OAuth session has expired. Reconnect Discord." }, 401, env);
+  }
   const accountCreatedAtMs = discordCreatedAtMs(session.user.id);
   const attestation = {
     platform: "discord",
@@ -286,6 +289,7 @@ async function handleAttest(request, env) {
     issuer: publicBaseUrl(env),
     pending_id: pendingId,
     nonce: crypto.randomUUID(),
+    attestation_id: crypto.randomUUID(),
     wallet,
     verification_code: verificationCode,
     discord_user_id: session.user.id,
@@ -306,7 +310,9 @@ async function handleAttest(request, env) {
   const attestationToken = await makeToken({
     purpose: "discord_attestation",
     attestation,
-    exp: attestation.expires_at + 3600,
+    // The signed URL expires at the same moment as the attestation payload.
+    // The contract also consumes the nonce after successful use.
+    exp: attestation.expires_at,
   }, env);
   attestation.attestation_token_hint = attestationToken.slice(-16);
 
@@ -324,6 +330,9 @@ async function handleAttest(request, env) {
 async function handleGetAttestation(pathname, env) {
   const token = pathname.split("/").pop();
   const payload = await verifyToken(token, "discord_attestation", env);
+  if (!payload.attestation || payload.attestation.expires_at <= nowSeconds()) {
+    throw new Error("Discord attestation expired");
+  }
   return json(payload.attestation, 200, env);
 }
 

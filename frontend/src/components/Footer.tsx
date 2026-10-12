@@ -150,8 +150,8 @@ export function Footer({ onNavigate }: FooterProps) {
                 </div>
               </div>
               <p className="max-w-xs text-xs leading-5 text-gray-500">
-                GenLayer-powered identity proof health for wallets linked to GitHub,
-                X, and Discord accounts.
+                GenLayer-powered identity continuity, challenges, and wallet recovery
+                for wallets linked to GitHub, X, and Discord accounts.
               </p>
             </div>
 
@@ -162,6 +162,7 @@ export function Footer({ onNavigate }: FooterProps) {
                 <button className="footer-link" onClick={() => goTo("dashboard")}>Dashboard</button>
                 <button className="footer-link" onClick={() => goTo("lookup")}>Public Lookup</button>
                 <button className="footer-link" onClick={() => goTo("audit")}>Audit Trail</button>
+                <button className="footer-link" onClick={() => goTo("challenges")}>Challenges & Recovery</button>
               </div>
             </div>
 

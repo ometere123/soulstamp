@@ -46,6 +46,7 @@ const STATUS_STYLES: Record<ProofStatus, string> = {
   REVOKED: "bg-gray-700 text-gray-300 border-gray-600",
   CONFLICTED: "bg-red-950 text-red-300 border-red-700",
   FLAGGED: "bg-red-950 text-red-300 border-red-700",
+  RECOVERED: "bg-brand-950 text-brand-300 border-brand-700",
 };
 
 function ProofHealthBadge({ status }: { status?: ProofStatus }) {
@@ -234,6 +235,7 @@ export function Dashboard({ onStartVerify }: DashboardProps) {
               )}
             </div>
             <p className="font-mono text-xs text-gray-500">{address}</p>
+            <p className={clsx("text-xs mt-2", identity.eligible ? "text-success" : "text-yellow-300")}>{identity.eligible ? "Consumer eligibility: active" : `Consumer eligibility: ${identity.eligibility_reason ?? "not eligible"}`}</p>
           </div>
           <button onClick={load} className="btn-secondary shrink-0">
             <RefreshCw className="w-4 h-4" />

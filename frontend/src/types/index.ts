@@ -1,5 +1,5 @@
 export type Platform = "github" | "twitter" | "discord";
-export type ProofStatus = "ACTIVE" | "STALE" | "REVOKED" | "CONFLICTED" | "FLAGGED";
+export type ProofStatus = "ACTIVE" | "STALE" | "REVOKED" | "CONFLICTED" | "FLAGGED" | "RECOVERED";
 export type ProofStrength = "STRONG" | "MEDIUM" | "WEAK";
 export type RiskBand = "low" | "medium" | "high";
 
@@ -21,6 +21,8 @@ export interface ProofDossier {
   verified_wallet: string;
   created_marker: number;
   updated_marker: number;
+  evidence_issued_at?: number;
+  evidence_expires_at?: number;
 }
 
 export interface LinkedAccount {
@@ -42,6 +44,7 @@ export interface LinkedAccount {
   reason_code?: string;
   last_checked_marker?: number;
   dossier?: ProofDossier;
+  status_before_flag?: string;
 }
 
 export interface IdentityRecord {
@@ -54,6 +57,11 @@ export interface IdentityRecord {
   created_at: number;
   last_updated: number;
   verification_count: number;
+  principal_id?: string;
+  identity_state?: "ACTIVE" | "FLAGGED" | "RECOVERY_PENDING" | "RECOVERED";
+  recovery_target?: string;
+  eligible?: boolean;
+  eligibility_reason?: string;
 }
 
 export interface PendingVerification {
@@ -75,6 +83,10 @@ export interface PlatformLookupResult {
   is_flagged?: boolean;
   verification_count?: number;
   proof_status?: ProofStatus;
+  canonical_platform_id?: string;
+  identity_state?: string;
+  eligible?: boolean;
+  eligibility_reason?: string;
 }
 
 export interface AuditEntry {
@@ -87,6 +99,10 @@ export interface AuditEntry {
   timestamp: number;
   proof_status?: ProofStatus;
   reason_code?: string;
+  actor?: string;
+  details?: string;
+  previous_hash?: string;
+  event_hash?: string;
 }
 
 export interface PlatformStats {
@@ -97,6 +113,48 @@ export interface PlatformStats {
   proof_statuses?: ProofStatus[];
   verifier_version?: string;
   discord_attestation_base_url?: string;
+  total_challenges?: number;
+  total_recoveries?: number;
+  challenge_statuses?: string[];
+  legacy_contract_address?: string;
+}
+
+export type ChallengeStatus =
+  | "OPEN"
+  | "AWAITING_REBUTTAL"
+  | "RESPONDED"
+  | "RESOLVED_OWNER"
+  | "RESOLVED_CHALLENGER"
+  | "RESOLVED_INCONCLUSIVE"
+  | "EXECUTED"
+  | "EXPIRED";
+
+export interface OwnershipChallenge {
+  found?: boolean;
+  challenge_id: string;
+  platform: Platform;
+  username: string;
+  canonical_platform_id: string;
+  current_owner: string;
+  challenger_wallet: string;
+  challenger_code: string;
+  owner_rebuttal_code: string;
+  challenger_evidence_url: string;
+  owner_rebuttal_url: string;
+  owner_rebuttal_statement: string;
+  challenger_evidence_status: ProofStatus;
+  owner_evidence_status: ProofStatus;
+  challenger_canonical_id: string;
+  owner_canonical_id: string;
+  opened_at: number;
+  rebuttal_deadline: number;
+  resolved_at: number;
+  recovery_not_before: number;
+  status: ChallengeStatus;
+  outcome: string;
+  reason_code: string;
+  resolution_reasoning: string;
+  recovery_executed_at: number;
 }
 
 export type VerificationStep =

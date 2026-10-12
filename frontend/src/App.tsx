@@ -7,6 +7,7 @@ import { VerificationFlow } from "./components/VerificationFlow";
 import { PublicLookup } from "./components/PublicLookup";
 import { AuditTrail } from "./components/AuditTrail";
 import { AdminPanel } from "./components/AdminPanel";
+import { ChallengePanel } from "./components/ChallengePanel";
 import { Footer } from "./components/Footer";
 import { LandingPage } from "./components/LandingPage";
 import { getStats } from "./lib/contract";
@@ -39,12 +40,13 @@ function AppInner() {
       <Header activeTab={tab} onTabChange={setTab} isAdmin={isAdmin} />
 
       <main className="max-w-7xl mx-auto px-4 py-10 flex-1 w-full">
-        {!address && tab !== "verify" ? (
+        {!address && tab !== "verify" && tab !== "lookup" ? (
           <LandingPage />
         ) : (
           <>
             {tab === "dashboard" && <Dashboard onStartVerify={() => setTab("verify")} />}
             {tab === "verify" && <VerificationFlow />}
+            {tab === "challenges" && address && <ChallengePanel />}
             {tab === "lookup" && <PublicLookup />}
             {tab === "audit" && <AuditTrail />}
             {tab === "admin" && isAdmin && <AdminPanel />}

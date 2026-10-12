@@ -12,6 +12,7 @@ interface HeaderProps {
 const TABS = [
   { id: "dashboard", label: "Dashboard" },
   { id: "verify",    label: "Verify Identity" },
+  { id: "challenges", label: "Challenges & Recovery" },
   { id: "lookup",    label: "Public Lookup" },
   { id: "audit",     label: "Audit Trail" },
   { id: "admin",     label: "Admin" },
@@ -28,7 +29,9 @@ export function Header({ activeTab, onTabChange, isAdmin }: HeaderProps) {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const visibleTabs = TABS.filter(t => t.id !== "admin" || isAdmin);
+  const visibleTabs = TABS.filter(t =>
+    t.id === "lookup" || (address && (t.id !== "admin" || isAdmin))
+  );
 
   return (
     <header className="border-b border-gray-800 bg-gray-950/80 backdrop-blur sticky top-0 z-50">
@@ -87,7 +90,7 @@ export function Header({ activeTab, onTabChange, isAdmin }: HeaderProps) {
         </div>
 
         {/* Nav tabs — only show when wallet is connected */}
-        {address && (
+        {visibleTabs.length > 0 && (
           <nav className="flex gap-1 -mb-px overflow-x-auto">
             {visibleTabs.map(tab => (
               <button

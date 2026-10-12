@@ -40,6 +40,7 @@ const STATUS_STYLES: Record<ProofStatus, string> = {
   REVOKED: "text-gray-300 border-gray-600 bg-gray-700",
   CONFLICTED: "text-red-300 border-red-700 bg-red-950",
   FLAGGED: "text-red-300 border-red-700 bg-red-950",
+  RECOVERED: "text-brand-300 border-brand-700 bg-brand-950",
 };
 
 function ProofStatusBadge({ status }: { status?: ProofStatus }) {
@@ -97,7 +98,7 @@ export function PublicLookup() {
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
         <h2 className="text-2xl font-bold mb-1">Public Identity Lookup</h2>
-        <p className="text-gray-400 text-sm">Search any wallet address or social media account to view its GenLayer-maintained proof health.</p>
+        <p className="text-gray-400 text-sm">Search any wallet address or social account to inspect immutable proof history and whether the identity is currently eligible for a consumer.</p>
       </div>
 
       {/* Mode toggle */}
@@ -191,6 +192,15 @@ export function PublicLookup() {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-semibold">Verified Identity</h3>
+                  {identityResult.eligible ? (
+                    <span className="flex items-center gap-1 bg-success/10 text-success text-xs px-2 py-0.5 rounded-full">
+                      <Shield className="w-3 h-3" /> Eligible
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 bg-yellow-950/50 text-yellow-300 text-xs px-2 py-0.5 rounded-full">
+                      <ShieldAlert className="w-3 h-3" /> Not eligible
+                    </span>
+                  )}
                   {identityResult.is_flagged ? (
                     <span className="flex items-center gap-1 bg-red-950 text-red-400 text-xs px-2 py-0.5 rounded-full">
                       <ShieldAlert className="w-3 h-3" /> Flagged
@@ -205,6 +215,7 @@ export function PublicLookup() {
               </div>
               <ReputationBadge score={identityResult.reputation_score} />
             </div>
+            <p className="text-xs text-gray-500 mt-3">State: <span className="font-mono text-gray-300">{identityResult.identity_state ?? "ACTIVE"}</span>{identityResult.eligibility_reason ? ` · ${identityResult.eligibility_reason}` : ""}</p>
           </div>
 
           {/* Stats */}
