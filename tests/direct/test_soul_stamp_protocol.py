@@ -1,4 +1,5 @@
 import json
+import os
 import re
 
 
@@ -10,7 +11,12 @@ OTHER = "0x" + "44" * 20
 
 
 def deploy(direct_deploy):
-    return direct_deploy(CONTRACT, ADMIN, "")
+    return direct_deploy(
+        CONTRACT,
+        ADMIN,
+        "",
+        sdk_version=os.environ.get("GENVM_VERSION", "v0.2.16"),
+    )
 
 
 def proof_llm(vm, *, account_match=True, canonical_id="42", decision=None):
