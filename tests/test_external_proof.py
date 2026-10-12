@@ -3,11 +3,24 @@ import sys
 
 import pytest
 
-from scripts.verify_external_studionet_proof import canonical_source, load_plan, parse_args, run_node, source_sha256
+from scripts.verify_external_studionet_proof import (
+    canonical_source,
+    load_plan,
+    parse_args,
+    run_node,
+    source_sha256,
+    validate_finality_evidence,
+    verify_transaction_metadata,
+)
 
 
 def plan_item(method: str, number: int, *, expect_success: bool = True) -> dict:
-    item = {"method": method, "tx": "0x" + f"{number:064x}"}
+    item = {
+        "method": method,
+        "tx": "0x" + f"{number:064x}",
+        "expect_sender": "0x" + "1" * 40,
+        "args": [],
+    }
     if not expect_success:
         item["expect_success"] = False
     if expect_success:
@@ -20,7 +33,7 @@ def plan_item(method: str, number: int, *, expect_success: bool = True) -> dict:
 
 def test_external_plan_requires_all_successful_protocol_steps(tmp_path: Path):
     plan_file = tmp_path / "plan.json"
-    plan_file.write_text('[{"method":"request_verification","tx":"0x' + "1" * 64 + '","verify":{"method":"get_stats","assertions":[{"path":"verifier_version","value":"soulstamp-v3.0-continuity"}]}}]', encoding="utf-8")
+    plan_file.write_text('[{"method":"request_verification","tx":"0x' + "1" * 64 + '","expect_sender":"0x' + "1" * 40 + '","args":[],"verify":{"method":"get_stats","assertions":[{"path":"verifier_version","value":"soulstamp-v3.0-continuity"}]}}]', encoding="utf-8")
     with pytest.raises(RuntimeError, match="missing successful steps"):
         load_plan(plan_file)
 
@@ -88,3 +101,47 @@ def test_external_source_reader_preserves_trailing_newline(tmp_path: Path):
     script = tmp_path / "emit.mjs"
     script.write_text("process.stdout.write('source\\n')\n", encoding="utf-8")
     assert run_node(script) == "source\n"
+
+
+def test_finality_rejects_undetermined_even_when_leader_execution_succeeded():
+    evidence = {
+        "statusName": "FINALIZED",
+        "rawResultName": "NO_MAJORITY",
+        "txExecutionResultName": "FINISHED_WITH_RETURN",
+        "rawExecutionResults": ["SUCCESS"],
+    }
+    with pytest.raises(RuntimeError, match="majority agreement"):
+        validate_finality_evidence(evidence, tx_hash="0x" + "1" * 64)
+
+    evidence["rawResultName"] = "Undetermined"
+    with pytest.raises(RuntimeError, match="majority agreement"):
+        validate_finality_evidence(evidence, tx_hash="0x" + "1" * 64)
+
+
+def test_finality_accepts_agreed_intentional_contract_failure():
+    evidence = {
+        "statusName": "FINALIZED",
+        "rawResultName": "MAJORITY_AGREE",
+        "txExecutionResultName": "FINISHED_WITH_ERROR",
+        "rawExecutionResults": ["SUCCESS"],
+    }
+    validate_finality_evidence(evidence, tx_hash="0x" + "1" * 64, expect_success=False)
+
+
+def test_external_metadata_requires_exact_signer_method_and_arguments():
+    item = {
+        "method": "request_verification",
+        "expect_sender": "0x" + "1" * 40,
+        "args": ["github", "alice", "https://github.com/alice"],
+    }
+    evidence = {
+        "sender": "0x" + "1" * 40,
+        "method": "request_verification",
+        "args": ["github", "alice", "https://github.com/alice"],
+        "calldataDecoded": True,
+    }
+    checked = verify_transaction_metadata(item, evidence)
+    assert checked["observed_sender"] == "0x" + "1" * 40
+    evidence["method"] = "complete_verification"
+    with pytest.raises(RuntimeError, match="method mismatch"):
+        verify_transaction_metadata(item, evidence)

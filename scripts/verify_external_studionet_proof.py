@@ -69,20 +69,71 @@ def run_node(script: Path, *args: str) -> str:
 
 
 def finalized_transaction(tx_hash: str, rpc: str, expect_success: bool = True) -> dict:
-    output = run_node(FINALIZER, tx_hash, rpc)
-    lines = output.splitlines()
+    completed = subprocess.run(
+        ["node", str(FINALIZER), tx_hash, rpc],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    # finalized_tx.mjs returns code 3 for an intentionally failed contract
+    # execution. That is evidence to inspect, not a reason to discard it. Any
+    # other non-zero result is an inspector/finality failure.
+    if completed.returncode and not (not expect_success and completed.returncode == 3):
+        raise RuntimeError(completed.stderr.strip() or f"{FINALIZER.name} failed")
+    lines = completed.stdout.splitlines()
     if not lines:
         raise RuntimeError(f"No finality result returned for {tx_hash}")
     evidence = json.loads(lines[-1])
+    validate_finality_evidence(evidence, tx_hash=tx_hash, expect_success=expect_success)
+    return evidence
+
+
+def validate_finality_evidence(evidence: dict, tx_hash: str = "", expect_success: bool = True) -> None:
     if evidence.get("statusName") not in ("FINALIZED", 5):
         raise RuntimeError(f"Transaction {tx_hash} was not FINALIZED: {evidence}")
+    consensus = evidence.get("rawResultName")
+    if consensus not in ("MAJORITY_AGREE", 6):
+        raise RuntimeError(f"Transaction did not finalize with majority agreement: {evidence}")
     execution = evidence.get("txExecutionResultName")
     succeeded = execution in ("FINISHED_WITH_RETURN", 1)
     if expect_success and not succeeded:
         raise RuntimeError(f"Transaction {tx_hash} finalized with failed execution: {evidence}")
     if not expect_success and (succeeded or execution in (None, "NOT_VOTED", 0)):
         raise RuntimeError(f"Transaction {tx_hash} did not finalize as a failed execution: {evidence}")
-    return evidence
+
+
+def verify_transaction_metadata(item: dict, evidence: dict) -> dict:
+    expected_sender = str(item.get("expect_sender", "")).strip().lower()
+    if not ADDRESS_RE.fullmatch(expected_sender):
+        raise RuntimeError(f"Lifecycle step {item['method']} requires a valid expect_sender address")
+    observed_sender = str(evidence.get("sender", "")).strip().lower()
+    if not ADDRESS_RE.fullmatch(observed_sender):
+        raise RuntimeError(f"Lifecycle step {item['method']} did not expose a verifiable signer identity")
+    if observed_sender != expected_sender:
+        raise RuntimeError(
+            f"Lifecycle step {item['method']} was signed by {observed_sender}, expected {expected_sender}"
+        )
+    expected_method = str(item["method"]).strip()
+    if evidence.get("method") != expected_method:
+        raise RuntimeError(
+            f"Lifecycle transaction method mismatch: expected {expected_method!r}, got {evidence.get('method')!r}"
+        )
+    if evidence.get("calldataDecoded") is not True:
+        raise RuntimeError(f"Lifecycle step {expected_method} did not expose decodable calldata")
+    expected_args = list(item.get("args", []))
+    actual_args = evidence.get("args")
+    if actual_args != expected_args:
+        raise RuntimeError(
+            f"Lifecycle transaction arguments mismatch for {expected_method}: expected {expected_args!r}, got {actual_args!r}"
+        )
+    return {
+        "expected_sender": expected_sender,
+        "observed_sender": observed_sender,
+        "expected_method": expected_method,
+        "observed_method": evidence.get("method"),
+        "expected_args": expected_args,
+        "observed_args": actual_args,
+    }
 
 
 def transaction_record(tx_hash: str, finality: dict) -> dict:
@@ -150,6 +201,11 @@ def load_plan(path: Path, require_full: bool = True) -> list[dict]:
         if not method:
             raise RuntimeError("Every lifecycle plan item must name a contract method")
         validate_hex(tx_hash, TX_RE, f"Transaction hash for {method}")
+        expected_sender = str(item.get("expect_sender", "")).strip()
+        if not ADDRESS_RE.fullmatch(expected_sender):
+            raise RuntimeError(f"Lifecycle step {method} requires a valid expect_sender address")
+        if not isinstance(item.get("args", []), list):
+            raise RuntimeError(f"Lifecycle step {method} args must be a JSON list")
         if bool(item.get("expect_success", True)):
             verify = item.get("verify")
             if not isinstance(verify, dict) or not isinstance(verify.get("assertions"), list) or not verify["assertions"]:
@@ -167,6 +223,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--contract", required=True, help="deployed SoulStamp contract address")
     parser.add_argument("--deployment-tx", required=True, help="finalized deployment transaction hash")
     parser.add_argument("--plan-file", type=Path, help="JSON file containing public lifecycle tx hashes")
+    parser.add_argument("--deployment-sender", help="expected signer address for the deployment transaction")
     parser.add_argument(
         "--deployment-only",
         action="store_true",
@@ -188,6 +245,9 @@ def main() -> int:
         raise RuntimeError("External proof verification is restricted to Studionet 61999")
     contract = validate_hex(args.contract, ADDRESS_RE, "Contract address")
     deployment_tx = validate_hex(args.deployment_tx, TX_RE, "Deployment transaction")
+    deployment_sender = None
+    if args.deployment_sender:
+        deployment_sender = validate_hex(args.deployment_sender, ADDRESS_RE, "Deployment signer").lower()
     if args.deployment_only:
         plan = []
     else:
@@ -196,6 +256,13 @@ def main() -> int:
         plan = load_plan(args.plan_file)
 
     deployment_finality = finalized_transaction(deployment_tx, args.rpc)
+    observed_deployment_sender = str(deployment_finality.get("sender", "")).lower()
+    if deployment_sender and observed_deployment_sender != deployment_sender:
+        raise RuntimeError(
+            f"Deployment signer {observed_deployment_sender} does not match expected {deployment_sender}"
+        )
+    if not args.deployment_only and not deployment_sender:
+        raise RuntimeError("--deployment-sender is required for full external lifecycle proof")
     returned_contract = deployment_finality.get("contractAddress")
     if returned_contract and str(returned_contract).lower() != contract.lower():
         raise RuntimeError(
@@ -224,6 +291,7 @@ def main() -> int:
             "expected_success": expected_success,
             "transaction": transaction_record(tx_hash, finality),
         }
+        entry["transaction_metadata"] = verify_transaction_metadata(item, finality)
         if isinstance(item.get("verify"), dict):
             entry["state_verification"] = verify_view(contract, item["verify"], args.rpc)
         (lifecycle if expected_success else negative_lifecycle).append(entry)

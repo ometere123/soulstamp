@@ -20,7 +20,10 @@ Current v3 Studionet deployment:
 Contract: 0x4717b4e830e9111AAF97aCb0159f58D750085D1A
 Deployment: https://explorer-studio.genlayer.com/tx/0x9fb9eb57d68540408d1731ae06d24a985ae9534be80cc5020099f893e3fe8ef7
 Status: FINALIZED / FINISHED_WITH_RETURN / SUCCESS, SUCCESS
-Source: exact after CRLF normalization for revision 7560ad4
+Deployed source: exact after CRLF normalization for revision 7560ad4
+Deployed source hash: 3bce13a6a00ef101a02f5d78c93d9e86e38c224ff7f6636f2f57b574209110bf
+Local consensus-fix candidate hash: b46addab5800fab8d87d7019efb76866b13e15644d3b7b4361fb3435c35d96bf
+Local candidate status: not deployed; live source parity is intentionally not claimed
 Lifecycle proof: pending finalized verification, challenge, recovery, revocation,
 and negative-transition receipts.
 ```
@@ -40,7 +43,7 @@ The deployment and source-parity record is in
 | Challenges | Challengers receive a fresh code and bounded rebuttal window; both evidence paths are independently resolved through GenLayer. |
 | Recovery | A winning challenger alone can execute recovery after a safety delay; old and new wallets retain append-only history. |
 | Eligibility | `consumer_eligibility(address)` and `is_eligible(address)` require active identity state plus a fresh active proof. |
-| Finality | Frontend writes and live proof tooling require `FINALIZED` and `FINISHED_WITH_RETURN`; ACCEPTED is never treated as success. |
+| Finality | Frontend writes and live proof tooling require `FINALIZED`, majority agreement, and `FINISHED_WITH_RETURN`; `ACCEPTED`, `Undetermined`, `NO_MAJORITY`, and `MAJORITY_DISAGREE` are never treated as success. |
 | Continuity | `migrate_legacy_identity` explicitly imports v2 records, retains the legacy address, and writes a migration audit event. |
 
 See [V3_MILESTONE.md](./V3_MILESTONE.md) for the protocol state machine, migration plan, testing gates, and live-proof rules.
@@ -284,7 +287,7 @@ putting the key in command-line arguments. Neither path prints or stores the
 key.
 
 The script fails closed unless deployment reaches FINALIZED with
-`FINISHED_WITH_RETURN` and the RPC-returned contract source matches the local
+`MAJORITY_AGREE` and `FINISHED_WITH_RETURN` and the RPC-returned contract source matches the local
 source after line-ending normalization. It records both normalized source
 hashes and the normalization rule, never prints or stores signing keys, and a
 successful run writes transaction hashes, execution outcomes, contract
@@ -349,14 +352,14 @@ Example plan shape (replace every hash and state value with real observations):
 
 ```json
 [
-  {"method":"request_verification","tx":"0x...","verify":{"method":"get_pending_verification","args":["0x..."],"assertions":[{"path":"found","value":true}]}},
-  {"method":"complete_verification","tx":"0x...","verify":{"method":"get_identity","args":["0x..."],"assertions":[{"path":"found","value":true}]}},
-  {"method":"request_ownership_challenge","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"OPEN"}]}},
-  {"method":"submit_challenge_evidence","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"AWAITING_REBUTTAL"},{"path":"challenger_evidence_status","value":"ACTIVE"}]}},
-  {"method":"respond_to_challenge","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"RESPONDED"},{"path":"owner_evidence_status","value":"ACTIVE"}]}},
-  {"method":"resolve_ownership_challenge","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"RESOLVED_CHALLENGER"}]}},
-  {"method":"execute_wallet_recovery","tx":"0x...","verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"EXECUTED"}]}},
-  {"method":"revoke_platform","tx":"0x...","verify":{"method":"get_identity","args":["0x..."],"assertions":[{"path":"eligible","value":false}]}}
+  {"method":"request_verification","tx":"0x...","expect_sender":"0x...","args":["github","user","https://github.com/user"],"verify":{"method":"get_pending_verification","args":["0x..."],"assertions":[{"path":"found","value":true}]}},
+  {"method":"complete_verification","tx":"0x...","expect_sender":"0x...","args":["https://github.com/user"],"verify":{"method":"get_identity","args":["0x..."],"assertions":[{"path":"found","value":true}]}},
+  {"method":"request_ownership_challenge","tx":"0x...","expect_sender":"0x...","args":["github","user"],"verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"OPEN"}]}},
+  {"method":"submit_challenge_evidence","tx":"0x...","expect_sender":"0x...","args":["CHALLENGE_ID","https://github.com/user"],"verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"AWAITING_REBUTTAL"},{"path":"challenger_evidence_status","value":"ACTIVE"}]}},
+  {"method":"respond_to_challenge","tx":"0x...","expect_sender":"0x...","args":["CHALLENGE_ID","https://github.com/user","statement"],"verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"RESPONDED"},{"path":"owner_evidence_status","value":"ACTIVE"}]}},
+  {"method":"resolve_ownership_challenge","tx":"0x...","expect_sender":"0x...","args":["CHALLENGE_ID"],"verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"RESOLVED_CHALLENGER"}]}},
+  {"method":"execute_wallet_recovery","tx":"0x...","expect_sender":"0x...","args":["CHALLENGE_ID"],"verify":{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"EXECUTED"}]}},
+  {"method":"revoke_platform","tx":"0x...","expect_sender":"0x...","args":["github"],"verify":{"method":"get_identity","args":["0x..."],"assertions":[{"path":"eligible","value":false}]}}
 ]
 ```
 
@@ -373,6 +376,7 @@ Run the public verifier after saving that plan:
 python scripts/verify_external_studionet_proof.py `
   --contract 0x... `
   --deployment-tx 0x... `
+  --deployment-sender 0x... `
   --plan-file .\external-lifecycle.json
 ```
 
@@ -383,4 +387,9 @@ version, and each supplied post-state assertion. It writes only public evidence 
 `artifacts/live/studionet-v3-external-proof.json`. A contract address by itself
 is not a lifecycle proof; include the deployment and lifecycle transaction
 hashes plus the generated challenge IDs and observed state values.
+
+The finality inspector also requires the consensus result `MAJORITY_AGREE` and
+records the public signer, decoded method, and exact arguments for every
+transaction. A receipt that is `FINALIZED` with leader execution `SUCCESS` but
+consensus `Undetermined`, `NO_MAJORITY`, or `MAJORITY_DISAGREE` is rejected.
 

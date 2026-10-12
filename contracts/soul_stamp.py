@@ -253,7 +253,10 @@ class SoulStamp(gl.Contract):
         return hashlib.sha256(f"SOULSTAMP-PRINCIPAL:{wallet}".encode()).hexdigest()[:32].upper()
 
     def _create_identity(self, wallet: str, marker: u256) -> IdentityRecord:
+        self._require(self.identities.get(wallet) is None, "Identity already exists for this wallet")
         principal = self._principal_id(wallet)
+        self._require(self.wallet_to_principal.get(wallet) is None, "Wallet is already bound to a principal")
+        self._require(self.principal_to_wallet.get(principal) is None, "Principal is already bound to another wallet")
         identity = IdentityRecord(
             owner=wallet,
             linked_accounts=[],
@@ -358,14 +361,29 @@ class SoulStamp(gl.Contract):
         if platform == "github":
             if fetch_url:
                 parsed = urlparse(fetch_url)
-                self._require(parsed.scheme == "https" and parsed.netloc.lower() == "github.com" and parsed.path.strip("/").lower() == username_lc, "GitHub evidence must be the claimed public profile URL")
+                self._require(
+                    parsed.scheme == "https"
+                    and parsed.netloc.lower() == "github.com"
+                    and not parsed.params and not parsed.query and not parsed.fragment
+                    and parsed.path.strip("/").lower() == username_lc,
+                    "GitHub evidence must be the claimed public profile URL",
+                )
             return f"https://api.github.com/users/{clean_username}"
         if platform == "twitter":
             self._require(bool(fetch_url), "X verification requires a public post URL")
             parsed = urlparse(fetch_url)
-            host = parsed.netloc.lower().split(":")[0]
+            host = parsed.netloc.lower()
             parts = [p for p in parsed.path.split("/") if p]
-            self._require(parsed.scheme == "https" and host in ("x.com", "twitter.com") and len(parts) >= 3 and parts[0].lower() == username_lc and parts[1].lower() == "status" and bool(re.match(r"^[0-9]+$", parts[2])), "X evidence URL must be a status authored by the claimed handle")
+            self._require(
+                parsed.scheme == "https"
+                and host in ("x.com", "twitter.com")
+                and not parsed.params and not parsed.query and not parsed.fragment
+                and len(parts) == 3
+                and parts[0].lower() == username_lc
+                and parts[1].lower() == "status"
+                and bool(re.match(r"^[0-9]+$", parts[2])),
+                "X evidence URL must be a status authored by the claimed handle",
+            )
             tweet_url = f"https://twitter.com/i/status/{parts[2]}"
             return f"https://publish.twitter.com/oembed?url={quote(tweet_url, safe='')}&dnt=true&omit_script=true"
         if platform == "discord":
@@ -377,11 +395,20 @@ class SoulStamp(gl.Contract):
         raise gl.vm.UserError(f"{ERROR_EXPECTED} Unsupported platform '{platform}'")
 
     def _discord_attestation_token(self, evidence_url: str) -> str:
-        base = self.discord_attestation_base_url.rstrip("/")
-        prefix = f"{base}/api/discord/attestations/"
-        self._require(evidence_url.startswith(prefix), "Discord attestation URL is not from the configured backend")
-        token = evidence_url[len(prefix):].strip()
-        self._require(bool(token) and "/" not in token, "Discord attestation URL is malformed")
+        configured = urlparse(self.discord_attestation_base_url.rstrip("/"))
+        parsed = urlparse(str(evidence_url).strip())
+        prefix_path = f"{configured.path.rstrip('/')}/api/discord/attestations/"
+        self._require(
+            configured.scheme == "https"
+            and bool(configured.netloc)
+            and parsed.scheme == "https"
+            and parsed.netloc.lower() == configured.netloc.lower()
+            and not parsed.params and not parsed.query and not parsed.fragment
+            and parsed.path.startswith(prefix_path),
+            "Discord attestation URL is not from the configured backend",
+        )
+        token = parsed.path[len(prefix_path):].strip()
+        self._require(bool(re.match(r"^[A-Za-z0-9_-]{1,256}$", token)), "Discord attestation URL is malformed")
         self._require(self.used_discord_attestations.get(token) is None, "Discord attestation has already been used")
         return token
 
@@ -412,7 +439,6 @@ class SoulStamp(gl.Contract):
         canonical_id = expected_canonical_id or canonical_id
         risk_band = str(value.get("risk_band", "medium") or "medium").strip().lower()
         proof_strength = str(value.get("proof_strength", "WEAK") or "WEAK").strip().upper()
-        reason_code = str(value.get("reason_code", "") or "").strip().upper()
         try:
             confidence = int(value.get("confidence_bucket", 0))
         except Exception:
@@ -426,12 +452,21 @@ class SoulStamp(gl.Contract):
             proof_status = "STALE"
         if proof_status not in PROOF_STATUSES:
             proof_status = fallback_status
+        # Reason codes are protocol data, not free-form LLM output. Derive them
+        # from the same deterministic facts that derive proof_status so harmless
+        # wording differences cannot split validator consensus.
+        if not code_found:
+            reason_code = "CODE_NOT_FOUND"
+        elif not account_match:
+            reason_code = "ACCOUNT_MISMATCH"
+        elif not fresh:
+            reason_code = "EVIDENCE_EXPIRED"
+        else:
+            reason_code = "CODE_FOUND_ON_CANONICAL_PROFILE"
         if risk_band not in RISK_BANDS:
             risk_band = "high" if proof_status != "ACTIVE" else "medium"
         if proof_strength not in PROOF_STRENGTHS:
             proof_strength = "WEAK"
-        if not reason_code:
-            reason_code = "CODE_NOT_FOUND" if not code_found else ("ACCOUNT_MISMATCH" if not account_match else ("EVIDENCE_EXPIRED" if not fresh else "CODE_FOUND_ON_CANONICAL_PROFILE"))
         return {
             "code_found": code_found, "account_match": account_match, "platform": platform,
             "username": self._normalize_username(platform, username), "canonical_platform_id": canonical_id,
@@ -447,9 +482,16 @@ class SoulStamp(gl.Contract):
         def leader_fn():
             try:
                 response = gl.nondet.web.get(target_url)
+                response_status = int(getattr(response, "status", 200))
+                if response_status >= 500:
+                    raise gl.vm.UserError(f"{ERROR_TRANSIENT} Evidence source returned HTTP {response_status}")
+                if response_status >= 400:
+                    raise gl.vm.UserError(f"{ERROR_EXTERNAL} Evidence source returned HTTP {response_status}")
                 body = response.body
                 content = body.decode("utf-8") if isinstance(body, (bytes, bytearray)) else str(body)
             except Exception as error:
+                if isinstance(error, gl.vm.UserError):
+                    raise
                 raise gl.vm.UserError(f"{ERROR_TRANSIENT} Evidence source unavailable: {error}")
             content = content[:16000] if len(content) > 16000 else content
             parsed = {}
@@ -461,11 +503,11 @@ class SoulStamp(gl.Contract):
             evidence_expires_at = 0
             canonical_id = ""
             if platform == "github" and isinstance(parsed, dict):
-                canonical_id = str(parsed.get("id", "") or "")
+                candidate_id = str(parsed.get("id", "") or "")
+                canonical_id = candidate_id if re.match(r"^[0-9]+$", candidate_id) else ""
             elif platform == "twitter" and isinstance(parsed, dict):
                 author_url = str(parsed.get("author_url", "") or "")
                 author_id = str(parsed.get("author_id", "") or "")
-                author_path = urlparse(author_url).path.strip("/").split("/")[0].lower() if author_url else ""
                 # Handles are mutable and are not canonical identity keys.
                 # Require the provider's immutable numeric author ID.
                 canonical_id = f"id:{author_id}" if re.match(r"^[0-9]+$", author_id) else ""
@@ -494,10 +536,19 @@ class SoulStamp(gl.Contract):
                     confidence, reason_code = 35, "ACCOUNT_MISMATCH"
             elif platform == "twitter" and isinstance(parsed, dict):
                 author_url = str(parsed.get("author_url", "") or "")
-                author_host = urlparse(author_url).netloc.lower().split(":")[0] if author_url else ""
-                author_path = urlparse(author_url).path.strip("/").split("/")[0].lower() if author_url else ""
+                parsed_author = urlparse(author_url) if author_url else None
+                author_host = parsed_author.netloc.lower() if parsed_author else ""
+                author_parts = [part for part in parsed_author.path.split("/") if part] if parsed_author else []
                 # Never infer authorship from the submitted URL.
-                account_match = author_host in ("x.com", "twitter.com") and author_path == username_lc and bool(canonical_id)
+                account_match = (
+                    parsed_author is not None
+                    and parsed_author.scheme == "https"
+                    and author_host in ("x.com", "twitter.com")
+                    and not parsed_author.params and not parsed_author.query and not parsed_author.fragment
+                    and len(author_parts) == 1
+                    and author_parts[0].lower() == username_lc
+                    and bool(canonical_id)
+                )
                 proof_strength = "STRONG" if str(parsed.get("author_id", "") or "") else "MEDIUM"
                 if code_found and account_match:
                     confidence, risk_band, reason_code = 88, "low", "CODE_FOUND_ON_CANONICAL_TWEET"
@@ -541,6 +592,19 @@ Never set code_found true unless the exact code {code!r} is present. Never chang
 
         def validator_fn(leader_result) -> bool:
             if not isinstance(leader_result, gl.vm.Return):
+                leader_message = str(getattr(leader_result, "message", "") or getattr(leader_result, "error", "") or "")
+                try:
+                    leader_fn()
+                    return False
+                except gl.vm.UserError as error:
+                    validator_message = str(error)
+                    # External source failures are safe only when both sides
+                    # independently observe the same classified failure.
+                    for prefix in (ERROR_TRANSIENT, ERROR_EXTERNAL):
+                        if leader_message.startswith(prefix) and validator_message.startswith(prefix):
+                            return prefix == ERROR_TRANSIENT or leader_message == validator_message
+                except Exception:
+                    return False
                 return False
             leader_data = leader_result.calldata
             if not isinstance(leader_data, dict):
@@ -565,20 +629,39 @@ Never set code_found true unless the exact code {code!r} is present. Never chang
             result_issued_at, result_expires_at,
         )
 
+    def _challenge_source_text(self, evidence_url: str) -> str:
+        try:
+            response = gl.nondet.web.get(evidence_url)
+            response_status = int(getattr(response, "status", 200))
+            if response_status >= 500:
+                raise gl.vm.UserError(f"{ERROR_TRANSIENT} Challenge evidence source returned HTTP {response_status}")
+            if response_status >= 400:
+                raise gl.vm.UserError(f"{ERROR_EXTERNAL} Challenge evidence source returned HTTP {response_status}")
+            body = response.body
+            content = body.decode("utf-8") if isinstance(body, (bytes, bytearray)) else str(body)
+            return content[:12000]
+        except Exception as error:
+            if isinstance(error, gl.vm.UserError):
+                raise
+            raise gl.vm.UserError(f"{ERROR_TRANSIENT} Challenge evidence source unavailable: {error}")
+
     def _resolve_challenge_consensus(self, challenge: OwnershipChallenge) -> dict:
+        # Fresh evidence is a hard authorization boundary. GenLayer independently
+        # resolves the evidence, but it cannot authorize an outcome that contradicts
+        # the deterministic evidence gates already recorded on-chain.
+        boundary_decision = (
+            "OWNER_UPHOLDS" if challenge.challenger_evidence_status != "ACTIVE"
+            else "INCONCLUSIVE" if challenge.owner_evidence_status == "ACTIVE"
+            else "CHALLENGER_UPHOLDS"
+        )
+
         def leader_fn():
             challenger_content = ""
             if challenge.challenger_evidence_url:
-                challenger_response = gl.nondet.web.get(challenge.challenger_evidence_url)
-                challenger_body = challenger_response.body
-                challenger_content = challenger_body.decode("utf-8") if isinstance(challenger_body, (bytes, bytearray)) else str(challenger_body)
-                challenger_content = challenger_content[:12000]
+                challenger_content = self._challenge_source_text(challenge.challenger_evidence_url)
             owner_content = ""
             if challenge.owner_rebuttal_url:
-                owner_response = gl.nondet.web.get(challenge.owner_rebuttal_url)
-                owner_body = owner_response.body
-                owner_content = owner_body.decode("utf-8") if isinstance(owner_body, (bytes, bytearray)) else str(owner_body)
-                owner_content = owner_content[:12000]
+                owner_content = self._challenge_source_text(challenge.owner_rebuttal_url)
             prompt = f"""Return strict JSON only for this independent SoulStamp ownership challenge resolution.
 Fields: decision, reasoning. Allowed decision: CHALLENGER_UPHOLDS, OWNER_UPHOLDS, INCONCLUSIVE.
 Challenger code={challenge.challenger_code!r}; owner rebuttal code={challenge.owner_rebuttal_code!r}
@@ -592,16 +675,14 @@ Owner rebuttal evidence:
 ---
 {owner_content}
 ---
-Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the canonical account, and owner rebuttal is absent or fails. Choose OWNER_UPHOLDS when challenger evidence fails or the owner has equally fresh matching evidence. Choose INCONCLUSIVE when fresh evidence conflicts.
+The deterministic admissible outcome is {boundary_decision}. The returned decision MUST equal that value. Do not invent an owner win when challenger evidence is active, and do not overturn an active owner rebuttal.
 """
             ai = gl.nondet.exec_prompt(prompt, response_format="json")
             decision = str(ai.get("decision", "") if isinstance(ai, dict) else "").strip().upper()
             if decision not in ("CHALLENGER_UPHOLDS", "OWNER_UPHOLDS", "INCONCLUSIVE"):
                 raise gl.vm.UserError(f"{ERROR_LLM} Invalid challenge resolution decision")
-            if challenge.challenger_evidence_status != "ACTIVE":
-                decision = "OWNER_UPHOLDS"
-            elif challenge.owner_evidence_status == "ACTIVE":
-                decision = "INCONCLUSIVE"
+            if decision != boundary_decision:
+                raise gl.vm.UserError(f"{ERROR_LLM} Challenge resolution contradicted deterministic evidence boundary")
             return {"decision": decision, "reasoning": str(ai.get("reasoning", "") if isinstance(ai, dict) else "")}
 
         def validator_fn(leader_result) -> bool:
@@ -613,16 +694,10 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
             try:
                 challenger_content = ""
                 if challenge.challenger_evidence_url:
-                    challenger_response = gl.nondet.web.get(challenge.challenger_evidence_url)
-                    challenger_body = challenger_response.body
-                    challenger_content = challenger_body.decode("utf-8") if isinstance(challenger_body, (bytes, bytearray)) else str(challenger_body)
-                    challenger_content = challenger_content[:12000]
+                    challenger_content = self._challenge_source_text(challenge.challenger_evidence_url)
                 owner_content = ""
                 if challenge.owner_rebuttal_url:
-                    owner_response = gl.nondet.web.get(challenge.owner_rebuttal_url)
-                    owner_body = owner_response.body
-                    owner_content = owner_body.decode("utf-8") if isinstance(owner_body, (bytes, bytearray)) else str(owner_body)
-                    owner_content = owner_content[:12000]
+                    owner_content = self._challenge_source_text(challenge.owner_rebuttal_url)
                 prompt = f"""Return strict JSON only for this independent SoulStamp ownership challenge resolution.
 Fields: decision, reasoning. Allowed decision: CHALLENGER_UPHOLDS, OWNER_UPHOLDS, INCONCLUSIVE.
 Challenger code={challenge.challenger_code!r}; owner rebuttal code={challenge.owner_rebuttal_code!r}
@@ -636,16 +711,14 @@ Owner rebuttal evidence:
 ---
 {owner_content}
 ---
-Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the canonical account, and owner rebuttal is absent or fails. Choose OWNER_UPHOLDS when challenger evidence fails or the owner has equally fresh matching evidence. Choose INCONCLUSIVE when fresh evidence conflicts.
+The deterministic admissible outcome is {boundary_decision}. The returned decision MUST equal that value.
 """
                 ai = gl.nondet.exec_prompt(prompt, response_format="json")
                 decision = str(ai.get("decision", "") if isinstance(ai, dict) else "").strip().upper()
                 if decision not in ("CHALLENGER_UPHOLDS", "OWNER_UPHOLDS", "INCONCLUSIVE"):
                     return False
-                if challenge.challenger_evidence_status != "ACTIVE":
-                    decision = "OWNER_UPHOLDS"
-                elif challenge.owner_evidence_status == "ACTIVE":
-                    decision = "INCONCLUSIVE"
+                if decision != boundary_decision:
+                    return False
                 mine = {"decision": decision}
             except Exception:
                 return False
@@ -776,15 +849,21 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         marker = self._mark()
         old_canonical = acct.canonical_platform_id
         new_status = verdict["proof_status"]
+        status_reason = verdict["reason_code"]
+        canonical_changed = bool(old_canonical) and verdict["canonical_platform_id"] != old_canonical
+        # A recheck may refresh evidence but may not silently relink a mutable
+        # handle to a different provider principal. Explicit revoke/relink is
+        # required for a canonical-ID change, preserving the old binding and
+        # making the conflict visible to consumers.
+        if canonical_changed:
+            new_status = "CONFLICTED"
+            status_reason = "CANONICAL_ID_CHANGED"
         if not verdict["code_found"]:
             new_status = "STALE"
+            status_reason = verdict["reason_code"]
         elif not verdict["account_match"]:
             new_status = "CONFLICTED"
-        if new_status == "ACTIVE" and verdict["canonical_platform_id"] != old_canonical:
-            self._remove_indexes(owner, acct)
-            acct.canonical_platform_id = verdict["canonical_platform_id"]
-            acct.dossier.canonical_platform_id = verdict["canonical_platform_id"]
-            self._reserve_indexes(owner, acct)
+            status_reason = verdict["reason_code"]
         acct.proof_strength = verdict["proof_strength"]
         acct.risk_band = verdict["risk_band"]
         acct.confidence_score = u32(int(verdict["confidence_bucket"]))
@@ -796,10 +875,15 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         acct.dossier.proof_url = target_url
         acct.dossier.evidence_issued_at = u256(int(verdict.get("evidence_issued_at", 0)))
         acct.dossier.evidence_expires_at = u256(int(self._now()) + PROOF_VALIDITY_SECONDS) if new_status == "ACTIVE" else u256(0)
-        self._set_account_status(acct, new_status, verdict["reason_code"], marker)
-        audit_ref = self._append_audit(identity, "proof_reverified", plat, acct.username, new_status.lower(), int(verdict["confidence_bucket"]), int(acct.bot_score), new_status, verdict["reason_code"], details=f"canonical_id={acct.canonical_platform_id}", actor=caller)
+        self._set_account_status(acct, new_status, status_reason, marker)
+        detail = f"canonical_id={acct.canonical_platform_id}"
+        if canonical_changed:
+            detail += f";presented_canonical_id={verdict['canonical_platform_id']}"
+        audit_ref = self._append_audit(identity, "proof_reverified", plat, acct.username, new_status.lower(), int(verdict["confidence_bucket"]), int(acct.bot_score), new_status, status_reason, details=detail, actor=caller)
         acct.dossier.audit_ref = audit_ref
         identity.linked_accounts[idx] = acct
+        if new_status == "ACTIVE" and identity.identity_state == "CONTESTED":
+            identity.identity_state = "ACTIVE"
         identity.last_updated = marker
         self.identities[owner] = identity
         if plat == "discord" and fetch_url:
@@ -1009,6 +1093,13 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         else:
             challenge.status = "RESOLVED_INCONCLUSIVE"
             if identity is not None:
+                idx = self._find_account(identity, challenge.platform, challenge.username)
+                if idx >= 0:
+                    acct = identity.linked_accounts[idx]
+                    self._set_account_status(acct, "CONFLICTED", "OWNERSHIP_CHALLENGE_INCONCLUSIVE", marker)
+                    acct.dossier.evidence_expires_at = u256(0)
+                    identity.linked_accounts[idx] = acct
+                identity.identity_state = "CONTESTED"
                 self._append_audit(identity, "challenge_resolved", challenge.platform, challenge.username, "inconclusive", 0, 0, "CONFLICTED", challenge.reason_code, details=f"challenge={challenge_id}", actor=resolver)
                 self.identities[challenge.current_owner] = identity
         pkey = self._platform_key(challenge.platform, challenge.username)
@@ -1052,8 +1143,14 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         self._require(challenge.challenger_wallet == new_wallet, "Only the challenge-winning wallet can execute recovery")
         self._require(int(self._now()) >= int(challenge.recovery_not_before), "Recovery safety delay has not elapsed")
         self._require(self.identities.get(new_wallet) is None, "Recovery destination wallet already has an identity")
+        self._require(self.wallet_to_principal.get(new_wallet) is None, "Recovery destination wallet is already bound to a principal")
         old_identity = self.identities.get(challenge.current_owner)
         self._require(old_identity is not None and old_identity.identity_state == "RECOVERY_PENDING", "Source identity is not pending recovery")
+        self._require(
+            self.wallet_to_principal.get(challenge.current_owner) == old_identity.principal_id
+            and self.principal_to_wallet.get(old_identity.principal_id) == challenge.current_owner,
+            "Source principal binding is inconsistent; recovery is halted",
+        )
         marker = self._mark()
         new_identity = IdentityRecord(
             owner=new_wallet, linked_accounts=[], reputation_score=old_identity.reputation_score, is_flagged=False,
@@ -1172,7 +1269,13 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         caller = self._addr(gl.message.sender_address)
         self._require(caller == self.admin, "Only the admin can configure Discord attestations")
         clean = str(base_url).strip().rstrip("/")
-        self._require(clean.startswith("https://"), "Discord attestation backend must use HTTPS")
+        parsed = urlparse(clean)
+        self._require(
+            parsed.scheme == "https"
+            and bool(parsed.netloc)
+            and not parsed.params and not parsed.query and not parsed.fragment,
+            "Discord attestation backend must be an HTTPS origin/path without query or fragment",
+        )
         self.discord_attestation_base_url = clean
 
     @gl.public.write

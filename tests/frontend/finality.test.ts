@@ -40,6 +40,30 @@ describe("frontend transaction finality gate", () => {
     })).toBe(false);
   });
 
+  it("rejects finalized Undetermined consensus even when the leader execution succeeded", () => {
+    expect(isFinalizedSuccessfulReceipt({
+      statusName: "FINALIZED",
+      txExecutionResultName: "FINISHED_WITH_RETURN",
+      resultName: "Undetermined",
+      consensus_data: {
+        leader_receipt: [{ execution_result: "SUCCESS" }],
+      },
+    })).toBe(false);
+  });
+
+  it("rejects finalized majority disagreement even when every leader receipt says SUCCESS", () => {
+    expect(isFinalizedSuccessfulReceipt({
+      statusName: "FINALIZED",
+      rawResultName: "MAJORITY_DISAGREE",
+      consensus_data: {
+        leader_receipt: [
+          { execution_result: "SUCCESS" },
+          { execution_result: "SUCCESS" },
+        ],
+      },
+    })).toBe(false);
+  });
+
   it("rejects finalized execution failures", () => {
     const receipt = {
       statusName: "FINALIZED",

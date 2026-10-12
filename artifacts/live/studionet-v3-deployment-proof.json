@@ -1,12 +1,13 @@
 {
   "protocol": "SoulStamp v3 identity continuity",
+  "verification_mode": "external-read-only-deployment-only",
+  "proof_scope": "historical deployed revision; current consensus-fix candidate is not deployed",
+  "lifecycle_proof_status": "not_recorded",
   "network": {
     "name": "Studionet",
     "chain_id": 61999,
     "rpc": "https://studio.genlayer.com/api"
   },
-  "verification_mode": "external-read-only-deployment-only",
-  "lifecycle_proof_status": "not_recorded",
   "contract_address": "0x4717b4e830e9111AAF97aCb0159f58D750085D1A",
   "deployment_transaction": {
     "hash": "0x9fb9eb57d68540408d1731ae06d24a985ae9534be80cc5020099f893e3fe8ef7",
@@ -14,58 +15,25 @@
     "statusName": "FINALIZED",
     "txExecutionResultName": "FINISHED_WITH_RETURN",
     "rawResultName": "MAJORITY_AGREE",
-    "rawExecutionResults": [
-      "SUCCESS",
-      "SUCCESS"
-    ],
+    "rawExecutionResults": ["SUCCESS", "SUCCESS"],
     "contractAddress": "0x4717b4e830e9111AAF97aCb0159f58D750085D1A"
   },
-  "source_sha256": "3bce13a6a00ef101a02f5d78c93d9e86e38c224ff7f6636f2f57b574209110bf",
+  "deployed_source_sha256": "3bce13a6a00ef101a02f5d78c93d9e86e38c224ff7f6636f2f57b574209110bf",
   "api_source_sha256": "3bce13a6a00ef101a02f5d78c93d9e86e38c224ff7f6636f2f57b574209110bf",
-  "source_parity": "exact_after_line_ending_normalization",
+  "source_parity": "exact_after_line_ending_normalization_for_deployed_revision",
   "source_line_ending_note": "Studionet source is compared after CRLF/CR to LF normalization.",
+  "deployed_source_revision": "7560ad4a8d9ce88d775b1c26cf20999717aae925",
+  "current_candidate_source_sha256": "b46addab5800fab8d87d7019efb76866b13e15644d3b7b4361fb3435c35d96bf",
+  "current_candidate_status": "not_deployed; source_parity_not_claimed",
   "deployed_state": {
     "method": "get_stats",
-    "assertions": [
-      {
-        "path": "verifier_version",
-        "expected": "soulstamp-v3.0-continuity",
-        "actual": "soulstamp-v3.0-continuity"
-      }
-    ],
-    "result": {
-      "admin": "0x4e44636494650386b89c64011c10f48d4b344c4f",
-      "challenge_statuses": [
-        "OPEN",
-        "AWAITING_REBUTTAL",
-        "RESPONDED",
-        "RESOLVED_OWNER",
-        "RESOLVED_CHALLENGER",
-        "RESOLVED_INCONCLUSIVE",
-        "EXECUTED",
-        "EXPIRED"
-      ],
-      "discord_attestation_base_url": "",
-      "legacy_contract_address": "0x3108daffcbc24e261137056c56afcae17677bdfb",
-      "proof_statuses": [
-        "ACTIVE",
-        "STALE",
-        "REVOKED",
-        "CONFLICTED",
-        "FLAGGED",
-        "RECOVERED"
-      ],
-      "supported_platforms": [
-        "github",
-        "twitter",
-        "discord"
-      ],
-      "total_challenges": 0,
-      "total_identities": 0,
-      "total_recoveries": 0,
-      "total_verifications": 0,
-      "verifier_version": "soulstamp-v3.0-continuity"
-    }
+    "verifier_version": "soulstamp-v3.0-continuity",
+    "total_verifications": 0,
+    "total_identities": 0,
+    "total_challenges": 0,
+    "total_recoveries": 0,
+    "admin": "0x4e44636494650386b89c64011c10f48d4b344c4f",
+    "legacy_contract_address": "0x3108daffcbc24e261137056c56afcae17677bdfb"
   },
   "lifecycle": [],
   "negative_lifecycle": [],
@@ -84,6 +52,5 @@
     "negative_transition_required": true
   },
   "recorded_at": "2026-10-12T20:16:36.617210+00:00",
-  "explorer": "https://explorer-studio.genlayer.com/address/0x4717b4e830e9111AAF97aCb0159f58D750085D1A",
-  "local_source_revision": "9eee7871d0f80587b1726634226782d25269764c"
+  "explorer": "https://explorer-studio.genlayer.com/address/0x4717b4e830e9111AAF97aCb0159f58D750085D1A"
 }

@@ -20,7 +20,7 @@ def deploy(direct_deploy):
     )
 
 
-def proof_llm(vm, *, account_match=True, canonical_id="42", decision=None):
+def proof_llm(vm, *, account_match=True, canonical_id="42", decision=None, reason_code=None, reasoning="direct-mode evidence fixture"):
     if decision is not None:
         vm.mock_llm(
             r"(?s).*independent SoulStamp ownership challenge resolution.*",
@@ -36,8 +36,8 @@ def proof_llm(vm, *, account_match=True, canonical_id="42", decision=None):
             "proof_strength": "STRONG",
             "risk_band": "low" if account_match else "high",
             "confidence_bucket": 92 if account_match else 20,
-            "reason_code": "CODE_FOUND_ON_CANONICAL_PROFILE" if account_match else "ACCOUNT_MISMATCH",
-            "reasoning": "direct-mode evidence fixture",
+            "reason_code": reason_code or ("CODE_FOUND_ON_CANONICAL_PROFILE" if account_match else "ACCOUNT_MISMATCH"),
+            "reasoning": reasoning,
         }),
     )
 
@@ -130,6 +130,56 @@ def test_x_rejects_non_provider_author_url_even_when_path_matches(direct_vm, dir
         contract.complete_verification("https://x.com/claimed/status/123456")
 
 
+def test_x_rejects_http_provider_author_url_even_when_identity_matches(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    direct_vm.sender = OWNER
+    contract.request_verification("twitter", "claimed", "https://x.com/claimed/status/123456")
+    pending = contract.get_pending_verification(OWNER)
+    direct_vm.mock_web(
+        r".*publish\.twitter\.com/oembed.*",
+        {"status": 200, "body": json.dumps({
+            "author_url": "http://x.com/claimed",
+            "author_id": "555",
+            "html": f"<p>{pending['verification_code']}</p>",
+        })},
+    )
+    proof_llm(direct_vm, account_match=False, canonical_id="id:555")
+    with direct_vm.expect_revert("ownership"):
+        contract.complete_verification("https://x.com/claimed/status/123456")
+
+
+def test_llm_reason_code_and_reasoning_variance_cannot_change_derived_status(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    direct_vm.sender = OWNER
+    contract.request_verification("github", "alice", "https://github.com/alice")
+    pending = contract.get_pending_verification(OWNER)
+    github_web(direct_vm, "alice", pending["verification_code"], canonical_id="42")
+    proof_llm(
+        direct_vm,
+        canonical_id="42",
+        reason_code="LLM_WORDING_CHANGED",
+        reasoning="A long provider-specific explanation that is not protocol state.",
+    )
+    contract.complete_verification("")
+    account = contract.get_identity(OWNER)["linked_accounts"][0]
+    assert account["proof_status"] == "ACTIVE"
+    assert account["reason_code"] == "CODE_FOUND_ON_CANONICAL_PROFILE"
+
+
+def test_external_evidence_failure_is_classified_and_does_not_create_identity(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    direct_vm.sender = OWNER
+    contract.request_verification("github", "alice", "https://github.com/alice")
+    direct_vm.mock_web(
+        r".*api\.github\.com/users/alice$",
+        {"status": 503, "body": "provider unavailable"},
+    )
+    with direct_vm.expect_revert("Evidence source returned HTTP 503"):
+        contract.complete_verification("")
+    assert contract.get_identity(OWNER)["found"] is False
+    assert contract.get_pending_verification(OWNER)["found"] is True
+
+
 def test_canonical_id_is_unique_across_handles(direct_vm, direct_deploy):
     contract = deploy(direct_deploy)
     verify_github(direct_vm, contract, OWNER, "alice", "42")
@@ -189,6 +239,24 @@ def test_github_reverification_uses_public_profile_locator(direct_vm, direct_dep
     account = contract.get_identity(OWNER)["linked_accounts"][0]
     assert account["proof_status"] == "ACTIVE"
     assert account["dossier"]["proof_url"] == "https://api.github.com/users/alice"
+
+
+def test_reverification_cannot_replace_canonical_binding(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    direct_vm.clear_mocks()
+    direct_vm.sender = OWNER
+    github_web(direct_vm, "alice", contract.get_identity(OWNER)["linked_accounts"][0]["verification_code"], canonical_id="99")
+    proof_llm(direct_vm, canonical_id="99")
+    contract.reverify_platform("github", "alice")
+    account = contract.get_identity(OWNER)["linked_accounts"][0]
+    assert account["proof_status"] == "CONFLICTED"
+    assert account["is_active"] is False
+    assert account["reason_code"] == "CANONICAL_ID_CHANGED"
+    assert account["canonical_platform_id"] == "42"
+    assert account["dossier"]["canonical_platform_id"] == "42"
+    assert contract.lookup_by_platform("github", "alice")["canonical_platform_id"] == "42"
+    assert contract.is_eligible(OWNER) is False
 
 
 def test_expired_proof_cannot_be_challenged(direct_vm, direct_deploy):
@@ -395,6 +463,8 @@ def test_discord_attestation_is_fresh_and_one_use(direct_vm, direct_deploy):
     }
     direct_vm.mock_web(r".*attest\.example/api/discord/attestations/token-1$", {"status": 200, "body": json.dumps(body)})
     proof_llm(direct_vm, canonical_id="123")
+    with direct_vm.expect_revert("configured backend"):
+        contract.complete_verification(attestation_url + "?replay=1")
     contract.complete_verification(attestation_url)
     with direct_vm.expect_revert("already been used"):
         contract.reverify_platform("discord", "alice#123", attestation_url)
@@ -464,6 +534,49 @@ def test_challenge_deadline_resolution_and_safe_recovery(direct_vm, direct_deplo
     assert contract.lookup_by_platform("github", "alice")["owner_address"] == CHALLENGER
 
 
+def test_challenge_cannot_accept_owner_win_over_active_challenger_evidence(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    direct_vm.clear_mocks()
+    direct_vm.sender = CHALLENGER
+    contract.request_ownership_challenge("github", "alice")
+    challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
+    github_web(direct_vm, "alice", challenge["challenger_code"], canonical_id="42")
+    proof_llm(direct_vm, canonical_id="42")
+    contract.submit_challenge_evidence(challenge["challenge_id"], "https://github.com/alice")
+    direct_vm.mock_web(
+        r"https://github\.com/alice$",
+        {"status": 200, "body": json.dumps({"bio": challenge["challenger_code"], "login": "alice", "id": 42})},
+    )
+    direct_vm.warp(datetime.fromtimestamp(challenge["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
+    proof_llm(direct_vm, decision="OWNER_UPHOLDS")
+    with direct_vm.expect_revert("deterministic evidence boundary"):
+        contract.resolve_ownership_challenge(challenge["challenge_id"])
+    assert contract.get_challenge(challenge["challenge_id"])["status"] == "AWAITING_REBUTTAL"
+    assert contract.get_identity(OWNER)["linked_accounts"][0]["proof_status"] == "ACTIVE"
+
+
+def test_challenge_resolution_fails_closed_on_source_fetch_error(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    direct_vm.clear_mocks()
+    direct_vm.sender = CHALLENGER
+    contract.request_ownership_challenge("github", "alice")
+    challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
+    github_web(direct_vm, "alice", challenge["challenger_code"], canonical_id="42")
+    proof_llm(direct_vm, canonical_id="42")
+    contract.submit_challenge_evidence(challenge["challenge_id"], "https://github.com/alice")
+    direct_vm.mock_web(
+        r"https://github\.com/alice$",
+        {"status": 503, "body": "temporary upstream failure"},
+    )
+    direct_vm.warp(datetime.fromtimestamp(challenge["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
+    with direct_vm.expect_revert("Challenge evidence source returned HTTP 503"):
+        contract.resolve_ownership_challenge(challenge["challenge_id"])
+    assert contract.get_challenge(challenge["challenge_id"])["status"] == "AWAITING_REBUTTAL"
+    assert contract.get_identity(OWNER)["linked_accounts"][0]["proof_status"] == "ACTIVE"
+
+
 def test_challenge_owner_rebuttal_can_force_inconclusive(direct_vm, direct_deploy):
     contract = deploy(direct_deploy)
     verify_github(direct_vm, contract, OWNER, "alice", "42")
@@ -484,9 +597,13 @@ def test_challenge_owner_rebuttal_can_force_inconclusive(direct_vm, direct_deplo
         r"https://github\.com/alice$",
         {"status": 200, "body": json.dumps({"bio": challenge["owner_rebuttal_code"], "login": "alice", "id": 42})},
     )
-    proof_llm(direct_vm, decision="CHALLENGER_UPHOLDS")
+    proof_llm(direct_vm, decision="INCONCLUSIVE")
     contract.resolve_ownership_challenge(challenge_id)
     assert contract.get_challenge(challenge_id)["status"] == "RESOLVED_INCONCLUSIVE"
+    owner_identity = contract.get_identity(OWNER)
+    assert owner_identity["linked_accounts"][0]["proof_status"] == "CONFLICTED"
+    assert owner_identity["linked_accounts"][0]["is_active"] is False
+    assert owner_identity["eligible"] is False
 
 
 def test_recovery_preserves_non_revoked_historical_indexes(direct_vm, direct_deploy):

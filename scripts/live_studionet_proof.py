@@ -173,6 +173,9 @@ def parse_lifecycle_plan(raw: str | None, require_full: bool = False) -> list[di
         signer = str(item.get("signer", "deployer"))
         if signer not in allowed:
             raise RuntimeError(f"Unsupported live signer '{signer}'")
+        expected_sender = str(item.get("expect_sender", "")).strip()
+        if not re.fullmatch(r"0x[0-9a-fA-F]{40}", expected_sender):
+            raise RuntimeError(f"Lifecycle step {method} requires a valid expect_sender address")
         if signer in ("admin", "challenger") and not os.environ.get("SOULSTAMP_ADMIN_PRIVATE_KEY"):
             raise RuntimeError("SOULSTAMP_ADMIN_PRIVATE_KEY is required by the live lifecycle plan")
         if bool(item.get("expect_success", True)):
@@ -211,6 +214,8 @@ def finalize(tx_hash: str, expect_success: bool = True) -> dict:
     evidence = json.loads(output[-1])
     if evidence.get("statusName") not in ("FINALIZED", 5):
         raise RuntimeError(f"Transaction {tx_hash} was not FINALIZED: {evidence}")
+    if evidence.get("rawResultName") not in ("MAJORITY_AGREE", 6):
+        raise RuntimeError(f"Transaction {tx_hash} finalized without majority agreement: {evidence}")
     execution = evidence.get("txExecutionResultName")
     succeeded = execution in ("FINISHED_WITH_RETURN", 1)
     if expect_success and not succeeded:
@@ -230,7 +235,18 @@ def write(contract: str, method: str, args: list[str], expect_success: bool = Tr
     else:
         output = submit("write", contract, method, "--args", *args)
     tx_hash = extract_hash(output)
-    return tx_hash, finalize(tx_hash, expect_success=expect_success)
+    finality = finalize(tx_hash, expect_success=expect_success)
+    expected_signer = derived_signer_address(signer)
+    observed_signer = str(finality.get("sender", "")).lower()
+    if expected_signer is not None and observed_signer != expected_signer:
+        raise RuntimeError(f"Transaction {tx_hash} was signed by {observed_signer}, expected {expected_signer}")
+    if finality.get("calldataDecoded") is not True:
+        raise RuntimeError(f"Transaction {tx_hash} did not expose decodable calldata")
+    if finality.get("method") != method:
+        raise RuntimeError(f"Transaction {tx_hash} called {finality.get('method')!r}, expected {method!r}")
+    if finality.get("args") != args:
+        raise RuntimeError(f"Transaction {tx_hash} arguments did not match {args!r}: {finality.get('args')!r}")
+    return tx_hash, finality
 
 
 def read_view(contract: str, method: str, args: list[object]) -> object:
@@ -308,6 +324,11 @@ def main() -> int:
         deploy_output = submit("deploy", "--contract", "contracts/soul_stamp.py", "--args", admin, OLD_CONTRACT)
     deploy_tx = extract_hash(deploy_output)
     deploy_finality = finalize(deploy_tx)
+    expected_deployer = derived_signer_address("deployer")
+    if expected_deployer is not None and str(deploy_finality.get("sender", "")).lower() != expected_deployer:
+        raise RuntimeError(
+            f"Deployment {deploy_tx} was signed by {deploy_finality.get('sender')!r}, expected {expected_deployer}"
+        )
     contract_address = deploy_finality.get("contractAddress") or extract_address(deploy_output)
 
     remote_source = subprocess.run(["node", str(CODE_READER), contract_address, RPC], cwd=ROOT, text=True, capture_output=True)
@@ -373,6 +394,11 @@ def main() -> int:
             expect_success = bool(item.get("expect_success", True))
             signer = str(item.get("signer", "deployer"))
             tx_hash, finality = write(contract_address, method, args, expect_success=expect_success, signer=signer)
+            expected_sender = str(item["expect_sender"]).lower()
+            if str(finality.get("sender", "")).lower() != expected_sender:
+                raise RuntimeError(
+                    f"Lifecycle step {method} was signed by {finality.get('sender')!r}, expected {expected_sender!r}"
+                )
             entry = {"method": method, "args": args, "signer": signer, "expected_success": expect_success, "transaction": transaction_record(tx_hash, finality)}
             if expect_success:
                 verify_spec = item.get("verify")

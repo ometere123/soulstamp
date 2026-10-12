@@ -28,6 +28,8 @@ def test_finality_inspector_supports_current_studionet_receipt_shape():
     assert "consensus_data?.leader_receipt" in source
     assert "rawExecutionResults" in source
     assert "FINISHED_WITH_ERROR" in source
+    assert "MAJORITY_AGREE" in source
+    assert "calldataDecoded" in source
 
 
 def test_live_proof_records_a_real_negative_recovery_transition():
@@ -66,7 +68,7 @@ def test_local_release_env_loader_is_scoped_and_does_not_override_process(monkey
 def test_full_live_plan_fails_closed_when_required_lifecycle_step_is_missing():
     with pytest.raises(RuntimeError, match="missing successful steps"):
         parse_lifecycle_plan(
-            '[{"method":"request_verification","verify":{"method":"get_pending_verification","assertions":[{"path":"found","value":true}]}}]',
+            '[{"method":"request_verification","expect_sender":"0x' + "1" * 40 + '","verify":{"method":"get_pending_verification","assertions":[{"path":"found","value":true}]}}]',
             require_full=True,
         )
 
@@ -78,4 +80,12 @@ def test_live_plan_rejects_unnamed_steps():
 
 def test_live_plan_rejects_success_without_post_state_assertions():
     with pytest.raises(RuntimeError, match="non-empty post-state assertions"):
-        parse_lifecycle_plan('[{"method":"complete_verification"}]')
+        parse_lifecycle_plan('[{"method":"complete_verification","expect_sender":"0x' + "1" * 40 + '"}]')
+
+
+def test_live_plan_requires_expected_signer_identity():
+    with pytest.raises(RuntimeError, match="expect_sender"):
+        parse_lifecycle_plan(
+            '[{"method":"request_verification","verify":{"method":"get_pending_verification","assertions":[{"path":"found","value":true}]}}]',
+            require_full=False,
+        )

@@ -77,3 +77,31 @@ terminal failed execution. Additional verification, challenge, rebuttal,
 recovery, revocation, and eligibility steps remain explicit operator inputs so
 missing external evidence, locked accounts, rate limits, or failed transactions
 are reported as blockers rather than converted into success claims.
+
+## Consensus regression hardening
+
+The v2 implementation is available in repository history at `4b6d773` and
+compared the LLM-supplied `reason_code` and `proof_status` as consensus fields,
+with a confidence tolerance of 15 points. The v3 implementation added canonical
+IDs and stricter source checks but originally retained the same exact reason-code
+comparison. The current fix derives protocol `reason_code` from deterministic
+code, account, and freshness facts; LLM reasoning remains explanatory only.
+Validators still independently fetch and validate the source, canonical ID, and
+account binding, and confidence remains bounded to a 15-point tolerance.
+
+Two public live v3 receipts were inspected before this fix:
+
+- `0x7c325c00b56c85101695119eee1ea9e0fa6def3aa9cf93bbd2fa1124b3041dd`
+- `0x00392105e75112406a3ea9f90d057c79da55ef1769cd52b1330d1a39e5bbb6ab`
+
+Both were `FINALIZED` with leader execution `SUCCESS` but consensus result 7,
+`MAJORITY_DISAGREE`. The public leader payloads showed matching canonical ID,
+code, account match, and active status, but used different reason labels
+(`OK` and `EXACT_CODE_AND_ACCOUNT_MATCH`). That is direct evidence of harmless
+label variance and disagreement; the exact dissenting validator payloads are
+not available because Studionet returned `MethodNotFoundRpcError` for
+`gen_dbg_traceTransaction`. The validator disagreement is therefore not
+claimed as a fully traced causal proof. Regression tests cover wording/reason
+variance, HTTP source failures, canonical-ID changes, replay, invalid challenge
+decisions, misleading finality receipts, and exact signer/method/argument
+metadata.
