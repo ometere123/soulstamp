@@ -1,30 +1,33 @@
 {
   "protocol": "SoulStamp v3 identity continuity",
-  "evidence_status": "deployment_verified_at_prior_revision; redeployment_required_for_current_source",
+  "evidence_status": "deployment_verified; lifecycle_proof_pending",
   "network": {
     "name": "Studionet",
     "chain_id": 61999,
     "rpc": "https://studio.genlayer.com/api"
   },
-  "contract_address": "0xe2E6E2dDC52Ed996C5d3EAfADF52BDd736B48703",
+  "contract_address": "0x6Ad350E2486bE0F277A017D4Fa9124661f750263",
   "deployment_transaction": {
-    "hash": "0x5852a9d26f4ea641ecdf6be087b109b6ee94c009bf66a13c82c935ae115e5be7",
-    "explorer": "https://explorer-studio.genlayer.com/tx/0x5852a9d26f4ea641ecdf6be087b109b6ee94c009bf66a13c82c935ae115e5be7",
+    "hash": "0x1f13804a4180f88cb8a8b6e92a712c261fc90f7d9afc36d8a95f1e7b2b8f29e1",
+    "explorer": "https://explorer-studio.genlayer.com/tx/0x1f13804a4180f88cb8a8b6e92a712c261fc90f7d9afc36d8a95f1e7b2b8f29e1",
     "status": "FINALIZED",
     "execution": "FINISHED_WITH_RETURN",
     "consensus_result": "MAJORITY_AGREE",
     "raw_execution_results": ["SUCCESS", "SUCCESS"]
   },
   "source_parity": {
-    "result": "exact",
-    "sha256": "c5a070bc3119152ca2e519f3c2aef293bc651917076d7451390e2979ca0a9c9d",
-    "deployed_source_revision": "77386b860a857e05069a84517f137de84fd161f5"
+    "result": "exact_after_crlf_normalization",
+    "sha256_normalized_lf": "0a66bd49e366895dbf624aea91ba502603088785d137d6a2665c683d58b60512",
+    "repository_raw_sha256": "0a66bd49e366895dbf624aea91ba502603088785d137d6a2665c683d58b60512",
+    "api_raw_sha256": "8a99a13dd0c7576305433ab58fdc9bad44cab6f7eb8121c4bcd9fe1fc74e4d96",
+    "line_ending_note": "The Studionet API returns the identical source with CRLF line endings; repository source uses LF.",
+    "deployed_source_revision": "e2d5ebff970a6c246659a3ed035624164d396fa7"
   },
   "current_repository_source": {
-    "revision": "6aeecea0d54ba208574233faa38eccb7d51073d2",
+    "revision": "e2d5ebff970a6c246659a3ed035624164d396fa7",
     "sha256": "0a66bd49e366895dbf624aea91ba502603088785d137d6a2665c683d58b60512",
-    "parity_with_deployed_contract": "not_verified_after_contract_consistency_fix",
-    "redeployment_required": true
+    "parity_with_deployed_contract": "exact_after_crlf_normalization",
+    "redeployment_required": false
   },
   "deployed_state_at_recording": {
     "method": "get_stats",
@@ -35,6 +38,13 @@
     "total_recoveries": 0,
     "admin": "0x4e44636494650386b89c64011c10f48d4b344c4f",
     "legacy_contract_address": "0x3108daffcbc24e261137056c56afcae17677bdfb"
+  },
+  "predecessor_deployment": {
+    "contract_address": "0xe2E6E2dDC52Ed996C5d3EAfADF52BDd736B48703",
+    "deployment_transaction": "0x5852a9d26f4ea641ecdf6be087b109b6ee94c009bf66a13c82c935ae115e5be7",
+    "source_sha256": "c5a070bc3119152ca2e519f3c2aef293bc651917076d7451390e2979ca0a9c9d",
+    "deployed_source_revision": "77386b860a857e05069a84517f137de84fd161f5",
+    "superseded_by": "0x6Ad350E2486bE0F277A017D4Fa9124661f750263"
   },
   "lifecycle_proof": {
     "status": "not_yet_recorded",
