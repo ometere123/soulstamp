@@ -48,9 +48,10 @@ result `FINISHED_WITH_RETURN` before reading the resulting state.
 Redeployment does not silently abandon v2 users. The new constructor accepts a
 legacy contract address. An admin explicitly calls `migrate_legacy_identity`
 for each legacy wallet after inspecting the legacy registry. The migration
-imports supported links and canonical IDs, reserves only active indexes, marks
-the imported proof as `MIGRATED_FROM_SOULSTAMP_V2`, and records the source
-contract in an immutable audit entry. Legacy state remains untouched and can
+imports supported links and canonical IDs, marks imported proofs as `STALE` with
+reason `MIGRATED_REQUIRES_REVERIFICATION`, reserves non-revoked canonical indexes
+to prevent takeover during migration, and records the source contract in an
+immutable audit entry. Legacy state remains untouched and can
 be compared against the new record. Imported proofs with no fresh evidence are
 not consumer-eligible until reverification.
 

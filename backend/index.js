@@ -37,6 +37,9 @@ function base64urlDecode(input) {
 }
 
 async function hmacKey(secret) {
+  if (typeof secret !== "string" || secret.length < 32) {
+    throw new Error("BACKEND_SESSION_SECRET must be configured with at least 32 characters");
+  }
   return crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -47,7 +50,7 @@ async function hmacKey(secret) {
 }
 
 async function sign(value, env) {
-  const key = await hmacKey(env.BACKEND_SESSION_SECRET || "dev-only-change-me");
+  const key = await hmacKey(env.BACKEND_SESSION_SECRET);
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value));
   return base64urlEncode(new Uint8Array(signature));
 }
@@ -161,6 +164,9 @@ function discordClaim(user) {
 function requireConfig(env) {
   if (!env.DISCORD_CLIENT_ID || !env.DISCORD_CLIENT_SECRET || !discordRedirectUri(env)) {
     throw new Error("Discord OAuth is not configured");
+  }
+  if (typeof env.BACKEND_SESSION_SECRET !== "string" || env.BACKEND_SESSION_SECRET.length < 32) {
+    throw new Error("BACKEND_SESSION_SECRET must be configured with at least 32 characters");
   }
   if (!publicBaseUrl(env).startsWith("https://") && !publicBaseUrl(env).startsWith("http://localhost")) {
     throw new Error("PUBLIC_BASE_URL must be public HTTPS for GenLayer validators");

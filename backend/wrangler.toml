@@ -1,9 +1,15 @@
 name = "soulstamp-discord"
 main = "index.js"
-compatibility_date = "2026-05-20"
+compatibility_date = "2026-10-12"
 
 [vars]
 DISCORD_CLIENT_ID = "1506429798560567386"
 DISCORD_REDIRECT_URI = "https://soulstamp-discord.delealufejoel.workers.dev/api/discord/callback"
 PUBLIC_BASE_URL = "https://soulstamp-discord.delealufejoel.workers.dev"
 FRONTEND_ORIGIN = "https://soulstamp-gen.vercel.app"
+
+[observability]
+enabled = true
+
+[observability.traces]
+enabled = true

@@ -17,3 +17,9 @@ def test_worker_attestations_expire_at_signed_payload_expiry_and_are_not_cached(
     assert "exp: attestation.expires_at" in source
     assert "payload.attestation.expires_at <= nowSeconds()" in source
     assert '"cache-control": "no-store"' in source
+
+
+def test_worker_fails_closed_without_a_strong_hmac_secret():
+    source = WORKER.read_text(encoding="utf-8")
+    assert "BACKEND_SESSION_SECRET must be configured with at least 32 characters" in source
+    assert 'env.BACKEND_SESSION_SECRET || "dev-only-change-me"' not in source

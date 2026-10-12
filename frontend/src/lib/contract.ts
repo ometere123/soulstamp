@@ -1,5 +1,6 @@
 import { readClient, getWriteClient, CONTRACT_ADDRESS } from "./client";
-import { ExecutionResult, TransactionStatus } from "genlayer-js/types";
+import { TransactionStatus } from "genlayer-js/types";
+import { executionFailureDescription, isFinalizedSuccessfulReceipt } from "./finality";
 import type {
   AuditEntry,
   IdentityRecord,
@@ -116,9 +117,8 @@ async function writeAndWait(functionName: string, args: unknown[]): Promise<{ ha
     throw new Error(`Transaction ${hash} ended in ${String(statusName)}; no finalized success was proven.`);
   }
 
-  const executionName = receipt?.txExecutionResultName;
-  if (executionName !== ExecutionResult.FINISHED_WITH_RETURN && executionName !== "FINISHED_WITH_RETURN") {
-    let detail = "execution result was not FINISHED_WITH_RETURN";
+  if (!isFinalizedSuccessfulReceipt(receipt)) {
+    let detail = executionFailureDescription(receipt);
     try {
       const trace: any = await client.debugTraceTransaction({ hash });
       detail = trace?.stderr || trace?.genvm_log || trace?.error || detail;

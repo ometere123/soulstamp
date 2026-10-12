@@ -16,3 +16,10 @@ def test_live_proof_records_a_real_negative_recovery_transition():
     assert '"execute_wallet_recovery"' in source
     assert 'expect_success=False' in source
     assert '"negative_lifecycle"' in source
+
+
+def test_live_positive_steps_require_post_state_assertions():
+    source = PROOF_SCRIPT.read_text(encoding="utf-8")
+    assert "VIEW_READER" in source
+    assert "requires a post-state verify specification" in source
+    assert "state_verification" in source

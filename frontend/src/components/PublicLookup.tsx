@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Search, Github, Twitter, MessageCircle, Shield, ShieldAlert, Loader2, AlertCircle } from "lucide-react";
+import { Search, Github, Twitter, MessageCircle, Shield, ShieldAlert, Loader2, AlertCircle, ExternalLink } from "lucide-react";
 import clsx from "clsx";
-import { getIdentity, lookupByPlatform } from "../lib/contract";
-import type { IdentityRecord, PlatformLookupResult, Platform, ProofStatus } from "../types";
+import { getAllChallenges, getChallenges, getIdentity, lookupByPlatform } from "../lib/contract";
+import type { IdentityRecord, OwnershipChallenge, PlatformLookupResult, Platform, ProofStatus } from "../types";
 
 type SearchMode = "address" | "platform";
 
@@ -52,6 +52,10 @@ function ProofStatusBadge({ status }: { status?: ProofStatus }) {
   );
 }
 
+function dateLabel(seconds: number) {
+  return seconds ? new Date(seconds * 1000).toLocaleString() : "—";
+}
+
 export function PublicLookup() {
   const [mode, setMode]         = useState<SearchMode>("address");
   const [platform, setPlatform] = useState<Platform>("github");
@@ -61,10 +65,12 @@ export function PublicLookup() {
 
   const [identityResult, setIdentityResult] = useState<IdentityRecord | null>(null);
   const [platformResult, setPlatformResult] = useState<PlatformLookupResult | null>(null);
+  const [challengeResults, setChallengeResults] = useState<OwnershipChallenge[]>([]);
 
   function reset() {
     setIdentityResult(null);
     setPlatformResult(null);
+    setChallengeResults([]);
     setError(null);
   }
 
@@ -74,15 +80,29 @@ export function PublicLookup() {
     setLoading(true);
     setError(null);
     try {
+      const cleanQuery = query.trim().replace(/^@/, "");
       if (mode === "address") {
-        const r = await getIdentity(query.trim());
+        const r = await getIdentity(cleanQuery);
         setIdentityResult(r);
+        try {
+          setChallengeResults(await getChallenges(cleanQuery, 0, 100));
+        } catch (challengeError) {
+          console.warn("[soulstamp] public challenge history unavailable:", challengeError);
+        }
       } else {
-        const r = await lookupByPlatform(platform, query.trim().replace(/^@/, ""));
+        const r = await lookupByPlatform(platform, cleanQuery);
         setPlatformResult(r);
         if (r.found && r.owner_address) {
           const id = await getIdentity(r.owner_address);
           setIdentityResult(id);
+        }
+        try {
+          const all = await getAllChallenges(0, 100);
+          setChallengeResults(all.filter(challenge =>
+            challenge.platform === platform && challenge.username.toLowerCase() === cleanQuery.toLowerCase(),
+          ));
+        } catch (challengeError) {
+          console.warn("[soulstamp] public challenge history unavailable:", challengeError);
         }
       }
     } catch (e: any) {
@@ -92,7 +112,8 @@ export function PublicLookup() {
     }
   }
 
-  const hasResult = identityResult !== null || platformResult !== null;
+  const hasResult = identityResult !== null || platformResult !== null || challengeResults.length > 0;
+  const nowSeconds = Math.floor(Date.now() / 1000);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -222,7 +243,10 @@ export function PublicLookup() {
           <div className="grid grid-cols-3 divide-x divide-gray-800 border-b border-gray-700">
             {[
               { label: "Reputation",    value: identityResult.reputation_score },
-              { label: "Healthy",       value: `${identityResult.linked_accounts.filter(a => (a.proof_status ?? "ACTIVE") === "ACTIVE").length} active` },
+              { label: "Healthy",       value: `${identityResult.linked_accounts.filter(a =>
+                (a.proof_status ?? "ACTIVE") === "ACTIVE"
+                && Number(a.dossier?.evidence_expires_at ?? 0) >= nowSeconds,
+              ).length} active` },
               { label: "Verifications", value: identityResult.verification_count },
             ].map(s => (
               <div key={s.label} className="p-4 text-center">
@@ -276,6 +300,36 @@ export function PublicLookup() {
             ))}
           </div>
         </div>
+      )}
+
+      {challengeResults.length > 0 && (
+        <section className="mt-5 bg-gray-900 border border-gray-700 rounded-2xl p-5 space-y-4">
+          <div>
+            <h3 className="font-semibold">Public challenge history</h3>
+            <p className="text-xs text-gray-500 mt-1">Challenge states, deadlines, canonical IDs, and evidence links are immutable public contract records.</p>
+          </div>
+          <div className="space-y-3">
+            {challengeResults.map(challenge => (
+              <article key={challenge.challenge_id} className="rounded-xl border border-gray-800 bg-gray-800/40 p-4 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-mono text-xs text-brand-300">{challenge.challenge_id}</span>
+                  <span className="text-xs font-semibold uppercase text-gray-300">{challenge.status.replace(/_/g, " ")}</span>
+                </div>
+                <div className="grid gap-1 sm:grid-cols-2 text-xs text-gray-400">
+                  <span>Opened {dateLabel(challenge.opened_at)}</span>
+                  <span>Rebuttal deadline {dateLabel(challenge.rebuttal_deadline)}</span>
+                  <span>Outcome {challenge.outcome || "pending"}</span>
+                  <span>Canonical ID <code className="text-gray-200">{challenge.canonical_platform_id || "—"}</code></span>
+                </div>
+                <div className="flex flex-wrap gap-3 text-xs">
+                  {challenge.challenger_evidence_url && <a className="text-brand-300 inline-flex items-center gap-1 break-all" href={challenge.challenger_evidence_url} target="_blank" rel="noreferrer">Challenger evidence <ExternalLink className="w-3 h-3" /></a>}
+                  {challenge.owner_rebuttal_url && <a className="text-orange-300 inline-flex items-center gap-1 break-all" href={challenge.owner_rebuttal_url} target="_blank" rel="noreferrer">Owner rebuttal <ExternalLink className="w-3 h-3" /></a>}
+                </div>
+                {challenge.resolution_reasoning && <p className="text-xs text-gray-400">Resolution: {challenge.resolution_reasoning}</p>}
+              </article>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

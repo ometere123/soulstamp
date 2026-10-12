@@ -358,13 +358,22 @@ class SoulStamp(gl.Contract):
             self._require(bool(fetch_url), "Discord verification requires a fresh attestation URL")
             base = self.discord_attestation_base_url.rstrip("/")
             self._require(bool(base), "Discord attestation backend is not configured")
-            prefix = f"{base}/api/discord/attestations/"
-            self._require(fetch_url.startswith(prefix), "Discord attestation URL is not from the configured backend")
-            token = fetch_url[len(prefix):].strip()
-            self._require(bool(token) and "/" not in token, "Discord attestation URL is malformed")
-            self._require(self.used_discord_attestations.get(token) is None, "Discord attestation has already been used")
+            self._discord_attestation_token(fetch_url)
             return fetch_url
         raise gl.vm.UserError(f"{ERROR_EXPECTED} Unsupported platform '{platform}'")
+
+    def _discord_attestation_token(self, evidence_url: str) -> str:
+        base = self.discord_attestation_base_url.rstrip("/")
+        prefix = f"{base}/api/discord/attestations/"
+        self._require(evidence_url.startswith(prefix), "Discord attestation URL is not from the configured backend")
+        token = evidence_url[len(prefix):].strip()
+        self._require(bool(token) and "/" not in token, "Discord attestation URL is malformed")
+        self._require(self.used_discord_attestations.get(token) is None, "Discord attestation has already been used")
+        return token
+
+    def _consume_discord_attestation(self, evidence_url: str) -> None:
+        token = self._discord_attestation_token(evidence_url)
+        self.used_discord_attestations[token] = True
 
     def _empty_dossier(self, platform: str, username: str, proof_url: str, code: str, pending_id: str, wallet: str, marker: u256) -> ProofDossier:
         return ProofDossier(
@@ -443,9 +452,13 @@ class SoulStamp(gl.Contract):
                 author_url = str(parsed.get("author_url", "") or "")
                 author_id = str(parsed.get("author_id", "") or "")
                 author_path = urlparse(author_url).path.strip("/").split("/")[0].lower() if author_url else ""
-                canonical_id = f"id:{author_id}" if author_id else (f"handle:{author_path}" if author_path else "")
+                # Handles are mutable and are not canonical identity keys.
+                # Require the provider's immutable numeric author ID.
+                canonical_id = f"id:{author_id}" if re.match(r"^[0-9]+$", author_id) else ""
             elif platform == "discord" and isinstance(parsed, dict):
                 canonical_id = str(parsed.get("discord_user_id", "") or parsed.get("discord_id", "") or "")
+                if not re.match(r"^[0-9]+$", canonical_id):
+                    canonical_id = ""
                 try:
                     evidence_issued_at = int(parsed.get("issued_at", 0) or 0)
                     evidence_expires_at = int(parsed.get("expires_at", 0) or 0)
@@ -718,7 +731,7 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         identity.last_updated = marker
         self.identities[caller] = identity
         if pending.platform == "discord" and fetch_url:
-            self.used_discord_attestations[fetch_url.split("/api/discord/attestations/")[-1]] = True
+            self._consume_discord_attestation(fetch_url)
         del self.pending_verifications[caller]
         self.total_verifications = u32(int(self.total_verifications) + 1)
 
@@ -729,6 +742,7 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         owner = self.platform_to_address.get(self._platform_key(plat, username))
         self._require(owner is not None, "No verified platform proof found")
         self._require(owner == caller or caller == self.admin, "Only the owner or admin can reverify this proof")
+        self._require(self.open_challenges_by_platform.get(self._platform_key(plat, username)) is None, "Cannot reverify while an ownership challenge is open; use the rebuttal flow")
         identity = self.identities.get(owner)
         self._require(identity is not None, "Identity record not found")
         idx = self._find_account(identity, plat, username)
@@ -768,7 +782,7 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         identity.last_updated = marker
         self.identities[owner] = identity
         if plat == "discord" and fetch_url:
-            self.used_discord_attestations[fetch_url.split("/api/discord/attestations/")[-1]] = True
+            self._consume_discord_attestation(fetch_url)
 
     @gl.public.write
     def revoke_platform(self, platform: str, username: str) -> None:
@@ -788,8 +802,19 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         acct.dossier.evidence_expires_at = u256(0)
         identity.linked_accounts[idx] = acct
         self._remove_indexes(owner, acct)
+        open_challenge_id = self.open_challenges_by_platform.get(pkey)
+        if open_challenge_id is not None:
+            open_challenge = self.challenges.get(open_challenge_id)
+            if open_challenge is not None and open_challenge.status in ("OPEN", "AWAITING_REBUTTAL", "RESPONDED"):
+                open_challenge.status = "EXPIRED"
+                open_challenge.outcome = "OWNER_REVOKED"
+                open_challenge.reason_code = "LINK_REVOKED_DURING_CHALLENGE"
+                open_challenge.resolved_at = marker
+                self.challenges[open_challenge_id] = open_challenge
+                del self.open_challenges_by_platform[pkey]
+                self._append_audit(identity, "challenge_expired", plat, username, "expired", 0, 0, "REVOKED", open_challenge.reason_code, details=f"challenge={open_challenge_id}", actor=caller)
         self._append_audit(identity, "revoked", plat, username, acct.reason_code, 0, 0, "REVOKED", acct.reason_code, actor=caller)
-        identity.last_updated = marker
+        identity.last_updated = self.event_marker
         self.identities[owner] = identity
 
     @gl.public.write
@@ -810,7 +835,7 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         identity = self.identities.get(owner)
         self._require(identity is not None and identity.identity_state == "ACTIVE", "Identity is not challengeable in its current state")
         idx = self._find_account(identity, plat, clean_user)
-        self._require(idx >= 0 and identity.linked_accounts[idx].proof_status == "ACTIVE", "Only an active proof can be challenged")
+        self._require(idx >= 0 and self._is_active_account(identity.linked_accounts[idx]), "Only a fresh active proof can be challenged")
         self._require(self.open_challenges_by_platform.get(pkey) is None, "An ownership challenge is already open")
         self.request_nonce = u32(int(self.request_nonce) + 1)
         challenge_id = hashlib.sha256(f"SOULSTAMP-CHALLENGE:{challenger}:{pkey}:{int(self.request_nonce)}".encode()).hexdigest()[:24].upper()
@@ -842,14 +867,19 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         self._require(challenge.challenger_wallet == challenger, "Only the challenger can submit challenger evidence")
         self._require(challenge.status in ("OPEN", "AWAITING_REBUTTAL"), "Challenge is no longer accepting evidence")
         self._require(int(self._now()) <= int(challenge.rebuttal_deadline), "Challenge evidence deadline has passed")
-        target_url = self._target_url(challenge.platform, challenge.username, evidence_url.strip())
+        clean_evidence_url = evidence_url.strip()
+        self._require(bool(clean_evidence_url) and len(clean_evidence_url) <= 2048, "Evidence URL must be present and at most 2048 characters")
+        target_url = self._target_url(challenge.platform, challenge.username, clean_evidence_url)
         verdict = self._evaluate_proof(challenge.platform, challenge.username, challenge.challenger_code, target_url, challenger, challenge.challenge_id, True)
-        challenge.challenger_evidence_url = evidence_url.strip()
+        self._require(verdict["proof_status"] == "ACTIVE", f"Fresh challenger evidence was not accepted: {verdict['reason_code']}")
+        challenge.challenger_evidence_url = clean_evidence_url
         challenge.challenger_evidence_status = verdict["proof_status"]
         challenge.challenger_canonical_id = verdict["canonical_platform_id"]
         challenge.reason_code = verdict["reason_code"]
         challenge.status = "AWAITING_REBUTTAL"
         self.challenges[challenge_id] = challenge
+        if challenge.platform == "discord":
+            self._consume_discord_attestation(evidence_url.strip())
 
     @gl.public.write
     def respond_to_challenge(self, challenge_id: str, rebuttal_url: str, statement: str) -> None:
@@ -859,16 +889,23 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         self._require(challenge.current_owner == owner, "Only the current owner can submit a rebuttal")
         self._require(challenge.status in ("AWAITING_REBUTTAL", "OPEN"), "Challenge is no longer accepting a rebuttal")
         self._require(int(self._now()) <= int(challenge.rebuttal_deadline), "Rebuttal deadline has passed")
-        self._require(bool(statement.strip()), "Rebuttal statement must not be empty")
-        target_url = self._target_url(challenge.platform, challenge.username, rebuttal_url.strip())
+        clean_statement = statement.strip()
+        clean_rebuttal_url = rebuttal_url.strip()
+        self._require(bool(clean_statement), "Rebuttal statement must not be empty")
+        self._require(len(clean_statement) <= 2000, "Rebuttal statement must be at most 2000 characters")
+        self._require(bool(clean_rebuttal_url) and len(clean_rebuttal_url) <= 2048, "Rebuttal URL must be present and at most 2048 characters")
+        target_url = self._target_url(challenge.platform, challenge.username, clean_rebuttal_url)
         verdict = self._evaluate_proof(challenge.platform, challenge.username, challenge.owner_rebuttal_code, target_url, owner, challenge.challenge_id, True)
-        challenge.owner_rebuttal_url = rebuttal_url.strip()
-        challenge.owner_rebuttal_statement = statement.strip()[:2000]
+        self._require(verdict["proof_status"] == "ACTIVE", f"Fresh owner rebuttal evidence was not accepted: {verdict['reason_code']}")
+        challenge.owner_rebuttal_url = clean_rebuttal_url
+        challenge.owner_rebuttal_statement = clean_statement
         challenge.owner_evidence_status = verdict["proof_status"]
         challenge.owner_canonical_id = verdict["canonical_platform_id"]
         challenge.status = "RESPONDED"
         challenge.reason_code = verdict["reason_code"]
         self.challenges[challenge_id] = challenge
+        if challenge.platform == "discord":
+            self._consume_discord_attestation(clean_rebuttal_url)
 
     @gl.public.write
     def resolve_ownership_challenge(self, challenge_id: str) -> None:
@@ -877,6 +914,7 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         self._require(challenge is not None, "Challenge not found")
         self._require(challenge.status in ("AWAITING_REBUTTAL", "RESPONDED"), "Challenge is not ready for resolution")
         self._require(bool(challenge.challenger_evidence_url), "Challenger evidence has not been submitted")
+        self._require(challenge.challenger_evidence_status == "ACTIVE", "Fresh challenger evidence has not been accepted")
         now = self._now()
         self._require(challenge.status == "RESPONDED" or int(now) >= int(challenge.rebuttal_deadline), "Wait for the rebuttal deadline or submit a rebuttal before resolving")
         resolution = self._resolve_challenge_consensus(challenge)
@@ -887,6 +925,10 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         challenge.outcome = decision
         challenge.reason_code = "GENLAYER_INDEPENDENT_RESOLUTION"
         identity = self.identities.get(challenge.current_owner)
+        self._require(self.platform_to_address.get(self._platform_key(challenge.platform, challenge.username)) == challenge.current_owner, "The challenged link changed; this challenge is no longer valid")
+        self._require(identity is not None and identity.identity_state == "ACTIVE", "The challenged identity is not active")
+        current_idx = self._find_account(identity, challenge.platform, challenge.username)
+        self._require(current_idx >= 0 and self._is_active_account(identity.linked_accounts[current_idx]), "The challenged proof is no longer fresh")
         if decision == "CHALLENGER_UPHOLDS":
             challenge.status = "RESOLVED_CHALLENGER"
             challenge.recovery_not_before = u256(int(now) + RECOVERY_DELAY_SECONDS)
@@ -1048,7 +1090,7 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         caller = self._addr(gl.message.sender_address)
         self._require(caller == self.admin, "Only the admin can configure Discord attestations")
         clean = str(base_url).strip().rstrip("/")
-        self._require(clean.startswith("https://") or clean.startswith("http://"), "Discord attestation backend must be an http(s) URL")
+        self._require(clean.startswith("https://"), "Discord attestation backend must use HTTPS")
         self.discord_attestation_base_url = clean
 
     @gl.public.write
@@ -1064,6 +1106,7 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         self._require(caller == self.admin, "Only the admin can migrate legacy identities")
         self._require(bool(self.legacy_contract_address), "Legacy contract address is not configured")
         owner = self._addr(legacy_owner)
+        self._require(self._valid_address(owner), "Legacy owner must be a valid address")
         self._require(self.identities.get(owner) is None, "Identity is already migrated")
         legacy = gl.get_contract_at(Address(self.legacy_contract_address))
         legacy_identity = legacy.view().get_identity(owner)
@@ -1072,6 +1115,9 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
         identity = self._create_identity(owner, marker)
         identity.reputation_score = u32(int(legacy_identity.get("reputation_score", 0)))
         identity.verification_count = u32(int(legacy_identity.get("verification_count", 0)))
+        identity.is_flagged = bool(legacy_identity.get("is_flagged", False))
+        identity.flag_reason = str(legacy_identity.get("flag_reason", "") or "")[:1000]
+        identity.identity_state = "FLAGGED" if identity.is_flagged else "ACTIVE"
         for legacy_acct in legacy_identity.get("linked_accounts", []):
             platform = self._normalize_platform(str(legacy_acct.get("platform", "")))
             username = self._normalize_username(platform, str(legacy_acct.get("username", "")))
@@ -1081,6 +1127,13 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
             status = str(legacy_acct.get("proof_status", "STALE") or "STALE")
             if status not in PROOF_STATUSES:
                 status = "STALE"
+            # v2 did not persist a fresh-evidence expiry. Preserve the record
+            # and canonical indexes, but require explicit v3 reverification
+            # before consumer eligibility returns true.
+            if status == "ACTIVE":
+                status = "STALE"
+            if identity.is_flagged and status not in ("REVOKED", "RECOVERED"):
+                status = "FLAGGED"
             proof_url = str(legacy_acct.get("proof_url", "") or legacy_acct.get("profile_url", ""))
             code = str(legacy_acct.get("verification_code", "") or "LEGACY")
             pending_id = str(legacy_acct.get("pending_id", "") or "LEGACY")
@@ -1090,19 +1143,19 @@ Choose CHALLENGER_UPHOLDS only when challenger evidence is fresh, matches the ca
             dossier.proof_strength = str(legacy_acct.get("proof_strength", "WEAK") or "WEAK")
             dossier.risk_band = str(legacy_acct.get("risk_band", "medium") or "medium")
             dossier.confidence_bucket = u32(int(legacy_acct.get("confidence_score", 0)))
-            dossier.reason_code = "MIGRATED_FROM_SOULSTAMP_V2"
+            dossier.reason_code = "MIGRATED_REQUIRES_REVERIFICATION"
             acct = LinkedAccount(
                 platform=platform, username=username, profile_url=str(legacy_acct.get("profile_url", "")), verified_at=u256(int(legacy_acct.get("verified_at", 0))),
                 confidence_score=u32(int(legacy_acct.get("confidence_score", 0))), bot_score=u32(int(legacy_acct.get("bot_score", 0))),
                 reasoning=str(legacy_acct.get("reasoning", "")), is_active=status == "ACTIVE", proof_status=status,
                 proof_strength=dossier.proof_strength, risk_band=dossier.risk_band, canonical_platform_id=canonical_id,
-                verification_code=code, pending_id=pending_id, proof_url=proof_url, reason_code="MIGRATED_FROM_SOULSTAMP_V2",
+                verification_code=code, pending_id=pending_id, proof_url=proof_url, reason_code="MIGRATED_REQUIRES_REVERIFICATION",
                 last_checked_marker=marker, dossier=dossier, status_before_flag=status,
             )
-            if status == "ACTIVE":
+            if status not in ("REVOKED", "RECOVERED"):
                 self._reserve_indexes(owner, acct)
             identity.linked_accounts.append(acct)
-        self._append_audit(identity, "legacy_identity_migrated", "", "", "migrated", 0, 0, "ACTIVE", "MIGRATED_FROM_SOULSTAMP_V2", details=f"source={self.legacy_contract_address}", actor=caller)
+        self._append_audit(identity, "legacy_identity_migrated", "", "", "migrated", 0, 0, identity.identity_state, "MIGRATED_FROM_SOULSTAMP_V2", details=f"source={self.legacy_contract_address}", actor=caller)
         identity.last_updated = marker
         self.identities[owner] = identity
 

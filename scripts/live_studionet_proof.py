@@ -21,6 +21,7 @@ RPC = "https://studio.genlayer.com/api"
 CLI = ROOT / "node_modules" / ".bin" / ("genlayer.cmd" if os.name == "nt" else "genlayer")
 FINALIZER = ROOT / "scripts" / "finalized_tx.mjs"
 CODE_READER = ROOT / "scripts" / "contract_code.mjs"
+VIEW_READER = ROOT / "scripts" / "live_read.mjs"
 SDK_SUBMITTER = ROOT / "scripts" / "live_submit.mjs"
 LIVE_DIR = ROOT / "artifacts" / "live"
 OLD_CONTRACT = os.environ.get("SOULSTAMP_LEGACY_CONTRACT", "0x3108dafFCBC24E261137056c56aFCAE17677BDfB")
@@ -104,6 +105,56 @@ def write(contract: str, method: str, args: list[str], expect_success: bool = Tr
     return tx_hash, finalize(tx_hash, expect_success=expect_success)
 
 
+def read_view(contract: str, method: str, args: list[object]) -> object:
+    completed = subprocess.run(
+        ["node", str(VIEW_READER), contract, method, json.dumps(args)],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    if completed.returncode:
+        raise RuntimeError(completed.stderr or f"Unable to read {method}")
+    lines = completed.stdout.strip().splitlines()
+    if not lines:
+        raise RuntimeError(f"View {method} returned no JSON")
+    return json.loads(lines[-1])
+
+
+def value_at_path(value: object, path: str) -> object:
+    current = value
+    for part in path.split(".") if path else []:
+        if isinstance(current, list):
+            current = current[int(part)]
+        elif isinstance(current, dict):
+            current = current[part]
+        else:
+            raise KeyError(path)
+    return current
+
+
+def verify_view(contract: str, specification: dict) -> dict:
+    method = str(specification["method"])
+    args = list(specification.get("args", []))
+    assertions = specification.get("assertions")
+    if not isinstance(assertions, list) or not assertions:
+        raise RuntimeError(f"State verification for {method} requires non-empty assertions")
+    result = read_view(contract, method, args)
+    checked = []
+    for assertion in assertions:
+        if not isinstance(assertion, dict) or "path" not in assertion or "value" not in assertion:
+            raise RuntimeError(f"Invalid state assertion for {method}: {assertion!r}")
+        path = str(assertion["path"])
+        try:
+            actual = value_at_path(result, path)
+        except (KeyError, IndexError, ValueError, TypeError) as error:
+            raise RuntimeError(f"State assertion path {path!r} was not present in {method}: {error}") from error
+        expected = assertion["value"]
+        if actual != expected:
+            raise RuntimeError(f"State assertion failed for {method}.{path}: expected {expected!r}, got {actual!r}")
+        checked.append({"path": path, "expected": expected, "actual": actual})
+    return {"method": method, "args": args, "result": result, "assertions": checked}
+
+
 def main() -> int:
     cli_version = assert_cli_version()
     admin = os.environ.get("SOULSTAMP_ADMIN_ADDRESS")
@@ -166,12 +217,20 @@ def main() -> int:
     lifecycle_plan = os.environ.get("SOULSTAMP_LIVE_LIFECYCLE_JSON")
     if lifecycle_plan:
         plan = json.loads(lifecycle_plan)
+        if not isinstance(plan, list):
+            raise RuntimeError("SOULSTAMP_LIVE_LIFECYCLE_JSON must be a JSON list")
         for item in plan:
             method = str(item["method"])
             args = [str(value) for value in item.get("args", [])]
             expect_success = bool(item.get("expect_success", True))
             tx_hash, finality = write(contract_address, method, args, expect_success=expect_success)
-            proof["lifecycle"].append({"method": method, "args": args, "expected_success": expect_success, "transaction": {"hash": tx_hash, **finality}})
+            entry = {"method": method, "args": args, "expected_success": expect_success, "transaction": {"hash": tx_hash, **finality}}
+            if expect_success:
+                verify_spec = item.get("verify")
+                if not isinstance(verify_spec, dict):
+                    raise RuntimeError(f"Successful lifecycle step {method} requires a post-state verify specification")
+                entry["state_verification"] = verify_view(contract_address, verify_spec)
+            proof["lifecycle"].append(entry)
 
     LIVE_DIR.mkdir(parents=True, exist_ok=True)
     (LIVE_DIR / "studionet-v3-proof.json").write_text(json.dumps(proof, indent=2) + "\n", encoding="utf-8")

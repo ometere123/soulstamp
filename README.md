@@ -142,9 +142,12 @@ SoulStamp/
 ├── tests/
 │   ├── direct/test_soul_stamp_protocol.py
 │   ├── integration/test_studionet_smoke.py
+│   ├── frontend/finality.test.ts
+│   ├── worker/worker.test.mjs
 │   └── test_soul_stamp.py
 ├── scripts/
 │   ├── contract_gates.py
+│   ├── live_read.mjs
 │   └── live_studionet_proof.py
 ├── README.md
 └── V2_MILESTONE.md
@@ -161,6 +164,9 @@ npm ci
 python -m pip install -r requirements-dev.txt
 python scripts/contract_gates.py
 python -m pytest tests/direct tests/test_soul_stamp.py -q
+npm run test:all
+npm --prefix frontend run build
+npm --prefix backend run check
 ```
 
 The semantic gate selects the repository-compatible cached GenVM runner with
@@ -271,7 +277,10 @@ writes transaction hashes, execution outcomes, contract address, source hash,
 and explorer link to `artifacts/live/studionet-v3-proof.json`.
 The artifact includes a finalized failed recovery transition as a negative
 guard proof; additional positive lifecycle steps are supplied explicitly with
-`SOULSTAMP_LIVE_LIFECYCLE_JSON`.
+`SOULSTAMP_LIVE_LIFECYCLE_JSON`. Every successful step must include a `verify`
+object such as `{"method":"get_challenge","args":["CHALLENGE_ID"],"assertions":[{"path":"status","value":"RESOLVED_CHALLENGER"}]}`;
+the runner reads that view after finality and records the checked state. A
+successful receipt without a matching state assertion is rejected.
 
 The GitHub Actions live job is intentionally opt-in. Configure the repository
 secret `GENLAYER_PRIVATE_KEY` and public Actions variable
