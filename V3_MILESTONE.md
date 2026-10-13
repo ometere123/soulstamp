@@ -152,11 +152,12 @@ The latest operator deployment is independently verified from public Studionet
 - Initial state: verifier `soulstamp-v3.0-continuity`, legacy contract
   `0x3108daffcbc24e261137056c56afcae17677bdfb`, and zero verifications,
   identities, challenges, and recoveries.
-- Vercel: Production `dpl_GvrU6Ca5ZEd9ePzqdCDyuc3Z7DAH` and Preview
+- Vercel: Production `dpl_7Vd9onx9Ju4Gs5cKDZGAcuc69qk1` and Preview
   `dpl_JDM8fsgW57Ut77rJTstMauZbaJrv` are `READY`. The production deployment
-  URL is `https://soulstamp-12k9ue6xx-delealufejoel-4184s-projects.vercel.app`
+  URL is `https://soulstamp-3rw2jzu0q-delealufejoel-4184s-projects.vercel.app`
   and its alias is `https://soulstamp-gen.vercel.app`; the preview URL is
-  `https://soulstamp-o5v36e0zx-delealufejoel-4184s-projects.vercel.app`.
+  `https://soulstamp-o5v36e0zx-delealufejoel-4184s-projects.vercel.app`. This
+  production deployment corresponds to release commit `b0a76dc`.
   The protected deployment bundles and public alias bundle contain the new
   address and none of the checked superseded v3 addresses.
 - Discord Worker: `GET /health` returned HTTP 200 with `ok: true`, and a fresh

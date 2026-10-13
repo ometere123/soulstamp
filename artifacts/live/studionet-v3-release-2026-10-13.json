@@ -81,12 +81,12 @@
     ],
     "status": "updated_and_redeployed",
     "production": {
-      "deployment_id": "dpl_GvrU6Ca5ZEd9ePzqdCDyuc3Z7DAH",
-      "url": "https://soulstamp-12k9ue6xx-delealufejoel-4184s-projects.vercel.app",
+      "deployment_id": "dpl_7Vd9onx9Ju4Gs5cKDZGAcuc69qk1",
+      "url": "https://soulstamp-3rw2jzu0q-delealufejoel-4184s-projects.vercel.app",
       "alias": "https://soulstamp-gen.vercel.app",
       "target": "production",
       "ready_state": "READY",
-      "github_commit": "a13daee5bd3cd95104b71575731b9f9a060d877e"
+      "github_commit": "b0a76dc87551537c3418beb9384636c5cdbf1a2f"
     },
     "preview": {
       "deployment_id": "dpl_JDM8fsgW57Ut77rJTstMauZbaJrv",
@@ -122,6 +122,14 @@
       "eligibility_ui": "uses get_identity eligibility and reason fields; direct eligibility reads are exported by the frontend contract library"
     },
     "deployment_history": [
+      {
+        "deployment_id": "dpl_GvrU6Ca5ZEd9ePzqdCDyuc3Z7DAH",
+        "url": "https://soulstamp-12k9ue6xx-delealufejoel-4184s-projects.vercel.app",
+        "target": "production",
+        "ready_state": "READY",
+        "github_commit": "a13daee5bd3cd95104b71575731b9f9a060d877e",
+        "note": "Git-linked production deployment verified before the latest documentation release; superseded by the current b0a76dc deployment."
+      },
       {
         "deployment_id": "dpl_3o8q26xjj76fr3ctyJhB1h4xxxn5",
         "url": "https://soulstamp-q8mmtcu4k-delealufejoel-4184s-projects.vercel.app",

@@ -28,13 +28,14 @@ Initial state: verifier `soulstamp-v3.0-continuity`, admin
 `0x4e44636494650386b89c64011c10f48d4b344c4f`, legacy contract
 `0x3108daffcbc24e261137056c56afcae17677bdfb`, and zero verifications,
 identities, challenges, and recoveries.
-Vercel: Production `dpl_GvrU6Ca5ZEd9ePzqdCDyuc3Z7DAH` READY at
-`https://soulstamp-12k9ue6xx-delealufejoel-4184s-projects.vercel.app`
+Vercel: Production `dpl_7Vd9onx9Ju4Gs5cKDZGAcuc69qk1` READY at
+`https://soulstamp-3rw2jzu0q-delealufejoel-4184s-projects.vercel.app`
 (`https://soulstamp-gen.vercel.app`); Preview
 `dpl_JDM8fsgW57Ut77rJTstMauZbaJrv` READY at
 `https://soulstamp-o5v36e0zx-delealufejoel-4184s-projects.vercel.app`.
 The production, preview, and public alias bundles contain the new contract
-address and none of the checked superseded v3 addresses.
+address and none of the checked superseded v3 addresses. The current
+production deployment is linked to release commit `b0a76dc`.
 Lifecycle proof: not recorded; real identity verification, challenge,
 rebuttal, recovery, revocation, and negative-transition testing remain operator-owned.
 ```
