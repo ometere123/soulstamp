@@ -107,7 +107,7 @@ variance, HTTP source failures, canonical-ID changes, replay, invalid challenge
 decisions, misleading finality receipts, and exact signer/method/argument
 metadata.
 
-## Verified deployment handoff
+## Previous verified deployment handoff (superseded)
 
 The corrected v3 revision was deployed by the operator and independently
 verified from the public Studionet RPC:
@@ -133,16 +133,37 @@ verification, challenge, rebuttal, recovery, revocation, eligibility, and
 negative-transition transactions remain operator-owned and are not implied by
 deployment finality.
 
-## Compatibility and security pass (not deployed)
+## Current verified deployment handoff
 
-The current deployed address remains the verified `b291e60` revision above.
-This pass is intentionally deployment-required and was not sent to Studionet or
-Vercel. Its normalized contract source SHA-256 is
-`b2d04d220e62f96a6877bddc9e076c44857b546095b4341eda6670635303b0a2`.
+The compatibility-fixed revision was deployed by the operator and independently
+verified from public Studionet 61999 data:
 
-The pass restores real X oEmbed compatibility without inventing `author_id`,
-accepts the Worker-produced `body.signature` Discord token format (including
-tokens over 256 characters), rejects malformed extra token segments, prevents
-X handle-only proofs from opening recovery-grade challenges, makes wallet
-recovery account-scoped, and requires explicit majority consensus metadata in
-the frontend finality gate.
+- Commit: `59e62828bd34912d18463837ec9cbf5e78d0ec68`
+- Contract: `0x279003ad03E224e26C328466135Ac83a1AC8ED8a`
+- Deployment: [0xc4fbdcbea4a01fc12a6fd4f8a0e392e2e3cbc8fb83be1a1fa8365f58a4b19119](https://explorer-studio.genlayer.com/tx/0xc4fbdcbea4a01fc12a6fd4f8a0e392e2e3cbc8fb83be1a1fa8365f58a4b19119)
+- Signer: `0x4e44636494650386b89c64011c10f48d4b344c4f`
+- Receipt: `FINALIZED`, `MAJORITY_AGREE`, `FINISHED_WITH_RETURN`, raw
+  executions `SUCCESS`, `SUCCESS`.
+- Source parity: exact after CRLF normalization; normalized SHA-256
+  `b2d04d220e62f96a6877bddc9e076c44857b546095b4341eda6670635303b0a2`.
+  The API raw source SHA-256 is
+  `46655b43d6e15545f42b2602f8fca1d37bce0e3f0de80c9604e17e4864534e5c`.
+- Initial state: verifier `soulstamp-v3.0-continuity`, admin
+  `0x4e44636494650386b89c64011c10f48d4b344c4f`, legacy contract
+  `0x3108daffcbc24e261137056c56afcae17677bdfb`, and zero verifications,
+  identities, challenges, and recoveries.
+- Vercel: production `dpl_7FnBQ8Ny2huSNKrPdxi12ZmqsXfD` and preview
+  `dpl_29LikYPv5eUEdnMBfADJP1DKJC5W` are both `READY`; verified bundles
+  contain the new contract and not the prior v3 address.
+- Discord Worker: existing Worker updated in place from this commit; current
+  version `68358f76-9982-4bb6-ab4b-dc22eea88bfa`, health endpoint `ok: true`.
+
+The Discord attestation backend is configured by finalized admin transaction
+[0xdb54b28ed5645d5599d61fe116a2d612d1e3ce00019aabcde17b37e0a8106582](https://explorer-studio.genlayer.com/tx/0xdb54b28ed5645d5599d61fe116a2d612d1e3ce00019aabcde17b37e0a8106582),
+which called `set_discord_attestation_base_url("https://soulstamp-discord.delealufejoel.workers.dev")`.
+It reached `FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN` with
+`SUCCESS`, `SUCCESS`, and `get_stats` confirms the stored Worker URL.
+
+Lifecycle proof remains intentionally `not_recorded`; real social verification,
+challenge, rebuttal, recovery, revocation, eligibility, and negative-transition
+transactions remain operator-owned.

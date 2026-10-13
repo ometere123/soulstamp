@@ -11,22 +11,42 @@ The v3 contribution is a lifecycle state machine, not a UI-only refresh: a consu
 | Service | URL |
 |---|---|
 | Frontend | https://soulstamp-gen.vercel.app |
-| Preview deployment | https://soulstamp-gxbdokqle-delealufejoel-4184s-projects.vercel.app |
+| Preview deployment | https://soulstamp-ofxtungqz-delealufejoel-4184s-projects.vercel.app |
 | Discord Worker | https://soulstamp-discord.delealufejoel.workers.dev |
 | Repository | https://github.com/ometere123/soulstamp |
 
 Current v3 Studionet deployment:
 
 ```text
-Contract: 0xa3B01Cf1512734C7747e75520751BC2220880041
-Deployment: https://explorer-studio.genlayer.com/tx/0x93a2177a733f2a0851abde6fb053289d363c05dc03d08afccdd72c7e388cb949
+Contract: 0x279003ad03E224e26C328466135Ac83a1AC8ED8a
+Deployment: https://explorer-studio.genlayer.com/tx/0xc4fbdcbea4a01fc12a6fd4f8a0e392e2e3cbc8fb83be1a1fa8365f58a4b19119
 Status: FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN / SUCCESS, SUCCESS
-Deployed source: exact after CRLF normalization for commit b291e60
-Deployed source hash: b46addab5800fab8d87d7019efb76866b13e15644d3b7b4361fb3435c35d96bf
-Vercel: Production READY; Preview READY; both use this contract address
+Deployment signer: 0x4E44636494650386b89C64011c10f48D4b344c4f
+Deployed source: exact after CRLF normalization for commit 59e6282
+Deployed source hash: b2d04d220e62f96a6877bddc9e076c44857b546095b4341eda6670635303b0a2
+Initial state: verifier `soulstamp-v3.0-continuity`, admin
+`0x4e44636494650386b89c64011c10f48d4b344c4f`, legacy contract
+`0x3108daffcbc24e261137056c56afcae17677bdfb`, and zero verifications,
+identities, challenges, and recoveries.
+Vercel: Production `dpl_7FnBQ8Ny2huSNKrPdxi12ZmqsXfD` READY; Preview
+`dpl_29LikYPv5eUEdnMBfADJP1DKJC5W` READY; both bundles point to this contract.
 Lifecycle proof: not recorded; real identity verification, challenge,
 rebuttal, recovery, revocation, and negative-transition testing remain operator-owned.
 ```
+
+The Discord Worker was updated in place from commit `59e6282` and is healthy at
+the existing URL. Current Worker version:
+`68358f76-9982-4bb6-ab4b-dc22eea88bfa`. The Discord attestation backend is now
+configured by this finalized Studionet 61999 admin write:
+
+```text
+set_discord_attestation_base_url("https://soulstamp-discord.delealufejoel.workers.dev")
+```
+
+Transaction: https://explorer-studio.genlayer.com/tx/0xdb54b28ed5645d5599d61fe116a2d612d1e3ce00019aabcde17b37e0a8106582
+(`FINALIZED / MAJORITY_AGREE / SUCCESS, SUCCESS`), signed by the configured
+admin `0x4e44636494650386b89c64011c10f48d4b344c4f`. `get_stats` confirms the
+Worker URL is stored.
 
 The deployment and source-parity record is in
 [evidence/studionet-v3-deployment.json](./evidence/studionet-v3-deployment.json).
@@ -48,18 +68,15 @@ The deployment and source-parity record is in
 
 See [V3_MILESTONE.md](./V3_MILESTONE.md) for the protocol state machine, migration plan, testing gates, and live-proof rules.
 
-### Compatibility and security pass — deployment required
+### Compatibility and security pass — verified live
 
-The current live contract above is the previously verified `b291e60` deployment.
-This compatibility pass is implemented locally but has **not** been deployed or
-put on Vercel. The normalized source SHA-256 for the new contract is
+The compatibility pass from commit `59e6282` is now deployed at the contract
+address above and the frontend has been rebuilt for it. It fixes real X oEmbed
+compatibility, accepts genuine Worker-signed Discord attestation URLs, keeps
+Discord replay/freshness checks, scopes recovery to the challenged account, and
+makes frontend writes fail closed when majority consensus metadata is missing.
+The normalized source SHA-256 is
 `b2d04d220e62f96a6877bddc9e076c44857b546095b4341eda6670635303b0a2`.
-
-It fixes real X oEmbed compatibility, accepts genuine Worker-signed Discord
-attestation URLs, keeps Discord replay/freshness checks, scopes recovery to the
-challenged account, and makes frontend writes fail closed when majority
-consensus metadata is missing. Operator deployment is required before these
-changes are live; no deployment or Vercel change was performed in this pass.
 
 ## What Changed In v2
 

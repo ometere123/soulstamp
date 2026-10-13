@@ -1,15 +1,16 @@
 {
   "protocol": "SoulStamp v3 identity continuity",
-  "evidence_status": "deployment_verified; compatibility_pass_pending_deployment; lifecycle_proof_pending",
+  "evidence_status": "deployment_verified; frontend_and_worker_updated; discord_admin_configuration_verified; lifecycle_proof_pending",
   "network": {
     "name": "Studionet",
     "chain_id": 61999,
     "rpc": "https://studio.genlayer.com/api"
   },
-  "contract_address": "0xa3B01Cf1512734C7747e75520751BC2220880041",
+  "contract_address": "0x279003ad03E224e26C328466135Ac83a1AC8ED8a",
   "deployment_transaction": {
-    "hash": "0x93a2177a733f2a0851abde6fb053289d363c05dc03d08afccdd72c7e388cb949",
-    "explorer": "https://explorer-studio.genlayer.com/tx/0x93a2177a733f2a0851abde6fb053289d363c05dc03d08afccdd72c7e388cb949",
+    "hash": "0xc4fbdcbea4a01fc12a6fd4f8a0e392e2e3cbc8fb83be1a1fa8365f58a4b19119",
+    "explorer": "https://explorer-studio.genlayer.com/tx/0xc4fbdcbea4a01fc12a6fd4f8a0e392e2e3cbc8fb83be1a1fa8365f58a4b19119",
+    "signer": "0x4e44636494650386b89c64011c10f48d4b344c4f",
     "status": "FINALIZED",
     "execution": "FINISHED_WITH_RETURN",
     "consensus_result": "MAJORITY_AGREE",
@@ -17,25 +18,27 @@
   },
   "source_parity": {
     "result": "exact_after_crlf_normalization",
-    "sha256_normalized_lf": "b46addab5800fab8d87d7019efb76866b13e15644d3b7b4361fb3435c35d96bf",
-    "repository_raw_sha256": "b46addab5800fab8d87d7019efb76866b13e15644d3b7b4361fb3435c35d96bf",
-    "api_raw_sha256": "b9a9c57940d48881f693592b89fa494b918f50722c27318f220ea170c76f292b",
+    "sha256_normalized_lf": "b2d04d220e62f96a6877bddc9e076c44857b546095b4341eda6670635303b0a2",
+    "repository_raw_sha256": "b2d04d220e62f96a6877bddc9e076c44857b546095b4341eda6670635303b0a2",
+    "api_raw_sha256": "46655b43d6e15545f42b2602f8fca1d37bce0e3f0de80c9604e17e4864534e5c",
     "line_ending_note": "The Studionet API returns the identical source with CRLF line endings; repository source uses LF.",
-    "deployed_source_revision": "b291e6091d0025102c75874501d625ea63855d23"
+    "deployed_source_revision": "59e62828bd34912d18463837ec9cbf5e78d0ec68"
   },
   "current_repository_source": {
-    "revision": "b291e6091d0025102c75874501d625ea63855d23",
-    "sha256": "b46addab5800fab8d87d7019efb76866b13e15644d3b7b4361fb3435c35d96bf",
+    "revision": "59e62828bd34912d18463837ec9cbf5e78d0ec68",
+    "sha256": "b2d04d220e62f96a6877bddc9e076c44857b546095b4341eda6670635303b0a2",
     "parity_with_deployed_contract": "exact_after_crlf_normalization",
     "redeployment_required": false
   },
   "compatibility_pass": {
-    "status": "implemented_not_deployed",
+    "status": "deployed_and_verified",
     "source_sha256_normalized_lf": "b2d04d220e62f96a6877bddc9e076c44857b546095b4341eda6670635303b0a2",
-    "deployment_required": true,
+    "deployment_required": false,
     "network": "Studionet 61999",
-    "live_contract_unchanged": "0xa3B01Cf1512734C7747e75520751BC2220880041",
-    "vercel_changed": false,
+    "live_contract": "0x279003ad03E224e26C328466135Ac83a1AC8ED8a",
+    "deployment_transaction": "0xc4fbdcbea4a01fc12a6fd4f8a0e392e2e3cbc8fb83be1a1fa8365f58a4b19119",
+    "vercel_changed": true,
+    "worker_changed": true,
     "lifecycle_proof_changed": false
   },
   "deployed_state_at_recording": {
@@ -45,24 +48,26 @@
     "total_identities": 0,
     "total_challenges": 0,
     "total_recoveries": 0,
+    "discord_attestation_base_url": "https://soulstamp-discord.delealufejoel.workers.dev",
     "admin": "0x4e44636494650386b89c64011c10f48d4b344c4f",
     "legacy_contract_address": "0x3108daffcbc24e261137056c56afcae17677bdfb"
   },
   "vercel": {
+    "record_type": "current_release",
     "project": "delealufejoel-4184s-projects/soulstamp",
     "project_id": "prj_9ENlvmzbHlnkDAOB9HQwTnBmoN6G",
     "environment_variable": "VITE_CONTRACT_ADDRESS",
-    "value": "0xa3B01Cf1512734C7747e75520751BC2220880041",
+    "value": "0x279003ad03E224e26C328466135Ac83a1AC8ED8a",
     "targets_updated": ["production", "preview"],
     "production": {
-      "deployment_id": "dpl_H7y2h4XSQvAiWwaYcHLpaak1N26Y",
-      "url": "https://soulstamp-831utpl45-delealufejoel-4184s-projects.vercel.app",
+      "deployment_id": "dpl_7FnBQ8Ny2huSNKrPdxi12ZmqsXfD",
+      "url": "https://soulstamp-lpvjn6voc-delealufejoel-4184s-projects.vercel.app",
       "alias": "https://soulstamp-gen.vercel.app",
       "status": "READY"
     },
     "preview": {
-      "deployment_id": "dpl_4SFNgsyUNc8jKtWx1LBYLTnyMmS3",
-      "url": "https://soulstamp-gxbdokqle-delealufejoel-4184s-projects.vercel.app",
+      "deployment_id": "dpl_29LikYPv5eUEdnMBfADJP1DKJC5W",
+      "url": "https://soulstamp-ofxtungqz-delealufejoel-4184s-projects.vercel.app",
       "status": "READY"
     },
     "public_bundle_check": {
@@ -71,7 +76,50 @@
       "previous_contract_address_present": false
     }
   },
+  "previous_vercel_release": {
+    "production_deployment_id": "dpl_H7y2h4XSQvAiWwaYcHLpaak1N26Y",
+    "preview_deployment_id": "dpl_4SFNgsyUNc8jKtWx1LBYLTnyMmS3",
+    "contract_address": "0xa3B01Cf1512734C7747e75520751BC2220880041",
+    "status": "READY",
+    "superseded_by": "0x279003ad03E224e26C328466135Ac83a1AC8ED8a"
+  },
+  "discord_worker": {
+    "name": "soulstamp-discord",
+    "url": "https://soulstamp-discord.delealufejoel.workers.dev",
+    "source_commit": "59e62828bd34912d18463837ec9cbf5e78d0ec68",
+    "version_id": "68358f76-9982-4bb6-ab4b-dc22eea88bfa",
+    "health": {
+      "ok": true,
+      "discord_configured": true,
+      "storage": "stateless-signed-attestations"
+    },
+    "secrets_preserved": true,
+    "real_oauth_attestation_executed": false
+  },
+  "discord_admin_configuration": {
+    "status": "verified",
+    "method": "set_discord_attestation_base_url",
+    "argument": "https://soulstamp-discord.delealufejoel.workers.dev",
+    "admin": "0x4e44636494650386b89c64011c10f48d4b344c4f",
+    "transaction_sent": true,
+    "transaction": {
+      "hash": "0xdb54b28ed5645d5599d61fe116a2d612d1e3ce00019aabcde17b37e0a8106582",
+      "explorer": "https://explorer-studio.genlayer.com/tx/0xdb54b28ed5645d5599d61fe116a2d612d1e3ce00019aabcde17b37e0a8106582",
+      "status": "FINALIZED",
+      "execution": "FINISHED_WITH_RETURN",
+      "consensus_result": "MAJORITY_AGREE",
+      "raw_execution_results": ["SUCCESS", "SUCCESS"]
+    },
+    "post_state_verified": true
+  },
   "previous_v3_deployment": {
+    "contract_address": "0xa3B01Cf1512734C7747e75520751BC2220880041",
+    "deployment_transaction": "0x93a2177a733f2a0851abde6fb053289d363c05dc03d08afccdd72c7e388cb949",
+    "source_sha256": "b46addab5800fab8d87d7019efb76866b13e15644d3b7b4361fb3435c35d96bf",
+    "deployed_source_revision": "b291e6091d0025102c75874501d625ea63855d23",
+    "superseded_by": "0x279003ad03E224e26C328466135Ac83a1AC8ED8a"
+  },
+  "earlier_v3_deployment": {
     "contract_address": "0x4717b4e830e9111AAF97aCb0159f58D750085D1A",
     "deployment_transaction": "0x9fb9eb57d68540408d1731ae06d24a985ae9534be80cc5020099f893e3fe8ef7",
     "source_sha256": "3bce13a6a00ef101a02f5d78c93d9e86e38c224ff7f6636f2f57b574209110bf",
