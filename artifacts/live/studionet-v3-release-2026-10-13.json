@@ -139,9 +139,24 @@
       "argument": "https://soulstamp-discord.delealufejoel.workers.dev",
       "current_get_stats_value": "https://soulstamp-discord.delealufejoel.workers.dev",
       "post_state_read": "verified_live_after_operator_configuration",
-      "transaction": null,
-      "transaction_finality": "not_independently_verified_without_configuration_transaction_hash",
-      "exact_manual_command_if_receipt_evidence_is_required": "node scripts/live_submit.mjs write 0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d set_discord_attestation_base_url '[\"https://soulstamp-discord.delealufejoel.workers.dev\"]'"
+      "transaction": {
+        "hash": "0x5363bf3c37faaeef573820c2ed66517361fec8d6f0cee6ee37a31f866fdc663c",
+        "explorer": "https://explorer-studio.genlayer.com/tx/0x5363bf3c37faaeef573820c2ed66517361fec8d6f0cee6ee37a31f866fdc663c",
+        "status": "FINALIZED",
+        "execution": "FINISHED_WITH_RETURN",
+        "consensus_result": "MAJORITY_AGREE",
+        "raw_execution_results": [
+          "SUCCESS",
+          "SUCCESS"
+        ],
+        "signer": "0x4E44636494650386b89C64011c10f48D4b344c4f",
+        "recipient": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d",
+        "method": "set_discord_attestation_base_url",
+        "args": [
+          "https://soulstamp-discord.delealufejoel.workers.dev"
+        ],
+        "post_state_verified": true
+      }
     }
   },
   "previous_live_release": {

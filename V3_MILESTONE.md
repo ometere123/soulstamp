@@ -159,11 +159,12 @@ The latest operator deployment is independently verified from public Studionet
   The protected deployment bundles and public alias bundle contain the new
   address and none of the checked superseded v3 addresses.
 - Discord Worker: `GET /health` returned HTTP 200 with `ok: true`, and a fresh
-  `get_stats()` read now confirms the new contract stores
-  `https://soulstamp-discord.delealufejoel.workers.dev`. The operator supplied
-  the external configuration, but no configuration transaction hash was
-  supplied; this release record therefore confirms the live post-state without
-  claiming independent finality metadata for that write.
+  `get_stats()` read confirms the new contract stores
+  `https://soulstamp-discord.delealufejoel.workers.dev`. The configuration
+  transaction [0x5363bf3c37faaeef573820c2ed66517361fec8d6f0cee6ee37a31f866fdc663c](https://explorer-studio.genlayer.com/tx/0x5363bf3c37faaeef573820c2ed66517361fec8d6f0cee6ee37a31f866fdc663c)
+  reached `FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN` with
+  `SUCCESS`, `SUCCESS`, was signed by the configured admin, and called
+  `set_discord_attestation_base_url` with the Worker URL.
 
 This deployment-only evidence is recorded in
 `artifacts/live/studionet-v3-release-2026-10-13.json` and
@@ -288,10 +289,9 @@ normalized LF SHA-256 of the current contract source is
 `4e4e54c8e60524f6fb0cf7ac9c7dbc5edb4ffdcae4019ad3ba7e7a9054b18c19`.
 The deployment reached `FINALIZED`, `MAJORITY_AGREE`, and
 `FINISHED_WITH_RETURN` with successful leader executions. The new contract
-started empty as recorded above; the Worker health check passed and a later
-live `get_stats()` read confirms the externally configured Worker URL. The
-configuration transaction hash was not supplied, so its receipt-level finality
-metadata is not claimed here.
+started empty as recorded above; the Worker health check passed and the
+configuration transaction plus live `get_stats()` read confirm the configured
+Worker URL.
 
 This pass keeps the single contract, frontend and Discord Worker architecture
 and adds the following enforceable rules:

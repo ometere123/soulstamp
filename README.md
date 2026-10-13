@@ -43,28 +43,17 @@ returned HTTP 200 with `ok: true`, the expected public base URL, and
 stateless-signed-attestation storage). The operator has now configured the new
 contract, and a fresh `get_stats()` read confirms
 `discord_attestation_base_url` equals the Worker URL. The configuration
-transaction hash was not supplied, so this release record confirms the live
-post-state but does not claim independent receipt finality for that write.
+transaction [0x5363bf3c37faaeef573820c2ed66517361fec8d6f0cee6ee37a31f866fdc663c](https://explorer-studio.genlayer.com/tx/0x5363bf3c37faaeef573820c2ed66517361fec8d6f0cee6ee37a31f866fdc663c)
+is independently verified as `FINALIZED / MAJORITY_AGREE /
+FINISHED_WITH_RETURN / SUCCESS, SUCCESS`, signed by the configured admin and
+calling `set_discord_attestation_base_url` with the Worker URL.
 
 ```text
 set_discord_attestation_base_url("https://soulstamp-discord.delealufejoel.workers.dev")
 ```
 
 The older transaction [0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3](https://explorer-studio.genlayer.com/tx/0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3)
-is for the superseded deployment. If a receipt-linked evidence record is
-needed, the configured admin can submit and verify the call from the repository
-root with:
-
-```powershell
-$env:GENLAYER_PRIVATE_KEY = "<admin-only secret>"
-node scripts/live_submit.mjs write 0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d set_discord_attestation_base_url '["https://soulstamp-discord.delealufejoel.workers.dev"]'
-node scripts/finalized_tx.mjs <returned-tx-hash>
-node scripts/live_read.mjs 0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d get_stats '[]'
-```
-
-Only a `FINALIZED` / `MAJORITY_AGREE` / `FINISHED_WITH_RETURN` receipt with
-successful execution and a post-state URL equal to the Worker URL counts as
-configured. The private key must never be committed or returned by the Worker.
+remains preserved as history for a superseded deployment.
 
 The deployment and source-parity record is in
 [artifacts/live/studionet-v3-release-2026-10-13.json](./artifacts/live/studionet-v3-release-2026-10-13.json).
@@ -72,7 +61,7 @@ Earlier deployment and Vercel/Worker history remains in the prior evidence
 records and the superseded release sections below.
 
 The normalized LF source SHA-256 for this deployed correction is
-`c892d9afd3b7e6077ba2ee0c909dff3711b3baa175111bbc89bbac21030c71b0`.
+`4e4e54c8e60524f6fb0cf7ac9c7dbc5edb4ffdcae4019ad3ba7e7a9054b18c19`.
 
 ---
 
