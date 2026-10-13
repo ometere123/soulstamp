@@ -40,19 +40,20 @@ rebuttal, recovery, revocation, and negative-transition testing remain operator-
 
 The existing Discord Worker is healthy at the existing URL (`GET /health`
 returned HTTP 200 with `ok: true`, the expected public base URL, and
-stateless-signed-attestation storage). The new contract's
-`get_stats().discord_attestation_base_url` is currently empty, so Discord
-verification on this fresh deployment is not yet enabled. The configured
-admin must execute exactly one admin write:
+stateless-signed-attestation storage). The operator has now configured the new
+contract, and a fresh `get_stats()` read confirms
+`discord_attestation_base_url` equals the Worker URL. The configuration
+transaction hash was not supplied, so this release record confirms the live
+post-state but does not claim independent receipt finality for that write.
 
 ```text
 set_discord_attestation_base_url("https://soulstamp-discord.delealufejoel.workers.dev")
 ```
 
-Transaction: [0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3](https://explorer-studio.genlayer.com/tx/0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3)
-is for the superseded deployment and does not configure this contract. No
-configuration transaction is claimed for the new address. From the repository
-root, the admin can submit and then independently verify it with:
+The older transaction [0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3](https://explorer-studio.genlayer.com/tx/0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3)
+is for the superseded deployment. If a receipt-linked evidence record is
+needed, the configured admin can submit and verify the call from the repository
+root with:
 
 ```powershell
 $env:GENLAYER_PRIVATE_KEY = "<admin-only secret>"

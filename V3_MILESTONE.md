@@ -158,12 +158,12 @@ The latest operator deployment is independently verified from public Studionet
   `https://soulstamp-o5v36e0zx-delealufejoel-4184s-projects.vercel.app`.
   The protected deployment bundles and public alias bundle contain the new
   address and none of the checked superseded v3 addresses.
-- Discord Worker: `GET /health` returned HTTP 200 with `ok: true`, but the new
-  contract's `get_stats().discord_attestation_base_url` is still empty. No
-  configuration transaction is claimed. The configured admin must call
-  `set_discord_attestation_base_url("https://soulstamp-discord.delealufejoel.workers.dev")`
-  and verify a finalized successful receipt plus the post-state read before
-  Discord verification is considered enabled for this address.
+- Discord Worker: `GET /health` returned HTTP 200 with `ok: true`, and a fresh
+  `get_stats()` read now confirms the new contract stores
+  `https://soulstamp-discord.delealufejoel.workers.dev`. The operator supplied
+  the external configuration, but no configuration transaction hash was
+  supplied; this release record therefore confirms the live post-state without
+  claiming independent finality metadata for that write.
 
 This deployment-only evidence is recorded in
 `artifacts/live/studionet-v3-release-2026-10-13.json` and
@@ -288,9 +288,10 @@ normalized LF SHA-256 of the current contract source is
 `4e4e54c8e60524f6fb0cf7ac9c7dbc5edb4ffdcae4019ad3ba7e7a9054b18c19`.
 The deployment reached `FINALIZED`, `MAJORITY_AGREE`, and
 `FINISHED_WITH_RETURN` with successful leader executions. The new contract
-starts empty as recorded above; the Worker health check passed, but its URL
-still requires the single authorized admin configuration call described in the
-current deployment handoff.
+started empty as recorded above; the Worker health check passed and a later
+live `get_stats()` read confirms the externally configured Worker URL. The
+configuration transaction hash was not supplied, so its receipt-level finality
+metadata is not claimed here.
 
 This pass keeps the single contract, frontend and Discord Worker architecture
 and adds the following enforceable rules:

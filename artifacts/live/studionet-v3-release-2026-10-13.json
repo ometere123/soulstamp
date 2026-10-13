@@ -132,15 +132,16 @@
       "storage": "stateless-signed-attestations"
     },
     "contract_configuration": {
-      "status": "required_manual_admin_action",
+      "status": "verified_post_state",
       "authorized_admin_signer_available_locally": false,
-      "signing_access_note": "No GENLAYER_PRIVATE_KEY was present and the active repository-local CLI account did not match the deployed admin; no write was attempted.",
+      "signing_access_note": "No GENLAYER_PRIVATE_KEY was present and the active repository-local CLI account did not match the deployed admin; the operator supplied the external configuration and the live post-state now matches.",
       "method": "set_discord_attestation_base_url",
       "argument": "https://soulstamp-discord.delealufejoel.workers.dev",
-      "current_get_stats_value": "",
+      "current_get_stats_value": "https://soulstamp-discord.delealufejoel.workers.dev",
+      "post_state_read": "verified_live_after_operator_configuration",
       "transaction": null,
-      "exact_manual_command": "node scripts/live_submit.mjs write 0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d set_discord_attestation_base_url '[\"https://soulstamp-discord.delealufejoel.workers.dev\"]'",
-      "post_state_required": "get_stats().discord_attestation_base_url must equal the Worker URL after a FINALIZED MAJORITY_AGREE FINISHED_WITH_RETURN successful receipt"
+      "transaction_finality": "not_independently_verified_without_configuration_transaction_hash",
+      "exact_manual_command_if_receipt_evidence_is_required": "node scripts/live_submit.mjs write 0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d set_discord_attestation_base_url '[\"https://soulstamp-discord.delealufejoel.workers.dev\"]'"
     }
   },
   "previous_live_release": {
