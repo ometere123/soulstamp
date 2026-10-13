@@ -81,18 +81,19 @@
     ],
     "status": "updated_and_redeployed",
     "production": {
-      "deployment_id": "dpl_7Vd9onx9Ju4Gs5cKDZGAcuc69qk1",
-      "url": "https://soulstamp-3rw2jzu0q-delealufejoel-4184s-projects.vercel.app",
+      "deployment_id": "dpl_9BmKKfCrc2bkvMNGjyMHtHJtA7YS",
+      "url": "https://soulstamp-c39rar3qx-delealufejoel-4184s-projects.vercel.app",
       "alias": "https://soulstamp-gen.vercel.app",
       "target": "production",
       "ready_state": "READY",
-      "github_commit": "b0a76dc87551537c3418beb9384636c5cdbf1a2f"
+      "github_commit": "c09941ee1461f560973f334aa1fd052ad8d47f40"
     },
     "preview": {
-      "deployment_id": "dpl_JDM8fsgW57Ut77rJTstMauZbaJrv",
-      "url": "https://soulstamp-o5v36e0zx-delealufejoel-4184s-projects.vercel.app",
+      "deployment_id": "dpl_4tgYuyT7XEFPXgjhyaEA8Q7b3cbH",
+      "url": "https://soulstamp-dfezzbrgd-delealufejoel-4184s-projects.vercel.app",
       "target": "preview",
-      "ready_state": "READY"
+      "ready_state": "READY",
+      "access_note": "Deployment Protection is enabled; bundle was verified with vercel curl using the existing authenticated CLI session."
     },
     "public_bundle_check": {
       "status": "passed",
@@ -108,6 +109,10 @@
         "0xe2E6E2dDC52Ed996C5d3EAfADF52BDd736B48703"
       ],
       "superseded_addresses_found": [],
+      "resolution_controls_present": true,
+      "inconclusive_documentation_present": true,
+      "production_commit": "c09941ee1461f560973f334aa1fd052ad8d47f40",
+      "preview_commit": "c09941ee1461f560973f334aa1fd052ad8d47f40",
       "critical_contract_methods_present": [
         "complete_verification",
         "request_ownership_challenge",
@@ -136,6 +141,21 @@
         "target": "production",
         "ready_state": "READY",
         "note": "Manual production redeploy after the environment variable update; superseded by the Git-linked READY deployment above."
+      },
+      {
+        "deployment_id": "dpl_7Vd9onx9Ju4Gs5cKDZGAcuc69qk1",
+        "url": "https://soulstamp-3rw2jzu0q-delealufejoel-4184s-projects.vercel.app",
+        "target": "production",
+        "ready_state": "READY",
+        "github_commit": "b0a76dc87551537c3418beb9384636c5cdbf1a2f",
+        "note": "Prior current-contract deployment; superseded by dpl_9BmKKfCrc2bkvMNGjyMHtHJtA7YS."
+      },
+      {
+        "deployment_id": "dpl_JDM8fsgW57Ut77rJTstMauZbaJrv",
+        "url": "https://soulstamp-o5v36e0zx-delealufejoel-4184s-projects.vercel.app",
+        "target": "preview",
+        "ready_state": "READY",
+        "note": "Prior current-contract preview; superseded by dpl_4tgYuyT7XEFPXgjhyaEA8Q7b3cbH."
       }
     ]
   },
