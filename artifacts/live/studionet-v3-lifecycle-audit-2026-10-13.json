@@ -1,0 +1,112 @@
+{
+  "protocol": "SoulStamp v3 identity continuity",
+  "network": {
+    "name": "Studionet",
+    "chain_id": 61999,
+    "rpc": "https://studio.genlayer.com/api",
+    "explorer_contract": "https://explorer-studio.genlayer.com/address/0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d"
+  },
+  "contract_address": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d",
+  "audit_scope": "Read-only public Explorer history, GenLayer JS 1.1.8 receipts, and live contract views. No wallet connection or write was performed by this audit.",
+  "audit_method": {
+    "receipt_verifier": "scripts/finalized_tx.mjs",
+    "read_verifier": "scripts/live_read.mjs",
+    "success_policy": "FINALIZED + MAJORITY_AGREE + FINISHED_WITH_RETURN; FINALIZED alone is not success",
+    "history_rows_audited": 20,
+    "audited_at": "2026-10-13"
+  },
+  "confirmed_lifecycle": {
+    "challenge_id": "BB97965AE41AD63209559428",
+    "platform": "github",
+    "username": "heisfrederick",
+    "owner_wallet": "0xca13851553cb7522a8eebfa19938314a6eb2f661",
+    "challenger_wallet": "0xc82fce41accf7f6f07609e98b282db2caa42c5bc",
+    "canonical_platform_id": "196579853",
+    "observed_sequence": [
+      "challenge opened",
+      "fresh challenger evidence accepted",
+      "owner rebuttal accepted",
+      "independent resolution returned INCONCLUSIVE",
+      "challenge audit entry recorded proof_status CONFLICTED",
+      "owner reverified the GitHub proof and current state returned ACTIVE"
+    ],
+    "resolution_state_read": {
+      "method": "get_challenge",
+      "status": "RESOLVED_INCONCLUSIVE",
+      "outcome": "INCONCLUSIVE",
+      "reason_code": "GENLAYER_INDEPENDENT_RESOLUTION",
+      "challenger_evidence_status": "ACTIVE",
+      "owner_evidence_status": "ACTIVE",
+      "evidence_snapshot_commitments_present": true,
+      "note": "The historical intermediate contested view is established from the append-only audit entry, not a time-travel read."
+    },
+    "restored_state_read": {
+      "method": "get_identity",
+      "owner": "0xca13851553cb7522a8eebfa19938314a6eb2f661",
+      "identity_state": "ACTIVE",
+      "eligible": true,
+      "eligibility_reason": "ACTIVE_FRESH_PROOF",
+      "github_username": "heisfrederick",
+      "canonical_platform_id": "196579853",
+      "proof_status": "ACTIVE",
+      "proof_strength": "STRONG",
+      "confidence_score": 92,
+      "audit_method": "get_audit_log",
+      "audit_contains": ["verification_completed", "challenge_resolved with CONFLICTED/inconclusive result", "proof_reverified with ACTIVE result"]
+    },
+    "transaction_hashes": {
+      "owner_initial_request": "0xc229515d1dc6e615e4c0c2e13fe3a6035ca61781ff9279c031260fa7912e0f72",
+      "owner_initial_completion": "0x42b687dbcae679ec010797be22af6f74b09ff3a24769702159f1d59972d56809",
+      "challenge_open": "0xb5330ef84b02fd28f6a546bc6be51f923361a299752c0a1383b919e5003fba20",
+      "challenger_evidence": "0x9af5c12f7f573d7228cf234609051dbea496e4cbe67c06f958cb788b63370517",
+      "owner_rebuttal": "0x81283ef25f03f2a9e250e16e6c8ea13e1ec1670a991b9104d07c28317029014a",
+      "resolution": "0x254be32f1764b665e6d08ec41d55a333e1629b4540f52340237ca31fb94264f8",
+      "restoration_reverification": "0x8966bf9f64b7753ddb1adcfc8cb27ef50e375594cb03ec330c83ea608a2cdde9"
+    }
+  },
+  "transaction_history": [
+    {"hash":"0xb5330ef84b02fd28f6a546bc6be51f923361a299752c0a1383b919e5003fba20","explorer":"https://explorer-studio.genlayer.com/tx/0xb5330ef84b02fd28f6a546bc6be51f923361a299752c0a1383b919e5003fba20","method":"request_ownership_challenge","actor":"0xc82fce41accf7f6f07609e98b282db2caa42c5bc","args":["github","heisfrederick"],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"BB97965AE41AD63209559428 is present in the current challenge/audit state."},
+    {"hash":"0x8966bf9f64b7753ddb1adcfc8cb27ef50e375594cb03ec330c83ea608a2cdde9","explorer":"https://explorer-studio.genlayer.com/tx/0x8966bf9f64b7753ddb1adcfc8cb27ef50e375594cb03ec330c83ea608a2cdde9","method":"reverify_platform","actor":"0xca13851553cb7522a8eebfa19938314a6eb2f661","args":["github","heisfrederick",""],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"Owner identity is ACTIVE and eligible; GitHub canonical ID 196579853, ACTIVE/STRONG proof, confidence 92; audit contains proof_reverified."},
+    {"hash":"0x254be32f1764b665e6d08ec41d55a333e1629b4540f52340237ca31fb94264f8","explorer":"https://explorer-studio.genlayer.com/tx/0x254be32f1764b665e6d08ec41d55a333e1629b4540f52340237ca31fb94264f8","method":"resolve_ownership_challenge","actor":"0xc82fce41accf7f6f07609e98b282db2caa42c5bc","args":["BB97965AE41AD63209559428"],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"Challenge is RESOLVED_INCONCLUSIVE with outcome INCONCLUSIVE and reason GENLAYER_INDEPENDENT_RESOLUTION; audit records proof_status CONFLICTED."},
+    {"hash":"0x81283ef25f03f2a9e250e16e6c8ea13e1ec1670a991b9104d07c28317029014a","explorer":"https://explorer-studio.genlayer.com/tx/0x81283ef25f03f2a9e250e16e6c8ea13e1ec1670a991b9104d07c28317029014a","method":"respond_to_challenge","actor":"0xca13851553cb7522a8eebfa19938314a6eb2f661","args":["BB97965AE41AD63209559428","https://github.com/heisfrederick","redacted_rebuttal_statement"],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"Owner evidence is ACTIVE with canonical ID 196579853 and an accepted rebuttal timestamp/commitment."},
+    {"hash":"0x9af5c12f7f573d7228cf234609051dbea496e4cbe67c06f958cb788b63370517","explorer":"https://explorer-studio.genlayer.com/tx/0x9af5c12f7f573d7228cf234609051dbea496e4cbe67c06f958cb788b63370517","method":"submit_challenge_evidence","actor":"0xc82fce41accf7f6f07609e98b282db2caa42c5bc","args":["BB97965AE41AD63209559428","https://github.com/heisfrederick"],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"Challenger evidence is ACTIVE with canonical ID 196579853, accepted timestamp, evidence hash, and commitment."},
+    {"hash":"0xeeec77fc76587b7b107c5a4fc078a4ac076ccc9bd6680e21e02032f007fc7b00","explorer":"https://explorer-studio.genlayer.com/tx/0xeeec77fc76587b7b107c5a4fc078a4ac076ccc9bd6680e21e02032f007fc7b00","method":"request_ownership_challenge","actor":"0xc82fce41accf7f6f07609e98b282db2caa42c5bc","args":["github","heisfrederick"],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"A second challenge 99B261C61D3490994003201F is OPEN with stale/no accepted challenger evidence."},
+    {"hash":"0x42b687dbcae679ec010797be22af6f74b09ff3a24769702159f1d59972d56809","explorer":"https://explorer-studio.genlayer.com/tx/0x42b687dbcae679ec010797be22af6f74b09ff3a24769702159f1d59972d56809","method":"complete_verification","actor":"0xca13851553cb7522a8eebfa19938314a6eb2f661","args":[],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"Later owner identity/audit reads preserve completed GitHub verification; the original pending record is no longer active."},
+    {"hash":"0xc229515d1dc6e615e4c0c2e13fe3a6035ca61781ff9279c031260fa7912e0f72","explorer":"https://explorer-studio.genlayer.com/tx/0xc229515d1dc6e615e4c0c2e13fe3a6035ca61781ff9279c031260fa7912e0f72","method":"request_verification","actor":"0xca13851553cb7522a8eebfa19938314a6eb2f661","args":["github","heisfrederick","https://github.com/heisfrederick"],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"Subsequent completion and audit state establish the pending request was consumed."},
+    {"hash":"0x4ca47e7570e4ef816d70824021621486894336af25ca6fa4cd46e4b478dd6304","explorer":"https://explorer-studio.genlayer.com/tx/0x4ca47e7570e4ef816d70824021621486894336af25ca6fa4cd46e4b478dd6304","method":"reverify_platform","actor":"0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09","args":["twitter","papito_dele","https://x.com/papito_dele/status/2110093303664595173"],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"X proof is ACTIVE, MEDIUM strength, handle-only canonical ID empty, confidence 82."},
+    {"hash":"0x891a79a1b0a917b976ca25b38e06b48becb2b5b763b4a999b4bf830a5096c993","explorer":"https://explorer-studio.genlayer.com/tx/0x891a79a1b0a917b976ca25b38e06b48becb2b5b763b4a999b4bf830a5096c993","method":"reverify_platform","actor":"0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09","args":["github","ometere123",""],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"GitHub proof is ACTIVE with canonical ID 45469370 and confidence 92."},
+    {"hash":"0x3f0557269cacc8dccdf8dad3c358e9620c21e69e556e52d99b0506d4b6672905","explorer":"https://explorer-studio.genlayer.com/tx/0x3f0557269cacc8dccdf8dad3c358e9620c21e69e556e52d99b0506d4b6672905","method":"reverify_platform","actor":"0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09","args":["twitter","papito_dele","https://x.com/papito_dele/status/2110093303664595173?s=20"],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_ERROR","result":"failed_execution_not_counted_as_verification","post_state":"No successful state change is claimed; later successful X re-verification is separate."},
+    {"hash":"0x6d5f7f2ab2a3e53ad040bb313064ae7c1618d77d68fcb2087120df4f0d135ec7","explorer":"https://explorer-studio.genlayer.com/tx/0x6d5f7f2ab2a3e53ad040bb313064ae7c1618d77d68fcb2087120df4f0d135ec7","method":"reverify_platform","actor":"0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09","args":["github","ometere123",""],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"GitHub proof remains ACTIVE with canonical ID 45469370."},
+    {"hash":"0x2a3aa22d0c2d7ca691950f02b6a01e5850cb6a4443e8a1b3ed44d59d5f48707e","explorer":"https://explorer-studio.genlayer.com/tx/0x2a3aa22d0c2d7ca691950f02b6a01e5850cb6a4443e8a1b3ed44d59d5f48707e","method":"complete_verification","actor":"0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09","args":["redacted_discord_attestation_url"],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"Discord proof is ACTIVE/STRONG with canonical ID 823976787935363164 and confidence 94; the signed URL is not reproduced."},
+    {"hash":"0xfa3bceff4702f2fe1af7738490e4b8ad3eb8c7e44f3ee4f479013848011c8b2e","explorer":"https://explorer-studio.genlayer.com/tx/0xfa3bceff4702f2fe1af7738490e4b8ad3eb8c7e44f3ee4f479013848011c8b2e","method":"request_verification","actor":"0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09","args":["discord","PAPITO#823976787935363164","https://discord.com/users/823976787935363164"],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"Subsequent Discord completion is reflected in identity and audit state."},
+    {"hash":"0xd01148b5d37ec0fcf81d8d1e845e6d1b4633749183fb9bd9d3004806045ff556","explorer":"https://explorer-studio.genlayer.com/tx/0xd01148b5d37ec0fcf81d8d1e845e6d1b4633749183fb9bd9d3004806045ff556","method":"complete_verification","actor":"0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09","args":["https://x.com/papito_dele/status/2110093303664595173"],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"X proof is ACTIVE/MEDIUM handle-only with confidence 82."},
+    {"hash":"0x2b8bea7f03e09c1af60fb4a21e9a0eddb44f5fd3b598247c148ce80e0b874903","explorer":"https://explorer-studio.genlayer.com/tx/0x2b8bea7f03e09c1af60fb4a21e9a0eddb44f5fd3b598247c148ce80e0b874903","method":"request_verification","actor":"0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09","args":["twitter","papito_dele","https://twitter.com/papito_dele"],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","raw_execution_note":"Receipt contains SUCCESS and ERROR entries; the SDK-authoritative leader/top-level result is FINISHED_WITH_RETURN.","post_state":"Later completion and identity reads establish the pending request was consumed."},
+    {"hash":"0x0b1b8b984b0ddbac6ddb503126d90742d7ddf72b13fe0598bfc41c27cf25e568","explorer":"https://explorer-studio.genlayer.com/tx/0x0b1b8b984b0ddbac6ddb503126d90742d7ddf72b13fe0598bfc41c27cf25e568","method":"complete_verification","actor":"0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09","args":[],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"Subsequent X identity read is ACTIVE/MEDIUM with confidence 82."},
+    {"hash":"0xfd649d5b58f4de6e6c0e857900de8ddb74ccf9a7de210beb07f17f15e69c38d9","explorer":"https://explorer-studio.genlayer.com/tx/0xfd649d5b58f4de6e6c0e857900de8ddb74ccf9a7de210beb07f17f15e69c38d9","method":"request_verification","actor":"0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09","args":["github","ometere123","https://github.com/ometere123"],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"Subsequent GitHub completion and identity reads establish the pending request was consumed."},
+    {"hash":"0x5363bf3c37faaeef573820c2ed66517361fec8d6f0cee6ee37a31f866fdc663c","explorer":"https://explorer-studio.genlayer.com/tx/0x5363bf3c37faaeef573820c2ed66517361fec8d6f0cee6ee37a31f866fdc663c","method":"set_discord_attestation_base_url","actor":"0x4e44636494650386b89c64011c10f48d4b344c4f","args":["https://soulstamp-discord.delealufejoel.workers.dev"],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"get_stats().discord_attestation_base_url equals the Worker URL."},
+    {"hash":"0x5614d0fc28aa4650e5aa2320dbd748cb7919446cd77c9180c1a1f08f9f54565a","explorer":"https://explorer-studio.genlayer.com/tx/0x5614d0fc28aa4650e5aa2320dbd748cb7919446cd77c9180c1a1f08f9f54565a","method":"deploy","actor":"0x4e44636494650386b89c64011c10f48d4b344c4f","args":[],"finality":"FINALIZED","consensus":"MAJORITY_AGREE","authoritative_execution":"FINISHED_WITH_RETURN","result":"success","post_state":"Contract source parity and initial get_stats state are recorded in the deployment proof."}
+  ],
+  "negative_or_incomplete": [
+    {"scenario":"failed X re-verification","hash":"0x3f0557269cacc8dccdf8dad3c358e9620c21e69e556e52d99b0506d4b6672905","execution":"FINALIZED + MAJORITY_AGREE + FINISHED_WITH_ERROR","interpretation":"Not counted as a proof transition."},
+    {"scenario":"second unanswered challenge expiry","challenge_id":"99B261C61D3490994003201F","state_read":"OPEN with challenger evidence STALE and no accepted evidence","expiry_transaction":"not found in 20 current-contract rows","status":"not_executed_or_not_retrievable"},
+    {"scenario":"wallet recovery execution","transaction":"no execute_wallet_recovery transaction found in current-contract history","status":"not_recorded"},
+    {"scenario":"wallet recovery cancellation","transaction":"no cancel_wallet_recovery transaction found in current-contract history","status":"not_recorded"},
+    {"scenario":"challenger-upheld resolution and recovery","transaction":"no RESOLVED_CHALLENGER or EXECUTED challenge found in current history","status":"not_recorded"},
+    {"scenario":"current-contract revocation","transaction":"no revoke_platform transaction found in 20 current-contract rows","status":"not_recorded"}
+  ],
+  "post_state_reads": [
+    {"method":"get_challenge","args":["BB97965AE41AD63209559428"],"assertions":{"status":"RESOLVED_INCONCLUSIVE","outcome":"INCONCLUSIVE","reason_code":"GENLAYER_INDEPENDENT_RESOLUTION","canonical_platform_id":"196579853","challenger_evidence_status":"ACTIVE","owner_evidence_status":"ACTIVE","accepted_evidence_commitments":true}},
+    {"method":"get_all_challenges","args":[0,50],"assertions":{"count":2,"contains":{"BB97965AE41AD63209559428":"RESOLVED_INCONCLUSIVE","99B261C61D3490994003201F":"OPEN"}}},
+    {"method":"get_identity","args":["0xca13851553cb7522a8eebfa19938314a6eb2f661"],"assertions":{"identity_state":"ACTIVE","eligible":true,"eligibility_reason":"ACTIVE_FRESH_PROOF","github_canonical_id":"196579853","github_proof_status":"ACTIVE","reputation_score":92}},
+    {"method":"get_identity","args":["0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09"],"assertions":{"identity_state":"ACTIVE","eligible":true,"linked_platforms":["github","twitter","discord"],"confidence_scores":{"github":92,"twitter_handle_only":82,"discord":94},"discord_attestation_url":"redacted"}},
+    {"method":"get_audit_log","args":["0xca13851553cb7522a8eebfa19938314a6eb2f661"],"assertions":{"ordered_events":["verification_completed","challenge_resolved","proof_reverified"],"challenge_resolution_result":"inconclusive","restoration_result":"active"}},
+    {"method":"get_pending_verification","args":["0xca13851553cb7522a8eebfa19938314a6eb2f661"],"assertions":{"found":false}}
+  ],
+  "worker_read": {"url":"https://soulstamp-discord.delealufejoel.workers.dev/health","http_status":200,"ok":true,"secrets_or_signed_attestations_recorded":false},
+  "historical_deployments_preserved": [
+    {"contract":"0xD16Da83DF7189475564B520bC22ec465c9a88621","deployment":"0x330f956c29af8a7fea5b42f0058ef698f034ed33963a5e77b0f3c8e1aab32fde","source_commit":"55dcdf15a665660f0a8de0da6c031796009325d1","status":"superseded; preserved in prior deployment evidence"},
+    {"contract":"0xa3B01Cf1512734C7747e75520751BC2220880041","deployment":"0x93a2177a733f2a0851abde6fb053289d363c05dc03d08afccdd72c7e388cb949","source_commit":"b291e6091d0025102c75874501d625ea63855d23","status":"superseded; preserved in prior deployment evidence"},
+    {"contract":"0xa3801Cf1512734C7747e75528751BC2220888041","deployment":"0x93a2177a733f2a0851abde6fb053289d363c05dc03d08afccdd72c7e388cb949","source_commit":"b291e6091d0025102c75874501d625ea63855d23","status":"historical address record; preserved separately"}
+  ],
+  "lifecycle_status": "partial_confirmed; no full recovery or unanswered-expiry proof claimed"
+}

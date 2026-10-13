@@ -6,7 +6,7 @@
     "rpc": "https://studio.genlayer.com/api"
   },
   "verification_mode": "external-read-only-deployment-plus-vercel-and-worker-health",
-  "lifecycle_proof_status": "not_recorded",
+  "lifecycle_proof_status": "partial_observed_read_only",
   "contract_address": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d",
   "source_commit": "4b95cfdd3e806435666df3719e812de60348a686",
   "deployment_transaction": {
@@ -188,7 +188,7 @@
   "lifecycle": [],
   "negative_lifecycle": [],
   "lifecycle_proof": {
-    "status": "not_recorded",
+    "status": "partial_observed_read_only",
     "required_successful_methods": [
       "complete_verification",
       "execute_wallet_recovery",
@@ -203,5 +203,20 @@
   },
   "recorded_at": "2026-10-13",
   "explorer": "https://explorer-studio.genlayer.com/address/0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d",
-  "local_source_revision": "4b95cfdd3e806435666df3719e812de60348a686"
+  "local_source_revision": "4b95cfdd3e806435666df3719e812de60348a686",
+  "lifecycle_audit": {
+    "artifact": "artifacts/live/studionet-v3-lifecycle-audit-2026-10-13.json",
+    "status": "partial_confirmed",
+    "confirmed_challenge": "BB97965AE41AD63209559428",
+    "confirmed_resolution": "INCONCLUSIVE",
+    "confirmed_restoration_transaction": "0x8966bf9f64b7753ddb1adcfc8cb27ef50e375594cb03ec330c83ea608a2cdde9",
+    "missing_full_lifecycle_proofs": [
+      "execute_wallet_recovery",
+      "cancel_wallet_recovery",
+      "unanswered_challenge_expiry",
+      "challenger_upheld_resolution",
+      "revoke_platform"
+    ],
+    "negative_transaction": "0x3f0557269cacc8dccdf8dad3c358e9620c21e69e556e52d99b0506d4b6672905"
+  }
 }

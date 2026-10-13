@@ -36,6 +36,15 @@ timestamps, and acceptance timestamp, then starts a separate 30-minute owner
 rebuttal deadline. An unanswered `OPEN` challenge can be expired by any caller
 after the challenger-evidence deadline.
 
+The frontend exposes the contract's caller-agnostic resolution gate to both
+named parties. In `RESPONDED`, either the original owner or challenger can
+submit `resolve_ownership_challenge` immediately. In `AWAITING_REBUTTAL`, both
+see a disabled Resolve control until the owner rebuttal deadline; at the exact
+deadline boundary resolution becomes available and no rebuttal is required.
+`OPEN` never becomes resolvable: before the evidence deadline the UI explains
+that accepted challenger evidence is missing, and after it only offers
+`expire_ownership_challenge`.
+
 Resolution independently derives facts rather than trusting the stored
 precheck status. GitHub and X account/canonical evidence is revalidated from
 the provider at resolution while the exact accepted code response remains
@@ -45,6 +54,15 @@ challenge unverifiable. Validators check code presence, wallet/account
 binding, canonical-ID agreement, issuer/nonce/attestation metadata, and
 snapshot integrity before accepting `OWNER_UPHOLDS`, `CHALLENGER_UPHOLDS`, or
 `INCONCLUSIVE`.
+
+`INCONCLUSIVE` is an intentional safe outcome, not a free disable switch. The
+challenged proof is marked `CONFLICTED`, the identity becomes `CONTESTED`, and
+consumer eligibility is suspended until successful fresh owner
+reverification. This can cause a temporary denial of service, but only after
+independently accepted fresh challenger evidence and evidence-bound resolution;
+an arbitrary wallet cannot trigger it without valid proof. The challenger does
+not receive unrelated links, reputation, the old canonical-ID reservation, or
+recovery authority. Later challenges still require fresh challenger evidence.
 
 Recovery has a safety delay and can only be executed by the winning challenger
 into a wallet without an existing identity. Recovery is account-scoped: the
@@ -170,9 +188,18 @@ The latest operator deployment is independently verified from public Studionet
 
 This deployment-only evidence is recorded in
 `artifacts/live/studionet-v3-release-2026-10-13.json` and
-`artifacts/live/studionet-v3-external-proof-2026-10-13.json`. Lifecycle proof
-remains `not_recorded`; no social verification, challenge, rebuttal, recovery,
-revocation, eligibility, or negative-transition transaction is implied.
+`artifacts/live/studionet-v3-external-proof-2026-10-13.json`. The current
+contract’s read-only lifecycle audit is recorded in
+`artifacts/live/studionet-v3-lifecycle-audit-2026-10-13.json`. It confirms the
+observed `BB97965AE41AD63209559428` GitHub challenge through accepted challenger
+evidence, accepted owner rebuttal, `INCONCLUSIVE` resolution, a `CONFLICTED`
+resolution audit entry, and the successful Wallet A re-verification at
+[0x8966…dde9](https://explorer-studio.genlayer.com/tx/0x8966bf9f64b7753ddb1adcfc8cb27ef50e375594cb03ec330c83ea608a2cdde9).
+The current read is again `ACTIVE` and eligible with canonical ID `196579853`
+and confidence `92`. No full recovery, unanswered-expiry, cancellation,
+revocation, or challenger-upheld lifecycle proof is claimed; the second
+challenge `99B261C61D3490994003201F` remains recorded as `OPEN` with no expiry
+transaction found.
 
 ## Previous verified deployment handoff (superseded)
 

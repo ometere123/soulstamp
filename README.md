@@ -36,8 +36,9 @@ Vercel: Production `dpl_7Vd9onx9Ju4Gs5cKDZGAcuc69qk1` READY at
 The production, preview, and public alias bundles contain the new contract
 address and none of the checked superseded v3 addresses. The current
 production deployment is linked to release commit `b0a76dc`.
-Lifecycle proof: not recorded; real identity verification, challenge,
-rebuttal, recovery, revocation, and negative-transition testing remain operator-owned.
+Lifecycle evidence: a read-only audit confirms one real GitHub challenge through
+`INCONCLUSIVE` resolution and Wallet A restoration. It does not claim full
+recovery, unanswered-expiry, cancellation, revocation, or challenger-win proof.
 ```
 
 The existing Discord Worker is healthy at the existing URL (`GET /health`
@@ -59,6 +60,8 @@ remains preserved as history for a superseded deployment.
 
 The deployment and source-parity record is in
 [artifacts/live/studionet-v3-release-2026-10-13.json](./artifacts/live/studionet-v3-release-2026-10-13.json).
+The current-contract transaction audit and missing-scenario ledger are in
+[artifacts/live/studionet-v3-lifecycle-audit-2026-10-13.json](./artifacts/live/studionet-v3-lifecycle-audit-2026-10-13.json).
 Earlier deployment and Vercel/Worker history remains in the prior evidence
 records and the superseded release sections below.
 
@@ -162,6 +165,40 @@ See [V2_MILESTONE.md](./V2_MILESTONE.md) for the milestone summary.
        +-> Before the 24-hour recovery cooldown closes, the current owner can publish a new counter code.
        +-> Fresh canonical evidence is independently checked and the cancellation is recorded as RECOVERY_CANCELLED.
 ```
+
+---
+
+### Resolution controls and `INCONCLUSIVE` outcomes
+
+The user and admin challenge panels apply the contract’s state/deadline gates.
+Both the original owner and challenger see `Resolve` when the challenge is
+`RESPONDED`, or when it is `AWAITING_REBUTTAL` and the owner rebuttal deadline
+has elapsed. Before that deadline the control is disabled with the reason shown;
+an owner rebuttal is optional once the deadline passes. An `OPEN` challenge can
+never be resolved: before its evidence deadline the UI explains that accepted
+challenger evidence is still required, and after the deadline it offers only
+`Expire challenge`.
+
+An `INCONCLUSIVE` result is a deliberate safe outcome when valid evidence paths
+cannot establish a winner. The challenged proof becomes `CONFLICTED`, the
+identity becomes `CONTESTED`, and consumer eligibility is suspended until the
+owner completes successful fresh reverification. This creates a possible
+temporary denial-of-service consequence, but it requires independently accepted
+fresh challenger evidence and is not an arbitrary-wallet disable switch. A
+challenger does not receive the owner’s unrelated links, reputation, canonical
+ID, or recovery authority from an inconclusive result. A later challenge also
+requires fresh valid challenger evidence; the owner can restore the link with
+fresh reverification.
+
+The observed current-contract restoration lifecycle for challenge
+`BB97965AE41AD63209559428` (`github/heisfrederick`) is independently recorded:
+challenger evidence and owner rebuttal were accepted, resolution was
+`INCONCLUSIVE`, the audit entry recorded `CONFLICTED`, and transaction
+[`0x8966…dde9`](https://explorer-studio.genlayer.com/tx/0x8966bf9f64b7753ddb1adcfc8cb27ef50e375594cb03ec330c83ea608a2cdde9)
+finished successfully. A current read then shows Wallet A `ACTIVE`, eligible,
+with canonical ID `196579853` and confidence `92`. The ledger records the
+second challenge `99B261C61D3490994003201F` as still `OPEN`; no expiry,
+recovery, cancellation, or challenger-upheld transaction is claimed.
 
 ---
 

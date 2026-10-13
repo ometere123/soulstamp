@@ -16,6 +16,7 @@ import {
   expireOwnershipChallenge,
   resolveOwnershipChallenge,
 } from "../lib/contract";
+import { getChallengeActionState } from "../lib/challenge";
 import type { OwnershipChallenge, PlatformStats, IdentityRecord } from "../types";
 
 interface IdentityRow {
@@ -256,24 +257,31 @@ export function AdminPanel() {
           <p className="text-sm text-gray-500">No ownership challenges recorded.</p>
         ) : (
           <div className="space-y-3">
-            {challenges.map(challenge => (
+            {challenges.map(challenge => {
+              const actionState = getChallengeActionState(challenge);
+              return (
               <div key={challenge.challenge_id} className="border border-gray-800 rounded-lg p-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-sm font-medium">{challenge.platform} / @{challenge.username} <span className="text-gray-500 font-mono text-[11px]">{challenge.challenge_id}</span></div>
                   <div className="text-xs text-gray-500 mt-1">{challenge.status} · challenger {challenge.challenger_wallet.slice(0, 8)}… · owner {challenge.current_owner.slice(0, 8)}…</div>
                 </div>
                 {["AWAITING_REBUTTAL", "RESPONDED"].includes(challenge.status) && (
-                  <button onClick={() => handleResolveChallenge(challenge.challenge_id)} disabled={actionId === `challenge:${challenge.challenge_id}`} className="btn-secondary text-xs">
-                    {actionId === `challenge:${challenge.challenge_id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Resolve"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-gray-500 max-w-xs">{actionState.resolutionReason}</span>
+                    <button onClick={() => handleResolveChallenge(challenge.challenge_id)} disabled={!actionState.canResolve || actionId === `challenge:${challenge.challenge_id}`} title={!actionState.canResolve ? actionState.resolutionReason : undefined} className="btn-secondary text-xs">
+                      {actionId === `challenge:${challenge.challenge_id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Resolve"}
+                    </button>
+                  </div>
                 )}
-                {challenge.status === "OPEN" && Number(challenge.challenger_evidence_deadline ?? challenge.rebuttal_deadline) > 0 && Number(challenge.challenger_evidence_deadline ?? challenge.rebuttal_deadline) < Math.floor(Date.now() / 1000) && (
+                {challenge.status === "OPEN" && actionState.canExpire && (
                   <button onClick={() => handleExpireChallenge(challenge.challenge_id)} disabled={actionId === `expire:${challenge.challenge_id}`} className="btn-secondary text-xs">
                     {actionId === `expire:${challenge.challenge_id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Expire unanswered"}
                   </button>
                 )}
+                {challenge.status === "OPEN" && !actionState.canExpire && <span className="text-[11px] text-gray-500">{actionState.resolutionReason}</span>}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

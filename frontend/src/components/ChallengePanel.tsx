@@ -24,6 +24,7 @@ import {
   hasDiscordBackend,
   parseDiscordOAuthResult,
 } from "../lib/discord";
+import { getChallengeActorActionState } from "../lib/challenge";
 import type { ChallengeStatus, OwnershipChallenge, Platform } from "../types";
 
 const PLATFORM_OPTIONS: Array<{ id: Platform; label: string; icon: React.ReactNode }> = [
@@ -246,8 +247,8 @@ export function ChallengePanel() {
         ) : (
           <div className="space-y-4">
             {sortedChallenges.map(challenge => {
-              const isChallenger = challenge.challenger_wallet.toLowerCase() === address.toLowerCase();
-              const isOwner = challenge.current_owner.toLowerCase() === address.toLowerCase();
+              const actionState = getChallengeActorActionState(challenge, address);
+              const { isChallenger, isOwner } = actionState;
               const evidenceUrl = evidence[challenge.challenge_id] ?? "";
               const rebuttalUrl = rebuttals[challenge.challenge_id] ?? "";
               const counterUrl = counterEvidence[challenge.challenge_id] ?? "";
@@ -255,7 +256,7 @@ export function ChallengePanel() {
               const activeDeadline = challenge.status === "OPEN"
                 ? Number(challenge.challenger_evidence_deadline ?? challenge.rebuttal_deadline)
                 : Number(challenge.rebuttal_deadline);
-              const deadlinePassed = activeDeadline > 0 && activeDeadline < Math.floor(Date.now() / 1000);
+              const deadlinePassed = activeDeadline > 0 && activeDeadline <= Math.floor(Date.now() / 1000);
               const canRecover = isChallenger && challenge.status === "RESOLVED_CHALLENGER" && Number(challenge.recovery_not_before) <= Math.floor(Date.now() / 1000);
               return (
                 <article key={challenge.challenge_id} className="bg-gray-900 border border-gray-700 rounded-2xl p-5 space-y-4">
@@ -303,19 +304,29 @@ export function ChallengePanel() {
                     </div>
                   )}
 
-                  {isChallenger && ["AWAITING_REBUTTAL", "RESPONDED"].includes(challenge.status) && (
+                  {actionState.isParty && ["AWAITING_REBUTTAL", "RESPONDED"].includes(challenge.status) && (
                     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-800 pt-3">
-                      <span className="text-xs text-gray-500">Resolution requires fresh challenger evidence and either a rebuttal or an elapsed deadline.</span>
-                      <button onClick={() => runAction(`resolve:${challenge.challenge_id}`, () => resolveOwnershipChallenge(challenge.challenge_id), "Independent resolution finalized.")} disabled={action === `resolve:${challenge.challenge_id}`} className="btn-secondary text-xs"><Gavel className="w-3.5 h-3.5" /> Resolve challenge</button>
+                      <span className="text-xs text-gray-500">{actionState.resolutionReason}</span>
+                      <button
+                        onClick={() => runAction(`resolve:${challenge.challenge_id}`, () => resolveOwnershipChallenge(challenge.challenge_id), "Independent resolution finalized.")}
+                        disabled={!actionState.canResolve || action === `resolve:${challenge.challenge_id}`}
+                        title={!actionState.canResolve ? actionState.resolutionReason : undefined}
+                        className="btn-secondary text-xs"
+                      >
+                        <Gavel className="w-3.5 h-3.5" />
+                        {action === `resolve:${challenge.challenge_id}` ? "Resolving…" : "Resolve challenge"}
+                      </button>
                     </div>
                   )}
 
-                  {challenge.status === "OPEN" && deadlinePassed && (isChallenger || isOwner) && (
+                  {actionState.isParty && challenge.status === "OPEN" && (
                     <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-800 pt-3">
-                      <span className="text-xs text-gray-500">No challenger evidence arrived before the bounded deadline.</span>
-                      <button onClick={() => runAction(`expire:${challenge.challenge_id}`, () => expireOwnershipChallenge(challenge.challenge_id), "Unanswered challenge expired and the link is challengeable again.")} disabled={action === `expire:${challenge.challenge_id}`} className="btn-secondary text-xs">
-                        {action === `expire:${challenge.challenge_id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Expire unanswered challenge"}
-                      </button>
+                      <span className="text-xs text-gray-500">{actionState.canExpire ? actionState.expiryReason : actionState.resolutionReason}</span>
+                      {actionState.canExpire && (
+                        <button onClick={() => runAction(`expire:${challenge.challenge_id}`, () => expireOwnershipChallenge(challenge.challenge_id), "Unanswered challenge expired and the link is challengeable again.")} disabled={action === `expire:${challenge.challenge_id}`} className="btn-secondary text-xs">
+                          {action === `expire:${challenge.challenge_id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Expire unanswered challenge"}
+                        </button>
+                      )}
                     </div>
                   )}
 
