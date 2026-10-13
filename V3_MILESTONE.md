@@ -178,9 +178,12 @@ The latest operator deployment is independently verified from public Studionet
   `0x4e44636494650386b89c64011c10f48d4b344c4f`, legacy contract
   `0x3108daffcbc24e261137056c56afcae17677bdfb`, and zero verifications,
   identities, challenges, and recoveries.
-- Vercel: not updated or redeployed in this handoff because the available CLI
-  and connector credentials are not authorized for the linked project scope.
-  No Vercel status or public bundle parity is claimed for this release.
+- Vercel: Production `dpl_3E5bAFzgVW1EgjJrHhh16NUSGUC5` and Preview
+  `dpl_4aixfrsNDPvExPsmxU846VavHPG7` are `READY`. The production alias is
+  `https://soulstamp-gen.vercel.app`; the preview URL is
+  `https://soulstamp-91idoe88o-delealufejoel-4184s-projects.vercel.app`.
+  Both public bundles contain the new contract address and not the superseded
+  V3 address.
 - Discord Worker: `GET /health` returned HTTP 200 with `ok: true` and the
   expected stateless attestation storage. The new contract still needs the
   authorized admin call
@@ -226,7 +229,7 @@ Lifecycle proof remains intentionally `not_recorded`; real social verification,
 challenge, rebuttal, recovery, revocation, eligibility, and negative-transition
 transactions remain operator-owned.
 
-## Confidence and reputation correction (deployed; hosting/config pending)
+## Confidence and reputation correction (deployed; Discord config pending)
 
 The engineering correction is source-parity verified on the new contract. Its normalized LF contract
 SHA-256 is
@@ -235,6 +238,6 @@ The correction
 deterministically assigns active-proof confidence `92` (GitHub), `82` (X
 handle-only), and `94` (Discord), keeps account/dossier values aligned, adds
 immutable challenge evidence snapshots and safe stale reclamation, and does
-not claim new live identity or lifecycle proofs. Vercel environment/redeploy
-and the new contract's Discord base URL remain manual release actions because
-the required Vercel/admin credentials were unavailable in this workspace.
+not claim new live identity or lifecycle proofs. Vercel has been updated and
+verified; only the new contract's Discord base URL remains a manual admin
+configuration action.

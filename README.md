@@ -11,7 +11,7 @@ The v3 contribution is a lifecycle state machine, not a UI-only refresh: a consu
 | Service | URL |
 |---|---|
 | Frontend | https://soulstamp-gen.vercel.app |
-| Preview deployment | https://soulstamp-ofxtungqz-delealufejoel-4184s-projects.vercel.app |
+| Preview deployment | https://soulstamp-91idoe88o-delealufejoel-4184s-projects.vercel.app |
 | Discord Worker | https://soulstamp-discord.delealufejoel.workers.dev |
 | Repository | https://github.com/ometere123/soulstamp |
 
@@ -28,9 +28,12 @@ Initial state: verifier `soulstamp-v3.0-continuity`, admin
 `0x4e44636494650386b89c64011c10f48d4b344c4f`, legacy contract
 `0x3108daffcbc24e261137056c56afcae17677bdfb`, and zero verifications,
 identities, challenges, and recoveries.
-Vercel update: not completed in this handoff because the local CLI and Vercel
-connector both lack authorization for the project scope; existing public
-deployment values were not changed or represented as current.
+Vercel: Production `dpl_3E5bAFzgVW1EgjJrHhh16NUSGUC5` READY at
+`https://soulstamp-gen.vercel.app`; Preview
+`dpl_4aixfrsNDPvExPsmxU846VavHPG7` READY at
+`https://soulstamp-91idoe88o-delealufejoel-4184s-projects.vercel.app`.
+Both served bundles contain the new contract address and not the superseded
+`0x279003ad03E224e26C328466135Ac83a1AC8ED8a` address.
 Lifecycle proof: not recorded; real identity verification, challenge,
 rebuttal, recovery, revocation, and negative-transition testing remain operator-owned.
 ```

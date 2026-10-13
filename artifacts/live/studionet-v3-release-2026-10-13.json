@@ -79,9 +79,24 @@
     "environment_variable": "VITE_CONTRACT_ADDRESS",
     "requested_value": "0xD16Da83DF7189475564B520bC22ec465c9a88621",
     "targets": ["production", "preview"],
-    "status": "blocked_missing_authorization",
-    "changed": false,
-    "blocker": "Vercel CLI entered device login because no local credentials were available; the connected Vercel API also returned 403 for the project scope. No environment variable or deployment was changed, and no bundle parity is claimed."
+    "status": "updated_and_verified",
+    "changed": true,
+    "production": {
+      "deployment_id": "dpl_3E5bAFzgVW1EgjJrHhh16NUSGUC5",
+      "url": "https://soulstamp-lck4b087t-delealufejoel-4184s-projects.vercel.app",
+      "alias": "https://soulstamp-gen.vercel.app",
+      "status": "READY"
+    },
+    "preview": {
+      "deployment_id": "dpl_4aixfrsNDPvExPsmxU846VavHPG7",
+      "url": "https://soulstamp-91idoe88o-delealufejoel-4184s-projects.vercel.app",
+      "status": "READY"
+    },
+    "public_bundle_check": {
+      "production_address_present": true,
+      "preview_address_present": true,
+      "previous_contract_address_present": false
+    }
   },
   "discord_worker": {
     "url": "https://soulstamp-discord.delealufejoel.workers.dev",
