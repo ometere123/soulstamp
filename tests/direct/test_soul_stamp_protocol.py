@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import sys
 from datetime import datetime, timezone
 
 
@@ -267,6 +268,7 @@ def test_policy_confidence_ignores_missing_zero_and_contradictory_ai_scores_for_
         r".*attest\.example/api/discord/attestations/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$",
         {"status": 200, "body": json.dumps({
             "discord_user_id": "123",
+            "issuer": "https://attest.example", "nonce": "confidence-nonce", "attestation_id": "confidence-attestation",
             "wallet": OWNER,
             "verification_code": discord_pending["verification_code"],
             "claimed_username": "alice#123",
@@ -399,15 +401,17 @@ def test_reverification_cannot_replace_canonical_binding(direct_vm, direct_deplo
     assert contract.is_eligible(OWNER) is False
 
 
-def test_expired_proof_cannot_be_challenged(direct_vm, direct_deploy):
+def test_expired_proof_can_enter_safe_stale_reclamation_flow(direct_vm, direct_deploy):
     contract = deploy(direct_deploy)
     verify_github(direct_vm, contract, OWNER, "alice", "42")
     account = contract.get_identity(OWNER)["linked_accounts"][0]
     expires_at = account["dossier"]["evidence_expires_at"]
     direct_vm.warp(datetime.fromtimestamp(expires_at + 1, tz=timezone.utc).isoformat())
     direct_vm.sender = CHALLENGER
-    with direct_vm.expect_revert("fresh active proof"):
-        contract.request_ownership_challenge("github", "alice")
+    contract.request_ownership_challenge("github", "alice")
+    challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
+    assert challenge["status"] == "OPEN"
+    assert contract.is_platform_taken("github", "alice") is True
 
 
 def test_expired_proof_is_reported_stale_and_ineligible(direct_vm, direct_deploy):
@@ -474,7 +478,7 @@ def test_unanswered_challenge_expires_and_releases_slot(direct_vm, direct_deploy
     direct_vm.sender = CHALLENGER
     contract.request_ownership_challenge("github", "alice")
     challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
-    direct_vm.warp(datetime.fromtimestamp(challenge["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
+    direct_vm.warp(datetime.fromtimestamp(challenge["challenger_evidence_deadline"] + 1, tz=timezone.utc).isoformat())
     direct_vm.sender = OTHER
     contract.expire_ownership_challenge(challenge["challenge_id"])
     expired = contract.get_challenge(challenge["challenge_id"])
@@ -521,9 +525,14 @@ def test_rebuttal_statement_is_bounded(direct_vm, direct_deploy):
     direct_vm.sender = CHALLENGER
     contract.request_ownership_challenge("github", "alice")
     challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
+    assert challenge["rebuttal_deadline"] == 0
+    assert challenge["challenger_evidence_deadline"] > challenge["opened_at"]
     github_web(direct_vm, "alice", challenge["challenger_code"], canonical_id="42")
     proof_llm(direct_vm, canonical_id="42")
     contract.submit_challenge_evidence(challenge["challenge_id"], "https://github.com/alice")
+    accepted = contract.get_challenge(challenge["challenge_id"])
+    assert accepted["rebuttal_deadline"] > accepted["challenger_evidence_accepted_at"]
+    assert accepted["rebuttal_deadline"] == accepted["challenger_evidence_accepted_at"] + 30 * 60
     direct_vm.sender = OWNER
     with direct_vm.expect_revert("2000 characters"):
         contract.respond_to_challenge(challenge["challenge_id"], "https://github.com/alice", "x" * 2001)
@@ -597,7 +606,7 @@ def test_discord_attestation_is_fresh_and_one_use(direct_vm, direct_deploy):
     attestation_token = "A" * 100 + "." + "a" * 43
     attestation_url = f"https://attest.example/api/discord/attestations/{attestation_token}"
     body = {
-        "discord_user_id": "123", "wallet": OWNER,
+        "discord_user_id": "123", "issuer": "https://attest.example", "nonce": "fresh-owner-nonce", "attestation_id": "fresh-owner-attestation", "wallet": OWNER,
         "verification_code": pending["verification_code"],
         "claimed_username": "alice#123", "pending_id": pending["pending_id"],
         "issued_at": 1893455990, "expires_at": 1893456300,
@@ -622,7 +631,7 @@ def test_expired_discord_attestation_is_not_active(direct_vm, direct_deploy):
     attestation_token = "B" * 100 + "." + "b" * 43
     attestation_url = f"https://attest.example/api/discord/attestations/{attestation_token}"
     body = {
-        "discord_user_id": "123", "wallet": OTHER,
+        "discord_user_id": "123", "issuer": "https://attest.example", "nonce": "expired-nonce", "attestation_id": "expired-attestation", "wallet": OTHER,
         "verification_code": pending["verification_code"],
         "claimed_username": "expired#123", "pending_id": pending["pending_id"],
         "issued_at": 1893455000, "expires_at": 1893455999,
@@ -645,12 +654,12 @@ def test_challenge_deadline_resolution_and_safe_recovery(direct_vm, direct_deplo
     proof_llm(direct_vm, canonical_id="42")
     contract.submit_challenge_evidence(challenge["challenge_id"], "https://github.com/alice")
     direct_vm.mock_web(
-        r"https://github\.com/alice$",
+        r".*api\.github\.com/users/alice$",
         {"status": 200, "body": json.dumps({"bio": challenge["challenger_code"], "login": "alice", "id": 42})},
     )
     with direct_vm.expect_revert("Wait for the rebuttal deadline"):
         contract.resolve_ownership_challenge(challenge["challenge_id"])
-    deadline_time = datetime.fromtimestamp(challenge["rebuttal_deadline"] + 1, tz=timezone.utc)
+    deadline_time = datetime.fromtimestamp(contract.get_challenge(challenge["challenge_id"])["rebuttal_deadline"] + 1, tz=timezone.utc)
     direct_vm.warp(deadline_time.isoformat())
     proof_llm(direct_vm, decision="CHALLENGER_UPHOLDS")
     contract.resolve_ownership_challenge(challenge["challenge_id"])
@@ -687,12 +696,12 @@ def test_challenge_cannot_accept_owner_win_over_active_challenger_evidence(direc
     proof_llm(direct_vm, canonical_id="42")
     contract.submit_challenge_evidence(challenge["challenge_id"], "https://github.com/alice")
     direct_vm.mock_web(
-        r"https://github\.com/alice$",
+        r".*api\.github\.com/users/alice$",
         {"status": 200, "body": json.dumps({"bio": challenge["challenger_code"], "login": "alice", "id": 42})},
     )
-    direct_vm.warp(datetime.fromtimestamp(challenge["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
+    direct_vm.warp(datetime.fromtimestamp(contract.get_challenge(challenge["challenge_id"])["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
     proof_llm(direct_vm, decision="OWNER_UPHOLDS")
-    with direct_vm.expect_revert("deterministic evidence boundary"):
+    with direct_vm.expect_revert("independently derived evidence"):
         contract.resolve_ownership_challenge(challenge["challenge_id"])
     assert contract.get_challenge(challenge["challenge_id"])["status"] == "AWAITING_REBUTTAL"
     assert contract.get_identity(OWNER)["linked_accounts"][0]["proof_status"] == "ACTIVE"
@@ -709,10 +718,15 @@ def test_challenge_resolution_fails_closed_on_source_fetch_error(direct_vm, dire
     proof_llm(direct_vm, canonical_id="42")
     contract.submit_challenge_evidence(challenge["challenge_id"], "https://github.com/alice")
     direct_vm.mock_web(
-        r"https://github\.com/alice$",
+        r".*api\.github\.com/users/alice$",
         {"status": 503, "body": "temporary upstream failure"},
     )
-    direct_vm.warp(datetime.fromtimestamp(challenge["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
+    direct_vm.clear_mocks()
+    direct_vm.mock_web(
+        r".*api\.github\.com/users/alice$",
+        {"status": 503, "body": "temporary upstream failure"},
+    )
+    direct_vm.warp(datetime.fromtimestamp(contract.get_challenge(challenge["challenge_id"])["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
     with direct_vm.expect_revert("Challenge evidence source returned HTTP 503"):
         contract.resolve_ownership_challenge(challenge["challenge_id"])
     assert contract.get_challenge(challenge["challenge_id"])["status"] == "AWAITING_REBUTTAL"
@@ -736,7 +750,7 @@ def test_challenge_owner_rebuttal_can_force_inconclusive(direct_vm, direct_deplo
     proof_llm(direct_vm, canonical_id="42")
     contract.respond_to_challenge(challenge_id, "https://github.com/alice", "I retain the account.")
     direct_vm.mock_web(
-        r"https://github\.com/alice$",
+        r".*api\.github\.com/users/alice$",
         {"status": 200, "body": json.dumps({"bio": challenge["owner_rebuttal_code"], "login": "alice", "id": 42})},
     )
     proof_llm(direct_vm, decision="INCONCLUSIVE")
@@ -780,10 +794,10 @@ def test_recovery_preserves_non_revoked_historical_indexes(direct_vm, direct_dep
     proof_llm(direct_vm, canonical_id="42")
     contract.submit_challenge_evidence(challenge["challenge_id"], "https://github.com/alice")
     direct_vm.mock_web(
-        r"https://github\.com/alice$",
+        r".*api\.github\.com/users/alice$",
         {"status": 200, "body": json.dumps({"bio": challenge["challenger_code"], "login": "alice", "id": 42})},
     )
-    direct_vm.warp(datetime.fromtimestamp(challenge["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
+    direct_vm.warp(datetime.fromtimestamp(contract.get_challenge(challenge["challenge_id"])["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
     proof_llm(direct_vm, decision="CHALLENGER_UPHOLDS")
     contract.resolve_ownership_challenge(challenge["challenge_id"])
     resolved = contract.get_challenge(challenge["challenge_id"])
@@ -812,7 +826,7 @@ def test_discord_challenge_attestation_is_consumed_once(direct_vm, direct_deploy
     assert len(verification_token) > 256
     verification_url = f"https://attest.example/api/discord/attestations/{verification_token}"
     verification_body = {
-        "discord_user_id": "123", "wallet": OWNER,
+        "discord_user_id": "123", "issuer": "https://attest.example", "nonce": "verification-nonce", "attestation_id": "verification-attestation", "wallet": OWNER,
         "verification_code": pending["verification_code"],
         "claimed_username": "alice#123", "pending_id": pending["pending_id"],
         "issued_at": 1893455990, "expires_at": 1893456300,
@@ -828,7 +842,7 @@ def test_discord_challenge_attestation_is_consumed_once(direct_vm, direct_deploy
     assert len(challenge_token) > 256
     challenge_url = f"https://attest.example/api/discord/attestations/{challenge_token}"
     challenge_body = {
-        "discord_user_id": "123", "wallet": CHALLENGER,
+        "discord_user_id": "123", "issuer": "https://attest.example", "nonce": "challenge-nonce", "attestation_id": "challenge-attestation", "wallet": CHALLENGER,
         "verification_code": challenge["challenger_code"],
         "claimed_username": "alice#123", "pending_id": challenge["challenge_id"],
         "issued_at": 1893455990, "expires_at": 1893456300,
@@ -839,3 +853,131 @@ def test_discord_challenge_attestation_is_consumed_once(direct_vm, direct_deploy
     direct_vm.sender = OWNER
     with direct_vm.expect_revert("already been used"):
         contract.respond_to_challenge(challenge["challenge_id"], challenge_url, "The current owner retains this account.")
+
+
+def test_discord_challenge_resolves_from_snapshot_after_attestation_expiry(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    direct_vm.sender = ADMIN
+    contract.set_discord_attestation_base_url("https://attest.example")
+    direct_vm.warp("2030-01-01T00:00:00Z")
+    direct_vm.sender = OWNER
+    contract.request_verification("discord", "alice#123", "https://discord.com/users/123")
+    pending = contract.get_pending_verification(OWNER)
+    owner_token = "O" * 100 + "." + "o" * 43
+    owner_url = f"https://attest.example/api/discord/attestations/{owner_token}"
+    direct_vm.mock_web(
+        r".*attest\.example/api/discord/attestations/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$",
+        {"status": 200, "body": json.dumps({
+            "discord_user_id": "123", "issuer": "https://attest.example", "nonce": "owner-live-nonce", "attestation_id": "owner-live-attestation", "wallet": OWNER,
+            "verification_code": pending["verification_code"], "claimed_username": "alice#123", "pending_id": pending["pending_id"],
+            "issued_at": 1893455990, "expires_at": 1893456300,
+        })},
+    )
+    proof_llm(direct_vm, canonical_id="123")
+    contract.complete_verification(owner_url)
+
+    direct_vm.clear_mocks()
+    direct_vm.sender = CHALLENGER
+    contract.request_ownership_challenge("discord", "alice#123")
+    challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
+    challenge_token = "N" * 100 + "." + "n" * 43
+    challenge_url = f"https://attest.example/api/discord/attestations/{challenge_token}"
+    direct_vm.mock_web(
+        r".*attest\.example/api/discord/attestations/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$",
+        {"status": 200, "body": json.dumps({
+            "discord_user_id": "123", "issuer": "https://attest.example", "nonce": "challenger-snapshot-nonce", "attestation_id": "challenger-snapshot-attestation", "wallet": CHALLENGER,
+            "verification_code": challenge["challenger_code"], "claimed_username": "alice#123", "pending_id": challenge["challenge_id"],
+            "issued_at": 1893455990, "expires_at": 1893456300,
+        })},
+    )
+    proof_llm(direct_vm, canonical_id="123")
+    contract.submit_challenge_evidence(challenge["challenge_id"], challenge_url)
+    accepted = contract.get_challenge(challenge["challenge_id"])
+    assert accepted["challenger_evidence_hash"]
+    assert accepted["challenger_evidence_commitment"]
+    assert accepted["challenger_evidence_expires_at"] < accepted["rebuttal_deadline"]
+
+    # The Worker URL is now expired and is deliberately unavailable. The
+    # resolver must use the accepted immutable snapshot, not refetch it.
+    direct_vm.clear_mocks()
+    direct_vm.warp(datetime.fromtimestamp(accepted["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
+    proof_llm(direct_vm, decision="CHALLENGER_UPHOLDS")
+    contract.resolve_ownership_challenge(challenge["challenge_id"])
+    resolved = contract.get_challenge(challenge["challenge_id"])
+    assert resolved["status"] == "RESOLVED_CHALLENGER"
+    assert resolved["outcome"] == "CHALLENGER_UPHOLDS"
+
+
+def test_stale_canonical_account_requires_fresh_challenger_evidence_before_recovery(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    account = contract.get_identity(OWNER)["linked_accounts"][0]
+    direct_vm.warp(datetime.fromtimestamp(account["dossier"]["evidence_expires_at"] + 1, tz=timezone.utc).isoformat())
+    assert contract.lookup_by_platform("github", "alice")["proof_status"] == "STALE"
+    assert contract.is_platform_taken("github", "alice") is True
+
+    direct_vm.clear_mocks()
+    direct_vm.sender = CHALLENGER
+    contract.request_ownership_challenge("github", "alice")
+    challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
+    github_web(direct_vm, "alice", challenge["challenger_code"], canonical_id="42")
+    proof_llm(direct_vm, canonical_id="42")
+    contract.submit_challenge_evidence(challenge["challenge_id"], "https://github.com/alice")
+    accepted = contract.get_challenge(challenge["challenge_id"])
+    direct_vm.warp(datetime.fromtimestamp(accepted["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
+    proof_llm(direct_vm, decision="CHALLENGER_UPHOLDS")
+    contract.resolve_ownership_challenge(challenge["challenge_id"])
+    resolved = contract.get_challenge(challenge["challenge_id"])
+    direct_vm.warp(datetime.fromtimestamp(resolved["recovery_not_before"] + 1, tz=timezone.utc).isoformat())
+    direct_vm.sender = CHALLENGER
+    contract.execute_wallet_recovery(challenge["challenge_id"])
+    assert contract.lookup_by_platform("github", "alice")["owner_address"] == CHALLENGER
+
+
+def test_v2_handle_only_migration_is_stale_and_reverification_restores_eligibility(direct_vm, direct_deploy, monkeypatch):
+    legacy_address = "0x" + "99" * 20
+    contract = direct_deploy(CONTRACT, ADMIN, legacy_address, sdk_version=os.environ.get("GENVM_VERSION", "v0.2.16"))
+    module = sys.modules[contract._instance.__class__.__module__]
+
+    class LegacyView:
+        def view(self):
+            return self
+
+        def get_identity(self, address):
+            return {
+                "found": True,
+                "owner": OWNER,
+                "linked_accounts": [{
+                    "platform": "twitter", "username": "legacy", "profile_url": "https://x.com/legacy",
+                    "proof_url": "https://x.com/legacy/status/123", "verified_at": 100,
+                    "confidence_score": 82, "bot_score": 50, "reasoning": "v2 historical proof",
+                    "is_active": True, "proof_status": "ACTIVE", "proof_strength": "MEDIUM", "risk_band": "medium",
+                    "canonical_platform_id": "", "verification_code": "LEGACY-CODE", "pending_id": "LEGACY-ID",
+                }],
+                "reputation_score": 82, "verification_count": 1, "is_flagged": False, "flag_reason": "",
+            }
+
+    monkeypatch.setattr(module.gl, "get_contract_at", lambda address: LegacyView())
+    direct_vm.sender = ADMIN
+    contract.migrate_legacy_identity(OWNER)
+    migrated = contract.get_identity(OWNER)
+    assert migrated["linked_accounts"][0]["proof_status"] == "STALE"
+    assert migrated["linked_accounts"][0]["canonical_platform_id"] == ""
+    assert migrated["eligible"] is False
+    assert contract.is_platform_taken("twitter", "legacy") is True
+
+    direct_vm.clear_mocks()
+    direct_vm.sender = OWNER
+    direct_vm.mock_web(
+        r".*publish\.twitter\.com/oembed.*",
+        {"status": 200, "body": json.dumps({
+            "author_url": "https://x.com/legacy", "provider_url": "https://x.com",
+            "html": "LEGACY-CODE", "url": "https://x.com/legacy/status/123",
+        })},
+    )
+    proof_llm(direct_vm, canonical_id="")
+    contract.reverify_platform("twitter", "legacy", "https://x.com/legacy/status/123")
+    refreshed = contract.get_identity(OWNER)
+    assert refreshed["linked_accounts"][0]["proof_status"] == "ACTIVE"
+    assert refreshed["linked_accounts"][0]["confidence_score"] == 82
+    assert refreshed["eligible"] is True

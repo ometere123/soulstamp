@@ -267,7 +267,7 @@ export function AdminPanel() {
                     {actionId === `challenge:${challenge.challenge_id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Resolve"}
                   </button>
                 )}
-                {challenge.status === "OPEN" && Number(challenge.rebuttal_deadline) < Math.floor(Date.now() / 1000) && (
+                {challenge.status === "OPEN" && Number(challenge.challenger_evidence_deadline ?? challenge.rebuttal_deadline) > 0 && Number(challenge.challenger_evidence_deadline ?? challenge.rebuttal_deadline) < Math.floor(Date.now() / 1000) && (
                   <button onClick={() => handleExpireChallenge(challenge.challenge_id)} disabled={actionId === `expire:${challenge.challenge_id}`} className="btn-secondary text-xs">
                     {actionId === `expire:${challenge.challenge_id}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Expire unanswered"}
                   </button>

@@ -322,10 +322,12 @@ export function PublicLookup() {
                 </div>
                 <div className="grid gap-1 sm:grid-cols-2 text-xs text-gray-400">
                   <span>Opened {dateLabel(challenge.opened_at)}</span>
-                  <span>Rebuttal deadline {dateLabel(challenge.rebuttal_deadline)}</span>
+                  <span>Evidence deadline {dateLabel(challenge.challenger_evidence_deadline ?? challenge.rebuttal_deadline)}</span>
+                  <span>Rebuttal deadline {challenge.rebuttal_deadline ? dateLabel(challenge.rebuttal_deadline) : "starts after evidence"}</span>
                   <span>Outcome {challenge.outcome || "pending"}</span>
                   <span>Canonical ID <code className="text-gray-200">{challenge.canonical_platform_id || "—"}</code></span>
                 </div>
+                {challenge.challenger_evidence_hash && <div className="text-[11px] text-gray-500 break-all">Accepted evidence snapshot SHA-256: <code className="text-gray-300">{challenge.challenger_evidence_hash}</code></div>}
                 <div className="flex flex-wrap gap-3 text-xs">
                   {challenge.challenger_evidence_url && <a className="text-brand-300 inline-flex items-center gap-1 break-all" href={challenge.challenger_evidence_url} target="_blank" rel="noreferrer">Challenger evidence <ExternalLink className="w-3 h-3" /></a>}
                   {challenge.owner_rebuttal_url && <a className="text-orange-300 inline-flex items-center gap-1 break-all" href={challenge.owner_rebuttal_url} target="_blank" rel="noreferrer">Owner rebuttal <ExternalLink className="w-3 h-3" /></a>}

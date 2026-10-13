@@ -164,6 +164,28 @@ class OwnershipChallenge:
     reason_code: str
     resolution_reasoning: str
     recovery_executed_at: u256
+    # Accepted evidence is immutable challenge state. Discord URLs expire
+    # quickly, so resolution validates this snapshot and its commitment rather
+    # than refetching an expired signed URL.
+    challenger_evidence_snapshot: str
+    owner_rebuttal_snapshot: str
+    challenger_evidence_hash: str
+    owner_rebuttal_hash: str
+    challenger_evidence_commitment: str
+    owner_rebuttal_commitment: str
+    challenger_evidence_issuer: str
+    owner_rebuttal_issuer: str
+    challenger_evidence_nonce: str
+    owner_rebuttal_nonce: str
+    challenger_evidence_attestation_id: str
+    owner_rebuttal_attestation_id: str
+    challenger_evidence_issued_at: u256
+    challenger_evidence_expires_at: u256
+    owner_rebuttal_issued_at: u256
+    owner_rebuttal_expires_at: u256
+    challenger_evidence_accepted_at: u256
+    owner_rebuttal_accepted_at: u256
+    challenger_evidence_deadline: u256
 
 
 class SoulStamp(gl.Contract):
@@ -190,6 +212,7 @@ class SoulStamp(gl.Contract):
     event_marker: u256
     discord_attestation_base_url: str
     legacy_contract_address: str
+    used_discord_nonces: TreeMap[str, bool]
 
     def __init__(self, admin_address: str = "", legacy_contract_address: str = "") -> None:
         admin = admin_address or str(gl.message.sender_address)
@@ -420,8 +443,12 @@ class SoulStamp(gl.Contract):
         self._require(self.used_discord_attestations.get(token) is None, "Discord attestation has already been used")
         return token
 
-    def _consume_discord_attestation(self, evidence_url: str) -> None:
+    def _consume_discord_attestation(self, evidence_url: str, nonce: str = "") -> None:
         token = self._discord_attestation_token(evidence_url)
+        clean_nonce = str(nonce or "").strip()
+        if clean_nonce:
+            self._require(self.used_discord_nonces.get(clean_nonce) is None, "Discord attestation nonce has already been used")
+            self.used_discord_nonces[clean_nonce] = True
         self.used_discord_attestations[token] = True
 
     def _empty_dossier(self, platform: str, username: str, proof_url: str, code: str, pending_id: str, wallet: str, marker: u256) -> ProofDossier:
@@ -551,6 +578,11 @@ class SoulStamp(gl.Contract):
             evidence_issued_at = 0
             evidence_expires_at = 0
             canonical_id = ""
+            evidence_issuer = ""
+            evidence_nonce = ""
+            evidence_attestation_id = ""
+            attestation_wallet = ""
+            attestation_pending_id = ""
             if platform == "github" and isinstance(parsed, dict):
                 candidate_id = str(parsed.get("id", "") or "")
                 canonical_id = candidate_id if re.match(r"^[0-9]+$", candidate_id) else ""
@@ -563,6 +595,9 @@ class SoulStamp(gl.Contract):
                 canonical_id = str(parsed.get("discord_user_id", "") or parsed.get("discord_id", "") or "")
                 if not re.match(r"^[0-9]+$", canonical_id):
                     canonical_id = ""
+                evidence_issuer = str(parsed.get("issuer", "") or "").strip().rstrip("/")
+                evidence_nonce = str(parsed.get("nonce", "") or "").strip()
+                evidence_attestation_id = str(parsed.get("attestation_id", "") or "").strip()
                 try:
                     evidence_issued_at = int(parsed.get("issued_at", 0) or 0)
                     evidence_expires_at = int(parsed.get("expires_at", 0) or 0)
@@ -619,10 +654,12 @@ class SoulStamp(gl.Contract):
                 attestation_code = str(parsed.get("verification_code", "") or "")
                 claimed_username = str(parsed.get("claimed_username", "") or "")
                 attestation_pending_id = str(parsed.get("pending_id", "") or "")
+                issuer_match = evidence_issuer == self.discord_attestation_base_url.rstrip("/")
                 account_match = (
                     attestation_wallet == caller and attestation_code == code and bool(canonical_id)
                     and canonical_id == username.rsplit("#", 1)[-1].strip()
                     and (not pending_id or attestation_pending_id == pending_id)
+                    and issuer_match and bool(evidence_nonce) and bool(evidence_attestation_id)
                     and evidence_issued_at <= int(self._now()) and evidence_expires_at >= int(self._now())
                     and claimed_username.lower() == username.lower()
                 )
@@ -649,6 +686,13 @@ Never set code_found true unless the exact code {code!r} is present. Never chang
                 deterministic_code_found=code_found,
                 deterministic_account_match=account_match,
             )
+            verdict["evidence_snapshot"] = content
+            verdict["evidence_hash"] = hashlib.sha256(content.encode()).hexdigest()
+            verdict["evidence_issuer"] = evidence_issuer
+            verdict["evidence_nonce"] = evidence_nonce
+            verdict["evidence_attestation_id"] = evidence_attestation_id
+            verdict["evidence_wallet"] = attestation_wallet
+            verdict["evidence_pending_id"] = attestation_pending_id
             return verdict
 
         def validator_fn(leader_result) -> bool:
@@ -687,12 +731,18 @@ Never set code_found true unless the exact code {code!r} is present. Never chang
         result_expires_at = int(result.get("evidence_expires_at", 0) or 0) if isinstance(result, dict) else 0
         result_code_found = bool(result.get("code_found", False)) if isinstance(result, dict) else False
         result_account_match = bool(result.get("account_match", False)) if isinstance(result, dict) else False
-        return self._coerce_verdict(
+        final_verdict = self._coerce_verdict(
             result, platform, username, code, "", "STALE", result_canonical,
             result_issued_at, result_expires_at,
             deterministic_code_found=result_code_found,
             deterministic_account_match=result_account_match,
         )
+        for field in (
+            "evidence_snapshot", "evidence_hash", "evidence_issuer", "evidence_nonce",
+            "evidence_attestation_id", "evidence_wallet", "evidence_pending_id",
+        ):
+            final_verdict[field] = str(result.get(field, "") or "")
+        return final_verdict
 
     def _challenge_source_text(self, evidence_url: str) -> str:
         try:
@@ -710,44 +760,170 @@ Never set code_found true unless the exact code {code!r} is present. Never chang
                 raise
             raise gl.vm.UserError(f"{ERROR_TRANSIENT} Challenge evidence source unavailable: {error}")
 
-    def _resolve_challenge_consensus(self, challenge: OwnershipChallenge) -> dict:
-        # Fresh evidence is a hard authorization boundary. GenLayer independently
-        # resolves the evidence, but it cannot authorize an outcome that contradicts
-        # the deterministic evidence gates already recorded on-chain.
-        boundary_decision = (
-            "OWNER_UPHOLDS" if challenge.challenger_evidence_status != "ACTIVE"
-            else "INCONCLUSIVE" if challenge.owner_evidence_status == "ACTIVE"
-            else "CHALLENGER_UPHOLDS"
+    def _evidence_commitment(
+        self, platform: str, challenge_id: str, wallet: str, code: str,
+        canonical_id: str, issuer: str, nonce: str, attestation_id: str,
+        issued_at: int, expires_at: int, accepted_at: int, evidence_hash: str,
+    ) -> str:
+        material = (
+            f"SOULSTAMP-V3-EVIDENCE:{platform}:{challenge_id}:{wallet}:{code}:"
+            f"{canonical_id}:{issuer}:{nonce}:{attestation_id}:{issued_at}:"
+            f"{expires_at}:{accepted_at}:{evidence_hash}"
         )
+        return hashlib.sha256(material.encode()).hexdigest()
+
+    def _challenge_evidence_facts(self, challenge: OwnershipChallenge, role: str) -> dict:
+        """Independently derive challenge facts from live or immutable evidence.
+
+        Discord attestations are intentionally verified at acceptance time and
+        then resolved from the committed payload. GitHub and X evidence is
+        re-fetched at resolution because those provider documents are not
+        short-lived signed attestations.
+        """
+        is_challenger = role == "challenger"
+        self._require(role in ("challenger", "owner"), "Invalid challenge evidence role")
+        evidence_url = challenge.challenger_evidence_url if is_challenger else challenge.owner_rebuttal_url
+        code = challenge.challenger_code if is_challenger else challenge.owner_rebuttal_code
+        wallet = challenge.challenger_wallet if is_challenger else challenge.current_owner
+        expected_canonical = challenge.canonical_platform_id
+        snapshot = challenge.challenger_evidence_snapshot if is_challenger else challenge.owner_rebuttal_snapshot
+        stored_hash = challenge.challenger_evidence_hash if is_challenger else challenge.owner_rebuttal_hash
+        stored_commitment = challenge.challenger_evidence_commitment if is_challenger else challenge.owner_rebuttal_commitment
+        issuer = challenge.challenger_evidence_issuer if is_challenger else challenge.owner_rebuttal_issuer
+        nonce = challenge.challenger_evidence_nonce if is_challenger else challenge.owner_rebuttal_nonce
+        attestation_id = challenge.challenger_evidence_attestation_id if is_challenger else challenge.owner_rebuttal_attestation_id
+        issued_at = int(challenge.challenger_evidence_issued_at if is_challenger else challenge.owner_rebuttal_issued_at)
+        expires_at = int(challenge.challenger_evidence_expires_at if is_challenger else challenge.owner_rebuttal_expires_at)
+        accepted_at = int(challenge.challenger_evidence_accepted_at if is_challenger else challenge.owner_rebuttal_accepted_at)
+        self._require(bool(evidence_url) and bool(snapshot) and bool(stored_hash) and bool(stored_commitment), "Accepted challenge evidence is incomplete")
+        computed_snapshot_hash = hashlib.sha256(snapshot.encode()).hexdigest()
+        snapshot_commitment = self._evidence_commitment(
+            challenge.platform, challenge.challenge_id, wallet, code, expected_canonical,
+            issuer, nonce, attestation_id, issued_at, expires_at, accepted_at, stored_hash,
+        )
+        integrity_ok = computed_snapshot_hash == stored_hash and snapshot_commitment == stored_commitment
+
+        if challenge.platform == "discord":
+            content = snapshot
+            computed_hash = computed_snapshot_hash
+            parsed = {}
+            try:
+                parsed = json.loads(content)
+            except Exception:
+                parsed = {}
+            parsed_wallet = self._addr(parsed.get("wallet", "")) if isinstance(parsed, dict) and parsed.get("wallet") else ""
+            parsed_code = str(parsed.get("verification_code", "") or "") if isinstance(parsed, dict) else ""
+            parsed_username = str(parsed.get("claimed_username", "") or "") if isinstance(parsed, dict) else ""
+            parsed_pending_id = str(parsed.get("pending_id", "") or "") if isinstance(parsed, dict) else ""
+            parsed_issuer = str(parsed.get("issuer", "") or "").strip().rstrip("/") if isinstance(parsed, dict) else ""
+            parsed_nonce = str(parsed.get("nonce", "") or "").strip() if isinstance(parsed, dict) else ""
+            parsed_attestation_id = str(parsed.get("attestation_id", "") or "").strip() if isinstance(parsed, dict) else ""
+            parsed_canonical = str(parsed.get("discord_user_id", "") or parsed.get("discord_id", "") or "") if isinstance(parsed, dict) else ""
+            try:
+                parsed_issued_at = int(parsed.get("issued_at", 0) or 0) if isinstance(parsed, dict) else 0
+                parsed_expires_at = int(parsed.get("expires_at", 0) or 0) if isinstance(parsed, dict) else 0
+            except Exception:
+                parsed_issued_at, parsed_expires_at = 0, 0
+            code_found = code in content
+            account_match = (
+                isinstance(parsed, dict)
+                and parsed_wallet == wallet
+                and parsed_code == code
+                and parsed_pending_id == challenge.challenge_id
+                and parsed_username.lower() == challenge.username.lower()
+                and parsed_canonical == expected_canonical
+                and parsed_issuer == self.discord_attestation_base_url.rstrip("/")
+                and parsed_issuer == issuer
+                and parsed_nonce == nonce and bool(parsed_nonce)
+                and parsed_attestation_id == attestation_id and bool(parsed_attestation_id)
+                and parsed_issued_at == issued_at and parsed_expires_at == expires_at
+                and issued_at <= accepted_at <= expires_at
+            )
+            return {
+                "valid": bool(integrity_ok and code_found and account_match),
+                "code_found": code_found, "account_match": account_match,
+                "canonical_id": parsed_canonical, "reason": "DISCORD_SNAPSHOT_VALID" if account_match else "DISCORD_SNAPSHOT_CONFLICT",
+                "evidence_hash": computed_hash,
+            }
+
+        target_url = self._target_url(challenge.platform, challenge.username, evidence_url)
+        content = self._challenge_source_text(target_url)
+        parsed = {}
+        try:
+            parsed = json.loads(content)
+        except Exception:
+            parsed = {}
+        snapshot_parsed = {}
+        try:
+            snapshot_parsed = json.loads(snapshot)
+        except Exception:
+            snapshot_parsed = {}
+        code_found = code in snapshot
+        canonical_id = ""
+        account_match = False
+        if challenge.platform == "github" and isinstance(parsed, dict):
+            candidate_id = str(parsed.get("id", "") or "")
+            canonical_id = candidate_id if re.match(r"^[0-9]+$", candidate_id) else ""
+            snapshot_id = str(snapshot_parsed.get("id", "") or "") if isinstance(snapshot_parsed, dict) else ""
+            snapshot_login = str(snapshot_parsed.get("login", "") or "").lower() if isinstance(snapshot_parsed, dict) else ""
+            account_match = (
+                str(parsed.get("login", "") or "").lower() == challenge.username.lower()
+                and snapshot_login == challenge.username.lower()
+                and canonical_id == expected_canonical and snapshot_id == expected_canonical
+            )
+        elif challenge.platform == "twitter" and isinstance(parsed, dict):
+            author_url = str(parsed.get("author_url", "") or "")
+            author = urlparse(author_url) if author_url else None
+            parts = [part for part in author.path.split("/") if part] if author else []
+            provider_url = str(parsed.get("provider_url", "") or "")
+            provider = urlparse(provider_url) if provider_url else None
+            provider_ok = provider is None or (
+                provider.scheme == "https" and provider.netloc.lower() in ("x.com", "twitter.com")
+                and provider.path in ("", "/") and not provider.params and not provider.query and not provider.fragment
+            )
+            live_account_match = bool(author) and author.scheme == "https" and author.netloc.lower() in ("x.com", "twitter.com") \
+                and len(parts) == 1 and parts[0].lower() == challenge.username.lower() \
+                and not author.params and not author.query and not author.fragment and provider_ok
+            snapshot_author_url = str(snapshot_parsed.get("author_url", "") or "") if isinstance(snapshot_parsed, dict) else ""
+            snapshot_author = urlparse(snapshot_author_url) if snapshot_author_url else None
+            snapshot_parts = [part for part in snapshot_author.path.split("/") if part] if snapshot_author else []
+            account_match = live_account_match and bool(snapshot_author) and snapshot_author.scheme == "https" \
+                and snapshot_author.netloc.lower() in ("x.com", "twitter.com") \
+                and len(snapshot_parts) == 1 and snapshot_parts[0].lower() == challenge.username.lower()
+        return {
+            "valid": bool(integrity_ok and code_found and account_match and canonical_id == expected_canonical),
+            "code_found": code_found, "account_match": account_match,
+            "canonical_id": canonical_id, "reason": "LIVE_EVIDENCE_VALID" if account_match else "LIVE_EVIDENCE_CONFLICT",
+            "evidence_hash": hashlib.sha256(content.encode()).hexdigest(),
+        }
+
+    def _resolve_challenge_consensus(self, challenge: OwnershipChallenge) -> dict:
+        def derive_decision(challenger_facts: dict, owner_facts: dict) -> str:
+            if not challenger_facts.get("valid"):
+                return "OWNER_UPHOLDS"
+            if owner_facts.get("present") and owner_facts.get("facts", {}).get("valid"):
+                return "INCONCLUSIVE"
+            return "CHALLENGER_UPHOLDS"
 
         def leader_fn():
-            challenger_content = ""
-            if challenge.challenger_evidence_url:
-                challenger_content = self._challenge_source_text(challenge.challenger_evidence_url)
-            owner_content = ""
-            if challenge.owner_rebuttal_url:
-                owner_content = self._challenge_source_text(challenge.owner_rebuttal_url)
+            challenger_facts = self._challenge_evidence_facts(challenge, "challenger")
+            owner_facts = {"present": bool(challenge.owner_rebuttal_url), "facts": {}}
+            if owner_facts["present"]:
+                owner_facts["facts"] = self._challenge_evidence_facts(challenge, "owner")
+            boundary_decision = derive_decision(challenger_facts, owner_facts)
             prompt = f"""Return strict JSON only for this independent SoulStamp ownership challenge resolution.
 Fields: decision, reasoning. Allowed decision: CHALLENGER_UPHOLDS, OWNER_UPHOLDS, INCONCLUSIVE.
-Challenger code={challenge.challenger_code!r}; owner rebuttal code={challenge.owner_rebuttal_code!r}
-Stored challenger precheck: status={challenge.challenger_evidence_status}, canonical_id={challenge.challenger_canonical_id}
-Stored owner precheck: status={challenge.owner_evidence_status}, canonical_id={challenge.owner_canonical_id}
-Challenger evidence:
----
-{challenger_content}
----
-Owner rebuttal evidence:
----
-{owner_content}
----
-The deterministic admissible outcome is {boundary_decision}. The returned decision MUST equal that value. Do not invent an owner win when challenger evidence is active, and do not overturn an active owner rebuttal.
+Challenger independently-derived facts={challenger_facts}
+Owner independently-derived facts={owner_facts}
+The facts include exact code presence, provider account binding, canonical-ID agreement, and evidence integrity.
+Choose the allowed decision from those facts. The protocol boundary for this result is {boundary_decision}; a different decision is invalid.
 """
             ai = gl.nondet.exec_prompt(prompt, response_format="json")
             decision = str(ai.get("decision", "") if isinstance(ai, dict) else "").strip().upper()
             if decision not in ("CHALLENGER_UPHOLDS", "OWNER_UPHOLDS", "INCONCLUSIVE"):
                 raise gl.vm.UserError(f"{ERROR_LLM} Invalid challenge resolution decision")
             if decision != boundary_decision:
-                raise gl.vm.UserError(f"{ERROR_LLM} Challenge resolution contradicted deterministic evidence boundary")
+                raise gl.vm.UserError(f"{ERROR_LLM} Challenge resolution contradicted independently derived evidence")
             return {"decision": decision, "reasoning": str(ai.get("reasoning", "") if isinstance(ai, dict) else "")}
 
         def validator_fn(leader_result) -> bool:
@@ -757,26 +933,17 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
             if not isinstance(data, dict):
                 return False
             try:
-                challenger_content = ""
-                if challenge.challenger_evidence_url:
-                    challenger_content = self._challenge_source_text(challenge.challenger_evidence_url)
-                owner_content = ""
-                if challenge.owner_rebuttal_url:
-                    owner_content = self._challenge_source_text(challenge.owner_rebuttal_url)
+                challenger_facts = self._challenge_evidence_facts(challenge, "challenger")
+                owner_facts = {"present": bool(challenge.owner_rebuttal_url), "facts": {}}
+                if owner_facts["present"]:
+                    owner_facts["facts"] = self._challenge_evidence_facts(challenge, "owner")
+                boundary_decision = derive_decision(challenger_facts, owner_facts)
                 prompt = f"""Return strict JSON only for this independent SoulStamp ownership challenge resolution.
 Fields: decision, reasoning. Allowed decision: CHALLENGER_UPHOLDS, OWNER_UPHOLDS, INCONCLUSIVE.
-Challenger code={challenge.challenger_code!r}; owner rebuttal code={challenge.owner_rebuttal_code!r}
-Stored challenger precheck: status={challenge.challenger_evidence_status}, canonical_id={challenge.challenger_canonical_id}
-Stored owner precheck: status={challenge.owner_evidence_status}, canonical_id={challenge.owner_canonical_id}
-Challenger evidence:
----
-{challenger_content}
----
-Owner rebuttal evidence:
----
-{owner_content}
----
-The deterministic admissible outcome is {boundary_decision}. The returned decision MUST equal that value.
+Challenger independently-derived facts={challenger_facts}
+Owner independently-derived facts={owner_facts}
+The facts include exact code presence, provider account binding, canonical-ID agreement, and evidence integrity.
+Choose the allowed decision from those facts. The protocol boundary for this result is {boundary_decision}.
 """
                 ai = gl.nondet.exec_prompt(prompt, response_format="json")
                 decision = str(ai.get("decision", "") if isinstance(ai, dict) else "").strip().upper()
@@ -885,7 +1052,7 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
         identity.last_updated = marker
         self.identities[caller] = identity
         if pending.platform == "discord" and fetch_url:
-            self._consume_discord_attestation(fetch_url)
+            self._consume_discord_attestation(fetch_url, str(verdict.get("evidence_nonce", "") or ""))
         del self.pending_verifications[caller]
         self.total_verifications = u32(int(self.total_verifications) + 1)
 
@@ -953,7 +1120,7 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
         identity.last_updated = marker
         self.identities[owner] = identity
         if plat == "discord" and fetch_url:
-            self._consume_discord_attestation(fetch_url)
+            self._consume_discord_attestation(fetch_url, str(verdict.get("evidence_nonce", "") or ""))
 
     @gl.public.write
     def revoke_platform(self, platform: str, username: str) -> None:
@@ -1021,7 +1188,7 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
         challenge = self.challenges.get(challenge_id)
         self._require(challenge is not None, "Challenge not found")
         self._require(challenge.status == "OPEN", "Only an unanswered challenge can expire")
-        self._require(int(self._now()) > int(challenge.rebuttal_deadline), "Challenge evidence deadline has not passed")
+        self._require(int(self._now()) > int(challenge.challenger_evidence_deadline), "Challenge evidence deadline has not passed")
         self._expire_unanswered_challenge(challenge_id, challenge, actor)
 
     @gl.public.write
@@ -1031,17 +1198,20 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
         clean_user = self._normalize_username(plat, username)
         pkey = self._platform_key(plat, clean_user)
         owner = self.platform_to_address.get(pkey)
-        self._require(owner is not None, "No active identity proof exists for this account")
+        self._require(owner is not None, "No registered identity proof exists for this account")
         self._require(owner != challenger, "The current owner cannot challenge its own proof")
         identity = self.identities.get(owner)
         self._require(identity is not None and identity.identity_state == "ACTIVE", "Identity is not challengeable in its current state")
         idx = self._find_account(identity, plat, clean_user)
-        self._require(idx >= 0 and self._is_active_account(identity.linked_accounts[idx]), "Only a fresh active proof can be challenged")
+        self._require(idx >= 0, "Registered proof is missing")
+        effective_status = self._effective_proof_status(identity.linked_accounts[idx])
+        self._require(effective_status in ("ACTIVE", "STALE"), "Only an active or stale proof can be challenged")
         self._require(bool(identity.linked_accounts[idx].canonical_platform_id), "Ownership challenges require provider-returned canonical identity evidence")
         existing_id = self.open_challenges_by_platform.get(pkey)
         if existing_id is not None:
             existing = self.challenges.get(existing_id)
-            if existing is not None and existing.status == "OPEN" and int(self._now()) > int(existing.rebuttal_deadline):
+            existing_deadline = existing.challenger_evidence_deadline if existing is not None and int(existing.rebuttal_deadline) == 0 else (existing.rebuttal_deadline if existing is not None else u256(0))
+            if existing is not None and existing.status == "OPEN" and int(self._now()) > int(existing_deadline):
                 self._expire_unanswered_challenge(existing_id, existing, challenger)
         self._require(self.open_challenges_by_platform.get(pkey) is None, "An ownership challenge is already open")
         self.request_nonce = u32(int(self.request_nonce) + 1)
@@ -1056,9 +1226,19 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
             challenger_evidence_url="", owner_rebuttal_url="", owner_rebuttal_statement="",
             challenger_evidence_status="STALE", owner_evidence_status="STALE",
             challenger_canonical_id="", owner_canonical_id="", opened_at=opened_at,
-            rebuttal_deadline=u256(int(opened_at) + CHALLENGE_RESPONSE_WINDOW_SECONDS), resolved_at=u256(0),
+            rebuttal_deadline=u256(0), resolved_at=u256(0),
             recovery_not_before=u256(0), status="OPEN", outcome="", reason_code="AWAITING_FRESH_EVIDENCE",
             resolution_reasoning="", recovery_executed_at=u256(0),
+            challenger_evidence_snapshot="", owner_rebuttal_snapshot="",
+            challenger_evidence_hash="", owner_rebuttal_hash="",
+            challenger_evidence_commitment="", owner_rebuttal_commitment="",
+            challenger_evidence_issuer="", owner_rebuttal_issuer="",
+            challenger_evidence_nonce="", owner_rebuttal_nonce="",
+            challenger_evidence_attestation_id="", owner_rebuttal_attestation_id="",
+            challenger_evidence_issued_at=u256(0), challenger_evidence_expires_at=u256(0),
+            owner_rebuttal_issued_at=u256(0), owner_rebuttal_expires_at=u256(0),
+            challenger_evidence_accepted_at=u256(0), owner_rebuttal_accepted_at=u256(0),
+            challenger_evidence_deadline=u256(int(opened_at) + CHALLENGE_RESPONSE_WINDOW_SECONDS),
         )
         self.challenges[challenge_id] = challenge
         self.all_challenge_ids.append(challenge_id)
@@ -1072,8 +1252,8 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
         challenge = self.challenges.get(challenge_id)
         self._require(challenge is not None, "Challenge not found")
         self._require(challenge.challenger_wallet == challenger, "Only the challenger can submit challenger evidence")
-        self._require(challenge.status in ("OPEN", "AWAITING_REBUTTAL"), "Challenge is no longer accepting evidence")
-        self._require(int(self._now()) <= int(challenge.rebuttal_deadline), "Challenge evidence deadline has passed")
+        self._require(challenge.status == "OPEN", "Challenge is no longer accepting challenger evidence")
+        self._require(int(self._now()) <= int(challenge.challenger_evidence_deadline), "Challenge evidence deadline has passed")
         clean_evidence_url = evidence_url.strip()
         self._require(bool(clean_evidence_url) and len(clean_evidence_url) <= 2048, "Evidence URL must be present and at most 2048 characters")
         target_url = self._target_url(challenge.platform, challenge.username, clean_evidence_url)
@@ -1083,11 +1263,27 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
         challenge.challenger_evidence_url = clean_evidence_url
         challenge.challenger_evidence_status = verdict["proof_status"]
         challenge.challenger_canonical_id = verdict["canonical_platform_id"]
+        challenge.challenger_evidence_snapshot = str(verdict.get("evidence_snapshot", "") or "")
+        challenge.challenger_evidence_hash = str(verdict.get("evidence_hash", "") or "")
+        challenge.challenger_evidence_issuer = str(verdict.get("evidence_issuer", "") or "")
+        challenge.challenger_evidence_nonce = str(verdict.get("evidence_nonce", "") or "")
+        challenge.challenger_evidence_attestation_id = str(verdict.get("evidence_attestation_id", "") or "")
+        challenge.challenger_evidence_issued_at = u256(int(verdict.get("evidence_issued_at", 0) or 0))
+        challenge.challenger_evidence_expires_at = u256(int(verdict.get("evidence_expires_at", 0) or 0))
+        challenge.challenger_evidence_accepted_at = self._now()
+        challenge.challenger_evidence_commitment = self._evidence_commitment(
+            challenge.platform, challenge.challenge_id, challenge.challenger_wallet, challenge.challenger_code,
+            challenge.canonical_platform_id, challenge.challenger_evidence_issuer,
+            challenge.challenger_evidence_nonce, challenge.challenger_evidence_attestation_id,
+            int(challenge.challenger_evidence_issued_at), int(challenge.challenger_evidence_expires_at),
+            int(challenge.challenger_evidence_accepted_at), challenge.challenger_evidence_hash,
+        )
+        challenge.rebuttal_deadline = u256(int(challenge.challenger_evidence_accepted_at) + CHALLENGE_RESPONSE_WINDOW_SECONDS)
         challenge.reason_code = verdict["reason_code"]
         challenge.status = "AWAITING_REBUTTAL"
         self.challenges[challenge_id] = challenge
         if challenge.platform == "discord":
-            self._consume_discord_attestation(evidence_url.strip())
+            self._consume_discord_attestation(evidence_url.strip(), str(verdict.get("evidence_nonce", "") or ""))
 
     @gl.public.write
     def respond_to_challenge(self, challenge_id: str, rebuttal_url: str, statement: str) -> None:
@@ -1111,11 +1307,26 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
         challenge.owner_rebuttal_statement = clean_statement
         challenge.owner_evidence_status = verdict["proof_status"]
         challenge.owner_canonical_id = verdict["canonical_platform_id"]
+        challenge.owner_rebuttal_snapshot = str(verdict.get("evidence_snapshot", "") or "")
+        challenge.owner_rebuttal_hash = str(verdict.get("evidence_hash", "") or "")
+        challenge.owner_rebuttal_issuer = str(verdict.get("evidence_issuer", "") or "")
+        challenge.owner_rebuttal_nonce = str(verdict.get("evidence_nonce", "") or "")
+        challenge.owner_rebuttal_attestation_id = str(verdict.get("evidence_attestation_id", "") or "")
+        challenge.owner_rebuttal_issued_at = u256(int(verdict.get("evidence_issued_at", 0) or 0))
+        challenge.owner_rebuttal_expires_at = u256(int(verdict.get("evidence_expires_at", 0) or 0))
+        challenge.owner_rebuttal_accepted_at = self._now()
+        challenge.owner_rebuttal_commitment = self._evidence_commitment(
+            challenge.platform, challenge.challenge_id, challenge.current_owner, challenge.owner_rebuttal_code,
+            challenge.canonical_platform_id, challenge.owner_rebuttal_issuer,
+            challenge.owner_rebuttal_nonce, challenge.owner_rebuttal_attestation_id,
+            int(challenge.owner_rebuttal_issued_at), int(challenge.owner_rebuttal_expires_at),
+            int(challenge.owner_rebuttal_accepted_at), challenge.owner_rebuttal_hash,
+        )
         challenge.status = "RESPONDED"
         challenge.reason_code = verdict["reason_code"]
         self.challenges[challenge_id] = challenge
         if challenge.platform == "discord":
-            self._consume_discord_attestation(clean_rebuttal_url)
+            self._consume_discord_attestation(clean_rebuttal_url, str(verdict.get("evidence_nonce", "") or ""))
 
     @gl.public.write
     def resolve_ownership_challenge(self, challenge_id: str) -> None:
@@ -1131,7 +1342,7 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
         self._require(self.platform_to_address.get(self._platform_key(challenge.platform, challenge.username)) == challenge.current_owner, "The challenged link changed; this challenge is no longer valid")
         self._require(identity is not None and identity.identity_state == "ACTIVE", "The challenged identity is not active")
         current_idx = self._find_account(identity, challenge.platform, challenge.username)
-        self._require(current_idx >= 0 and self._is_active_account(identity.linked_accounts[current_idx]), "The challenged proof is no longer fresh")
+        self._require(current_idx >= 0 and self._effective_proof_status(identity.linked_accounts[current_idx]) in ("ACTIVE", "STALE"), "The challenged proof is no longer registered")
         resolution = self._resolve_challenge_consensus(challenge)
         decision = resolution["decision"]
         marker = self._mark()
@@ -1434,6 +1645,23 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
             "challenger_evidence_status": challenge.challenger_evidence_status, "owner_evidence_status": challenge.owner_evidence_status,
             "challenger_canonical_id": challenge.challenger_canonical_id, "owner_canonical_id": challenge.owner_canonical_id,
             "opened_at": int(challenge.opened_at), "rebuttal_deadline": int(challenge.rebuttal_deadline),
+            "challenger_evidence_hash": challenge.challenger_evidence_hash,
+            "owner_rebuttal_hash": challenge.owner_rebuttal_hash,
+            "challenger_evidence_commitment": challenge.challenger_evidence_commitment,
+            "owner_rebuttal_commitment": challenge.owner_rebuttal_commitment,
+            "challenger_evidence_issuer": challenge.challenger_evidence_issuer,
+            "owner_rebuttal_issuer": challenge.owner_rebuttal_issuer,
+            "challenger_evidence_nonce": challenge.challenger_evidence_nonce,
+            "owner_rebuttal_nonce": challenge.owner_rebuttal_nonce,
+            "challenger_evidence_attestation_id": challenge.challenger_evidence_attestation_id,
+            "owner_rebuttal_attestation_id": challenge.owner_rebuttal_attestation_id,
+            "challenger_evidence_issued_at": int(challenge.challenger_evidence_issued_at),
+            "challenger_evidence_expires_at": int(challenge.challenger_evidence_expires_at),
+            "owner_rebuttal_issued_at": int(challenge.owner_rebuttal_issued_at),
+            "owner_rebuttal_expires_at": int(challenge.owner_rebuttal_expires_at),
+            "challenger_evidence_accepted_at": int(challenge.challenger_evidence_accepted_at),
+            "owner_rebuttal_accepted_at": int(challenge.owner_rebuttal_accepted_at),
+            "challenger_evidence_deadline": int(challenge.challenger_evidence_deadline),
             "resolved_at": int(challenge.resolved_at), "recovery_not_before": int(challenge.recovery_not_before),
             "status": challenge.status, "outcome": challenge.outcome, "reason_code": challenge.reason_code,
             "resolution_reasoning": challenge.resolution_reasoning, "recovery_executed_at": int(challenge.recovery_executed_at),

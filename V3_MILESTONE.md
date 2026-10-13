@@ -27,16 +27,32 @@ OPEN
   -> EXECUTED                 challenger completes recovery after delay
 ```
 
-Resolution requires challenger evidence and either a rebuttal or an elapsed
-30-minute deadline. The resolver independently fetches both evidence URLs and
-validators must agree on the material outcome. Recovery has a safety delay and
-can only be executed by the winning challenger into a wallet without an
-existing identity. Recovery is account-scoped: the challenged account and its
-challenge history move to a new principal, while unrelated links and
-reputation remain with the source identity. An unanswered `OPEN` challenge can
-be expired by any caller after the deadline, and a later challenge attempt also
-performs this bounded cleanup so an abandoned challenge cannot permanently lock
-a link.
+An `OPEN` challenge has a 30-minute challenger-evidence deadline. Once fresh
+challenger evidence is independently accepted, the contract snapshots the
+provider response, stores its SHA-256 hash and a commitment binding the
+challenge, wallet, code, canonical ID, issuer, nonce, attestation ID, source
+timestamps, and acceptance timestamp, then starts a separate 30-minute owner
+rebuttal deadline. An unanswered `OPEN` challenge can be expired by any caller
+after the challenger-evidence deadline.
+
+Resolution independently derives facts rather than trusting the stored
+precheck status. GitHub and X account/canonical evidence is revalidated from
+the provider at resolution while the exact accepted code response remains
+integrity-bound. Discord uses its accepted immutable snapshot, so a Worker
+attestation may expire during the rebuttal window without making a valid
+challenge unverifiable. Validators check code presence, wallet/account
+binding, canonical-ID agreement, issuer/nonce/attestation metadata, and
+snapshot integrity before accepting `OWNER_UPHOLDS`, `CHALLENGER_UPHOLDS`, or
+`INCONCLUSIVE`.
+
+Recovery has a safety delay and can only be executed by the winning challenger
+into a wallet without an existing identity. Recovery is account-scoped: the
+challenged account and its challenge history move to a new principal, while
+unrelated links and reputation remain with the source identity. A stale
+canonical proof keeps its platform and canonical reservations until this
+fresh-evidence challenge process completes; stale records are never released
+automatically. X handle-only proofs and legacy records without canonical IDs
+remain outside recovery-grade challenge authorization.
 
 ## Eligibility
 
@@ -58,8 +74,11 @@ canonical ID, marks imported proofs as `STALE` with reason
 any available canonical index to prevent takeover during migration, and records
 the source contract in an immutable audit entry. Legacy state remains untouched
 and can be compared against the new record. Imported proofs with no fresh
-evidence are not consumer-eligible until reverification. There is intentionally
-no V3-to-V3 migration path; a newly deployed V3 instance starts empty and
+evidence are not consumer-eligible until reverification. Historical handle-only
+records without a canonical ID remain stale and discoverable for
+owner-controlled reverification, but migration never grants immutable-ID
+ownership, fresh eligibility, or recovery authority. There is intentionally no
+V3-to-V3 migration path; a newly deployed V3 instance starts empty and
 requires fresh operator verification.
 
 ## Gates and honest live evidence
@@ -91,9 +110,13 @@ IDs and stricter source checks but originally retained the same exact reason-cod
 comparison. The current correction derives protocol status, reason code,
 strength, risk, and confidence from deterministic code, account, canonical-ID,
 and freshness facts; LLM reasoning remains explanatory only. Validators still
-independently fetch and validate the source and account binding. Active policy
+independently validate live provider data or the accepted immutable snapshot,
+including account binding. Active policy
 confidence is exactly `92` for GitHub, `82` for X handle-only, and `94` for
-Discord, regardless of missing or contradictory LLM score fields.
+Discord, regardless of missing or contradictory LLM score fields. Direct Mode
+also covers separate challenger/rebuttal deadlines, immutable Discord
+snapshots beyond token expiry, nonce replay, stale canonical reservation
+reclamation, V2 handle-only migration, and contradictory challenge outputs.
 
 Two public live v3 receipts were inspected before this fix:
 
@@ -177,8 +200,9 @@ transactions remain operator-owned.
 
 The current engineering correction is source-only. Its normalized LF contract
 SHA-256 is
-`2a98eb064cc854eb693786c6b5153839e6ae7783f4292e27fc9d42198b3373a2`.
+`c892d9afd3b7e6077ba2ee0c909dff3711b3baa175111bbc89bbac21030c71b0`.
 The live contract and Vercel release above remain unchanged. The correction
 deterministically assigns active-proof confidence `92` (GitHub), `82` (X
-handle-only), and `94` (Discord), keeps account/dossier values aligned, and
-does not claim new live identity or lifecycle proofs.
+handle-only), and `94` (Discord), keeps account/dossier values aligned, adds
+immutable challenge evidence snapshots and safe stale reclamation, and does
+not claim new live identity or lifecycle proofs.

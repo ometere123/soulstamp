@@ -148,6 +148,13 @@ export interface OwnershipChallenge {
   owner_canonical_id: string;
   opened_at: number;
   rebuttal_deadline: number;
+  challenger_evidence_deadline?: number;
+  challenger_evidence_hash?: string;
+  owner_rebuttal_hash?: string;
+  challenger_evidence_commitment?: string;
+  owner_rebuttal_commitment?: string;
+  challenger_evidence_accepted_at?: number;
+  owner_rebuttal_accepted_at?: number;
   resolved_at: number;
   recovery_not_before: number;
   status: ChallengeStatus;

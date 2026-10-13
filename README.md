@@ -51,11 +51,11 @@ Worker URL is stored.
 The deployment and source-parity record is in
 [evidence/studionet-v3-deployment.json](./evidence/studionet-v3-deployment.json).
 
-The confidence/reputation correction in the current engineering branch is
-source-only and has not been deployed. It leaves the live address above and
-Vercel unchanged until an operator deploys and verifies the new source. The
-normalized LF source SHA-256 for this correction is
-`2a98eb064cc854eb693786c6b5153839e6ae7783f4292e27fc9d42198b3373a2`.
+The confidence, reputation, and challenge-evidence correction in the current
+engineering branch is source-only and has not been deployed. It leaves the
+live address above and Vercel unchanged until an operator deploys and verifies
+the new source. The normalized LF source SHA-256 for this correction is
+`c892d9afd3b7e6077ba2ee0c909dff3711b3baa175111bbc89bbac21030c71b0`.
 
 ---
 
@@ -65,12 +65,13 @@ normalized LF source SHA-256 for this correction is
 |---|---|
 | X impersonation | Submitted status URLs are only locators; authorship is checked from the provider's HTTPS oEmbed `author_url` and exact handle. Current oEmbed is handle-only (`MEDIUM`) because it does not return an immutable author ID, so it cannot authorize wallet recovery. |
 | Canonical ownership | Platform username and canonical platform ID are separate indexes and both are reserved/released atomically. |
-| Fresh evidence | Discord attestations are bound to wallet, code, pending/challenge ID, issuer, expiry, and a one-use on-chain token. |
-| Challenges | Challengers receive a fresh code and bounded rebuttal window; both evidence paths are independently resolved through GenLayer. |
-| Recovery | A winning challenger alone can execute recovery after a safety delay; old and new wallets retain append-only history. |
+| Fresh evidence | Discord attestations are bound to wallet, code, pending/challenge ID, canonical Discord ID, configured issuer, expiry, attestation ID, nonce, and one-use on-chain token. |
+| Challenges | Challenger evidence is accepted into an immutable hash/commitment snapshot. The challenger has a bounded submission deadline; the owner’s rebuttal window starts only after valid challenger evidence is accepted. |
+| Resolution | GitHub/X evidence is independently revalidated at resolution while exact accepted code evidence remains integrity-bound; expiring Discord attestations are resolved from their accepted snapshot without extending token lifetime. Validators derive outcomes from evidence facts, not stored status labels. |
+| Recovery | A winning challenger alone can execute account-scoped recovery after a safety delay; unrelated links and reputation remain with the old principal and both principals retain append-only history. |
 | Eligibility | `consumer_eligibility(address)` and `is_eligible(address)` require active identity state plus a fresh active proof. |
 | Finality | Frontend writes and live proof tooling require `FINALIZED`, majority agreement, and `FINISHED_WITH_RETURN`; `ACCEPTED`, `Undetermined`, `NO_MAJORITY`, and `MAJORITY_DISAGREE` are never treated as success. |
-| Continuity | `migrate_legacy_identity` explicitly imports v2 records, retains the legacy address, and writes a migration audit event. |
+| Continuity | `migrate_legacy_identity` explicitly imports v2 records, including handle-only historical X links, marks them stale, retains reservations, and writes a migration audit event. No V3-to-V3 migration is provided. |
 | Confidence policy | Successful GitHub, X handle-only, and Discord evidence receives deterministic confidence `92`, `82`, and `94` respectively. LLM omissions, zeroes, and wording variance cannot override provider facts. |
 | Assurance labels | The legacy on-chain `bot_score` field remains for v2 storage compatibility, but it is not a bot detector. The UI presents evidence assurance and protocol risk instead. |
 
@@ -129,10 +130,11 @@ See [V2_MILESTONE.md](./V2_MILESTONE.md) for the milestone summary.
 
 5. request_ownership_challenge(platform, username)
        |
-       +-> A challenger submits fresh evidence before the rebuttal deadline.
+       +-> A challenger submits fresh evidence before the challenger-evidence deadline.
+       +-> Accepted evidence is snapshotted with an integrity commitment; for Discord, resolution never depends on a later refetch of the expired URL.
        +-> The current owner may submit a bounded rebuttal with fresh evidence.
-       +-> Independent GenLayer resolution yields OWNER_UPHOLDS, CHALLENGER_UPHOLDS, or INCONCLUSIVE.
-       +-> If no challenger evidence arrives, expire_ownership_challenge releases the slot after the deadline.
+       +-> Independent GenLayer resolution checks actual code, account, canonical-ID, and snapshot/live integrity facts and yields OWNER_UPHOLDS, CHALLENGER_UPHOLDS, or INCONCLUSIVE.
+       +-> If no challenger evidence arrives, expire_ownership_challenge releases the slot after the challenger-evidence deadline.
 
 6. execute_wallet_recovery(challenge_id)
        |
@@ -301,9 +303,9 @@ The same callback URL must be registered in the Discord Developer Portal.
 - Verification codes are public, deterministic proof markers, not secrets.
 - Proof decisions remain in the GenLayer contract flow; the backend does not become the final verifier.
 - Fetch URLs are restricted to expected sources for each platform.
-- Discord attestations are short-lived and bound to wallet, proof code, pending proof ID, Discord ID, issuer, and nonce.
+- Discord attestations are short-lived and bound to wallet, proof code, pending/challenge ID, Discord ID, configured issuer, nonce, attestation ID, and accepted-time integrity. A challenge snapshot does not extend the attestation’s lifetime.
 - Removed unsafe contract dependence on local wall-clock timestamps for proof creation and strict expiry behavior.
-- GenLayer consensus stores structured evidence, resolves contested ownership, and maintains proof health over time.
+- GenLayer consensus stores structured evidence, resolves contested ownership, and maintains proof health over time. Expired canonical proofs retain their reservation until a fresh-evidence challenge and bounded owner-response process authorizes reclamation; handle-only X and legacy records cannot authorize recovery.
 
 ## Studionet release proof
 
