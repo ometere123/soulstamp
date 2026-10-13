@@ -41,15 +41,15 @@ rebuttal, recovery, revocation, and negative-transition testing remain operator-
 The existing Discord Worker is healthy at the existing URL (`GET /health`
 returned HTTP 200 with `ok: true`, the expected public base URL, and
 stateless-signed-attestation storage). The new contract's attestation backend
-is not configured yet: the local workspace has no authorized admin private-key
-value, so no configuration transaction was submitted. The admin must execute:
+is configured by this operator-supplied admin transaction:
 
 ```text
 set_discord_attestation_base_url("https://soulstamp-discord.delealufejoel.workers.dev")
 ```
 
-from the admin wallet on Studionet 61999, then verify a finalized
-`MAJORITY_AGREE` receipt and `get_stats().discord_attestation_base_url`.
+Transaction: [0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3](https://explorer-studio.genlayer.com/tx/0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3)
+(`FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN / SUCCESS, SUCCESS`),
+signed by the configured admin. `get_stats` confirms the Worker URL is stored.
 
 The deployment and source-parity record is in
 [artifacts/live/studionet-v3-release-2026-10-13.json](./artifacts/live/studionet-v3-release-2026-10-13.json).

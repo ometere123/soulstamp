@@ -73,6 +73,26 @@
       "verifier_version": "soulstamp-v3.0-continuity"
     }
   },
+  "post_configuration_state": {
+    "method": "get_stats",
+    "assertions": [
+      {
+        "path": "discord_attestation_base_url",
+        "expected": "https://soulstamp-discord.delealufejoel.workers.dev",
+        "actual": "https://soulstamp-discord.delealufejoel.workers.dev"
+      }
+    ],
+    "result": {
+      "admin": "0x4e44636494650386b89c64011c10f48d4b344c4f",
+      "discord_attestation_base_url": "https://soulstamp-discord.delealufejoel.workers.dev",
+      "legacy_contract_address": "0x3108daffcbc24e261137056c56afcae17677bdfb",
+      "total_challenges": 0,
+      "total_identities": 0,
+      "total_recoveries": 0,
+      "total_verifications": 0,
+      "verifier_version": "soulstamp-v3.0-continuity"
+    }
+  },
   "vercel": {
     "project": "delealufejoel-4184s-projects/soulstamp",
     "project_id": "prj_9ENlvmzbHlnkDAOB9HQwTnBmoN6G",
@@ -108,11 +128,20 @@
       "storage": "stateless-signed-attestations"
     },
     "contract_configuration": {
-      "status": "pending_admin_transaction",
+      "status": "verified",
       "method": "set_discord_attestation_base_url",
       "argument": "https://soulstamp-discord.delealufejoel.workers.dev",
-      "transaction": null,
-      "blocker": "No authorized admin private-key value is present in the workspace; no write was submitted."
+      "transaction": {
+        "hash": "0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3",
+        "explorer": "https://explorer-studio.genlayer.com/tx/0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3",
+        "status": "FINALIZED",
+        "execution": "FINISHED_WITH_RETURN",
+        "consensus_result": "MAJORITY_AGREE",
+        "raw_execution_results": ["SUCCESS", "SUCCESS"],
+        "signer": "0x4e44636494650386b89c64011c10f48d4b344c4f",
+        "recipient": "0xd16da83df7189475564b520bc22ec465c9a88621"
+      },
+      "post_state_verified": true
     }
   },
   "previous_live_release": {

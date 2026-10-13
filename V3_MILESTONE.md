@@ -185,9 +185,11 @@ The latest operator deployment is independently verified from public Studionet
   Both public bundles contain the new contract address and not the superseded
   V3 address.
 - Discord Worker: `GET /health` returned HTTP 200 with `ok: true` and the
-  expected stateless attestation storage. The new contract still needs the
-  authorized admin call
-  `set_discord_attestation_base_url("https://soulstamp-discord.delealufejoel.workers.dev")`.
+  expected stateless attestation storage. The new contract stores the Worker
+  URL after finalized admin transaction
+  [0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3](https://explorer-studio.genlayer.com/tx/0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3),
+  which reached `FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN` with
+  `SUCCESS`, `SUCCESS`.
 
 This deployment-only evidence is recorded in
 `artifacts/live/studionet-v3-release-2026-10-13.json`. Lifecycle proof remains
@@ -229,7 +231,7 @@ Lifecycle proof remains intentionally `not_recorded`; real social verification,
 challenge, rebuttal, recovery, revocation, eligibility, and negative-transition
 transactions remain operator-owned.
 
-## Confidence and reputation correction (deployed; Discord config pending)
+## Confidence and reputation correction (deployed)
 
 The engineering correction is source-parity verified on the new contract. Its normalized LF contract
 SHA-256 is
@@ -238,6 +240,6 @@ The correction
 deterministically assigns active-proof confidence `92` (GitHub), `82` (X
 handle-only), and `94` (Discord), keeps account/dossier values aligned, adds
 immutable challenge evidence snapshots and safe stale reclamation, and does
-not claim new live identity or lifecycle proofs. Vercel has been updated and
-verified; only the new contract's Discord base URL remains a manual admin
-configuration action.
+not claim new live identity or lifecycle proofs. Vercel and the Discord
+attestation base URL are now configured and verified; lifecycle proofs remain
+operator-owned.
