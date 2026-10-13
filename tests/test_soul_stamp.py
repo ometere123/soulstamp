@@ -15,6 +15,7 @@ def test_contract_declares_v3_continuity_protocol():
         "resolve_ownership_challenge",
         "expire_ownership_challenge",
         "execute_wallet_recovery",
+        "cancel_wallet_recovery",
         "consumer_eligibility",
         "migrate_legacy_identity",
     ):
@@ -29,6 +30,7 @@ def test_contract_has_replay_and_canonical_guards():
     assert "GENLAYER_INDEPENDENT_RESOLUTION" in source
     assert "event_hash" in source
     assert "evidence_expires_at" in source
+    assert "recovery_counter_commitment" in source
 
 
 def test_contract_preserves_provider_limited_x_evidence_and_safe_v2_migration():

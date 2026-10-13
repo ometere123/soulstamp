@@ -7,6 +7,7 @@ import clsx from "clsx";
 import { useWallet } from "../lib/useWallet";
 import {
   executeWalletRecovery,
+  cancelWalletRecovery,
   expireOwnershipChallenge,
   getChallenges,
   requestOwnershipChallenge,
@@ -40,6 +41,7 @@ const STATUS_STYLES: Record<ChallengeStatus, string> = {
   RESOLVED_INCONCLUSIVE: "text-gray-300 border-gray-600 bg-gray-800",
   EXECUTED: "text-success border-success/30 bg-success/10",
   EXPIRED: "text-gray-400 border-gray-700 bg-gray-800",
+  RECOVERY_CANCELLED: "text-success border-success/30 bg-success/10",
 };
 
 function shortAddress(value: string) {
@@ -66,6 +68,7 @@ export function ChallengePanel() {
   const [username, setUsername] = useState("");
   const [evidence, setEvidence] = useState<Record<string, string>>({});
   const [rebuttals, setRebuttals] = useState<Record<string, string>>({});
+  const [counterEvidence, setCounterEvidence] = useState<Record<string, string>>({});
   const [statements, setStatements] = useState<Record<string, string>>({});
   const [discordSession, setDiscordSession] = useState<string | null>(null);
   const [discordTarget, setDiscordTarget] = useState<string | null>(null);
@@ -150,9 +153,10 @@ export function ChallengePanel() {
     window.location.href = discordStartUrl(address, window.location.origin + window.location.pathname);
   }
 
-  async function createFreshDiscordEvidence(challenge: OwnershipChallenge, role: "challenger" | "owner") {
+  async function createFreshDiscordEvidence(challenge: OwnershipChallenge, role: "challenger" | "owner" | "counter") {
     if (!address || !discordSession) return setError("Connect Discord first.");
-    const code = role === "challenger" ? challenge.challenger_code : challenge.owner_rebuttal_code;
+    const code = role === "challenger" ? challenge.challenger_code : role === "owner" ? challenge.owner_rebuttal_code : challenge.recovery_counter_code;
+    if (!code) return setError("Recovery counter-evidence is not available for this challenge.");
     setAction(`attest:${challenge.challenge_id}`);
     setError(null);
     try {
@@ -164,7 +168,8 @@ export function ChallengePanel() {
         pendingId: challenge.challenge_id,
       });
       if (role === "challenger") setField(setEvidence, challenge.challenge_id, attestation.attestation_url);
-      else setField(setRebuttals, challenge.challenge_id, attestation.attestation_url);
+      else if (role === "owner") setField(setRebuttals, challenge.challenge_id, attestation.attestation_url);
+      else setField(setCounterEvidence, challenge.challenge_id, attestation.attestation_url);
       setDiscordTarget(challenge.challenge_id);
       setNotice(`Fresh Discord attestation created and expires at ${dateLabel(attestation.expires_at)}.`);
     } catch (e: any) {
@@ -245,6 +250,7 @@ export function ChallengePanel() {
               const isOwner = challenge.current_owner.toLowerCase() === address.toLowerCase();
               const evidenceUrl = evidence[challenge.challenge_id] ?? "";
               const rebuttalUrl = rebuttals[challenge.challenge_id] ?? "";
+              const counterUrl = counterEvidence[challenge.challenge_id] ?? "";
               const statement = statements[challenge.challenge_id] ?? "";
               const activeDeadline = challenge.status === "OPEN"
                 ? Number(challenge.challenger_evidence_deadline ?? challenge.rebuttal_deadline)
@@ -317,6 +323,18 @@ export function ChallengePanel() {
                     <div className="border-t border-gray-800 pt-3 flex flex-wrap items-center justify-between gap-3">
                       <div className="text-xs text-gray-400">Recovery safety delay ends {dateLabel(challenge.recovery_not_before)}.</div>
                       {isChallenger && <button onClick={() => runAction(`recover:${challenge.challenge_id}`, () => executeWalletRecovery(challenge.challenge_id), "Challenged-account recovery finalized; unrelated links and reputation remain with the source identity.")} disabled={!canRecover || action === `recover:${challenge.challenge_id}`} className="btn-primary text-xs"><WalletCards className="w-3.5 h-3.5" /> Execute safe recovery</button>}
+                      {isOwner && Number(challenge.recovery_counter_deadline ?? 0) >= Math.floor(Date.now() / 1000) && (
+                        <div className="w-full border border-yellow-500/20 bg-yellow-500/5 rounded-xl p-4 space-y-2">
+                          <div className="text-xs text-yellow-200">Temporary-compromise safeguard · counter window ends {dateLabel(Number(challenge.recovery_counter_deadline))}</div>
+                          <p className="text-xs text-gray-400">Publish the fresh counter code on the challenged canonical account to cancel recovery. This evidence is independent of the original rebuttal.</p>
+                          <code className="block text-xs text-white">{challenge.recovery_counter_code}</code>
+                          <div className="flex gap-2">
+                            <input value={counterUrl} onChange={e => setField(setCounterEvidence, challenge.challenge_id, e.target.value)} className="input flex-1 text-xs" placeholder="Fresh counter-evidence URL" />
+                            {challenge.platform === "discord" && <button onClick={() => discordSession ? createFreshDiscordEvidence(challenge, "counter") : connectDiscord(challenge.challenge_id)} className="btn-secondary text-xs">{discordSession ? "Fresh Discord evidence" : "Connect Discord"}</button>}
+                            <button onClick={() => runAction(`cancel:${challenge.challenge_id}`, () => cancelWalletRecovery(challenge.challenge_id, counterUrl.trim()), "Pending recovery cancelled by fresh owner evidence.")} disabled={!counterUrl.trim() || action === `cancel:${challenge.challenge_id}`} className="btn-secondary text-xs">Cancel recovery</button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

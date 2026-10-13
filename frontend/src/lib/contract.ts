@@ -190,3 +190,7 @@ export async function expireOwnershipChallenge(challengeId: string) {
 export async function executeWalletRecovery(challengeId: string) {
   return writeAndWait("execute_wallet_recovery", [challengeId]);
 }
+
+export async function cancelWalletRecovery(challengeId: string, evidenceUrl: string) {
+  return writeAndWait("cancel_wallet_recovery", [challengeId, evidenceUrl]);
+}

@@ -1,0 +1,21 @@
+{
+  "network": "studionet-61999",
+  "scope": "engineering-security-pass",
+  "deployed_contract": "0xD16Da83DF7189475564B520bC22ec465c9a88621",
+  "deployed_contract_source_parity": "not_checked_for_this_revision",
+  "current_contract_source_sha256_normalized_lf": "8ac00d1522257ab15978a1feec2630acfea368e304866f8a763928e28bd70d52",
+  "deployment_or_lifecycle_writes": "not_executed_by_instruction",
+  "live_identity_and_recovery_proofs": "not_recorded",
+  "engineering_gates": {
+    "contract_lint_and_semantic_validation": "passed",
+    "pytest": {"passed": 68, "skipped": 2},
+    "frontend_tests": {"passed": 11},
+    "discord_worker_tests": {"passed": 6},
+    "frontend_production_build": "passed"
+  },
+  "notes": [
+    "This record documents repository engineering evidence only.",
+    "It does not claim that the current deployment contains this source revision.",
+    "Manual live challenge, rebuttal, recovery, cancellation, revocation and migration proofs remain operator-owned."
+  ]
+}

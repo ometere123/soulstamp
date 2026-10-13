@@ -24,6 +24,7 @@ OPEN
   -> RESOLVED_OWNER           owner evidence is upheld
   -> RESOLVED_CHALLENGER      challenger evidence is upheld
   -> RESOLVED_INCONCLUSIVE    fresh evidence conflicts
+  -> RECOVERY_CANCELLED       owner counter-evidence cancels pending recovery
   -> EXECUTED                 challenger completes recovery after delay
 ```
 
@@ -243,3 +244,87 @@ immutable challenge evidence snapshots and safe stale reclamation, and does
 not claim new live identity or lifecycle proofs. Vercel and the Discord
 attestation base URL are now configured and verified; lifecycle proofs remain
 operator-owned.
+
+## Security and acceptance correction (not deployed by this pass)
+
+The normalized LF SHA-256 of the current contract source is
+`8ac00d1522257ab15978a1feec2630acfea368e304866f8a763928e28bd70d52`.
+It is intentionally not represented as source parity for the deployed
+`0xD16Da83DF7189475564B520bC22ec465c9a88621`, because this pass obeys the
+no-deployment boundary.
+
+This pass keeps the single contract, frontend and Discord Worker architecture
+and adds the following enforceable rules:
+
+- Validators compare normalized decision material, not leader prose or volatile
+  API metadata. Material includes provider/source facts, exact code presence,
+  canonical ID, wallet, challenge/pending ID, issuer, nonce, attestation ID,
+  issued/expiry/accepted timestamps, evidence hash and commitment. A leader
+  cannot select a verdict and ask validators to repeat it.
+- GitHub canonical IDs and Discord IDs can support a disputed handle
+  reassignment only when fresh independent evidence proves a different
+  canonical principal. The old canonical-ID reservation, wallet, reputation,
+  unrelated links and audit history stay with the old identity; only the
+  mutable platform-handle index changes. X has no immutable ID in oEmbed, so
+  handle-only X evidence cannot reassign a reserved handle or authorize
+  recovery.
+- Persistent GitHub/X evidence must still contain the accepted exact code and
+  the same normalized provider facts at resolution. A deleted, replaced or
+  mismatching public document fails closed. Discord is different: its signed
+  acceptance-time snapshot and commitment are independently checked after the
+  five-minute attestation expires; the expired URL is not refetched.
+- Challenger evidence starts the owner rebuttal deadline only after valid
+  acceptance. A challenger-upheld decision has a 24-hour recovery delay and a
+  one-hour owner-only counter-evidence window. The owner receives a new
+  cancellation code; cancellation is independently verified, recorded in new
+  immutable challenge fields and changes the challenge to
+  `RECOVERY_CANCELLED`. Recovery remains one-use and account-scoped.
+
+### What GenLayer is doing
+
+Deterministic protocol logic establishes HTTPS/provider-origin rules, exact
+code scans, normalized usernames, canonical IDs, wallet and challenge/pending
+bindings, issuer/nonce/attestation checks, timestamp windows, evidence hashes,
+commitments, status transitions, deadlines and confidence policy values.
+GenLayer validator agreement is required for the independent web/snapshot
+fact set and for a successful state-changing write. Genuine AI judgment is
+limited to explanatory reasoning and selecting among the already-derived
+`OWNER_UPHOLDS`, `CHALLENGER_UPHOLDS` or `INCONCLUSIVE` outcomes; it cannot
+invent IDs, upgrade X evidence, change a reason code, or override a failed
+fact check. Fetch failures, contradictory material and missing majority fail
+closed.
+
+### Frontend-led manual acceptance checklist
+
+Every live write below must be reported only after `FINALIZED`,
+`MAJORITY_AGREE`, successful GenVM execution and the expected post-state read:
+
+1. On Studionet 61999, verify GitHub, X handle-only and Discord OAuth evidence.
+   Confirm account/dossier confidence is `92/82/94`, X strength is `MEDIUM`,
+   Discord nonce/attestation is consumed once, and `consumer_eligibility` is
+   true.
+2. Reverify each provider with fresh evidence. Confirm status, `is_active`,
+   dossier score, wallet reputation and eligibility remain consistent. Delete
+   or replace a GitHub/X code after challenge acceptance and confirm resolution
+   does not authorize takeover.
+3. Challenge a canonical GitHub or Discord link from a fresh wallet. Submit
+   fresh challenger evidence and confirm the rebuttal deadline starts at its
+   accepted timestamp. Test both no rebuttal and a valid owner rebuttal.
+4. For Discord, resolve after the Worker token expires and confirm the
+   accepted snapshot/commitment is used. For GitHub/X, confirm live code and
+   normalized source facts remain present at resolution.
+5. For a challenger-upheld result, confirm the 24-hour cooldown and owner
+   counter window. Publish the new owner counter code and call
+   `cancel_wallet_recovery`; confirm `RECOVERY_CANCELLED`, restored eligibility,
+   and that the challenger cannot replay recovery. In a separate fresh
+   challenge, let the counter window lapse, wait for cooldown, execute recovery,
+   and verify only the challenged link moves; unrelated links and source
+   reputation do not.
+6. Revoke a link and confirm mutable and canonical indexes behave as
+   documented. Migrate a V2 handle-only record and confirm it is stale,
+   discoverable and ineligible until owner-controlled reverification. Do not
+   run V3-to-V3 migration.
+
+This is an operator procedure, not live evidence. No new social, challenge,
+rebuttal, recovery, revocation or migration receipt is claimed by this
+repository change.

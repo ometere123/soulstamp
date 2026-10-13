@@ -335,6 +335,109 @@ def test_canonical_id_is_unique_across_handles(direct_vm, direct_deploy):
         contract.complete_verification("")
 
 
+def test_verified_canonical_username_reassignment_does_not_transfer_old_identity(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    old_reputation = contract.get_identity(OWNER)["reputation_score"]
+
+    direct_vm.clear_mocks()
+    direct_vm.sender = OTHER
+    # A new wallet may submit evidence for a recycled handle, but only the
+    # fresh provider canonical ID can authorize the disputed reassignment.
+    contract.request_verification("github", "alice", "https://github.com/alice")
+    pending = contract.get_pending_verification(OTHER)
+    github_web(direct_vm, "alice", pending["verification_code"], canonical_id="99")
+    proof_llm(direct_vm, canonical_id="99")
+    contract.complete_verification("")
+
+    old_account = contract.get_identity(OWNER)["linked_accounts"][0]
+    new_account = contract.get_identity(OTHER)["linked_accounts"][0]
+    assert old_account["canonical_platform_id"] == "42"
+    assert old_account["proof_status"] == "CONFLICTED"
+    assert new_account["canonical_platform_id"] == "99"
+    assert contract.lookup_by_platform("github", "alice")["owner_address"] == OTHER
+    assert contract.get_identity(OWNER)["reputation_score"] == old_reputation
+    assert contract.get_identity(OTHER)["reputation_score"] == 92
+
+
+def test_x_handle_only_evidence_cannot_reassign_a_reserved_username(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    direct_vm.sender = OWNER
+    contract.request_verification("twitter", "claimed", "https://x.com/claimed/status/123456")
+    pending = contract.get_pending_verification(OWNER)
+    direct_vm.mock_web(
+        r".*publish\.twitter\.com/oembed.*",
+        {"status": 200, "body": json.dumps({
+            "author_url": "https://x.com/claimed", "provider_url": "https://x.com",
+            "html": pending["verification_code"],
+        })},
+    )
+    proof_llm(direct_vm, canonical_id="")
+    contract.complete_verification("https://x.com/claimed/status/123456")
+    direct_vm.clear_mocks()
+    direct_vm.sender = OTHER
+    with direct_vm.expect_revert("fresh canonical evidence"):
+        contract.request_verification("twitter", "claimed", "https://x.com/claimed/status/999999")
+
+
+def test_persistent_evidence_deletion_at_resolution_is_not_treated_as_valid(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    direct_vm.clear_mocks()
+    direct_vm.sender = CHALLENGER
+    contract.request_ownership_challenge("github", "alice")
+    challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
+    github_web(direct_vm, "alice", challenge["challenger_code"], canonical_id="42")
+    proof_llm(direct_vm, canonical_id="42")
+    contract.submit_challenge_evidence(challenge["challenge_id"], "https://github.com/alice")
+    direct_vm.clear_mocks()
+    direct_vm.mock_web(
+        r".*api\.github\.com/users/alice$",
+        {"status": 200, "body": json.dumps({"bio": "replacement without the accepted code", "login": "alice", "id": 42})},
+    )
+    direct_vm.warp(datetime.fromtimestamp(contract.get_challenge(challenge["challenge_id"])["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
+    proof_llm(direct_vm, decision="OWNER_UPHOLDS")
+    contract.resolve_ownership_challenge(challenge["challenge_id"])
+    assert contract.get_challenge(challenge["challenge_id"])["status"] == "RESOLVED_OWNER"
+
+
+def test_owner_can_cancel_temporary_compromise_with_bounded_fresh_evidence(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+    direct_vm.clear_mocks()
+    direct_vm.sender = CHALLENGER
+    contract.request_ownership_challenge("github", "alice")
+    challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
+    github_web(direct_vm, "alice", challenge["challenger_code"], canonical_id="42")
+    proof_llm(direct_vm, canonical_id="42")
+    contract.submit_challenge_evidence(challenge["challenge_id"], "https://github.com/alice")
+    direct_vm.clear_mocks()
+    direct_vm.mock_web(
+        r".*api\.github\.com/users/alice$",
+        {"status": 200, "body": json.dumps({"bio": challenge["challenger_code"], "login": "alice", "id": 42})},
+    )
+    direct_vm.warp(datetime.fromtimestamp(contract.get_challenge(challenge["challenge_id"])["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
+    proof_llm(direct_vm, decision="CHALLENGER_UPHOLDS")
+    contract.resolve_ownership_challenge(challenge["challenge_id"])
+    resolved = contract.get_challenge(challenge["challenge_id"])
+    assert resolved["recovery_not_before"] - resolved["resolved_at"] >= 24 * 60 * 60 - 1
+
+    direct_vm.clear_mocks()
+    direct_vm.sender = OWNER
+    direct_vm.mock_web(
+        r".*api\.github\.com/users/alice$",
+        {"status": 200, "body": json.dumps({"bio": resolved["recovery_counter_code"], "login": "alice", "id": 42})},
+    )
+    proof_llm(direct_vm, canonical_id="42")
+    contract.cancel_wallet_recovery(challenge["challenge_id"], "https://github.com/alice")
+    cancelled = contract.get_challenge(challenge["challenge_id"])
+    assert cancelled["status"] == "RECOVERY_CANCELLED"
+    assert contract.get_identity(OWNER)["identity_state"] == "ACTIVE"
+    direct_vm.sender = CHALLENGER
+    with direct_vm.expect_revert("not authorized"):
+        contract.execute_wallet_recovery(challenge["challenge_id"])
+
+
 def test_adversarial_validator_cannot_change_canonical_identity(direct_vm, direct_deploy):
     contract = deploy(direct_deploy)
     verify_github(direct_vm, contract, OWNER, "alice", "42")
@@ -749,9 +852,10 @@ def test_challenge_owner_rebuttal_can_force_inconclusive(direct_vm, direct_deplo
     github_web(direct_vm, "alice", challenge["owner_rebuttal_code"], canonical_id="42")
     proof_llm(direct_vm, canonical_id="42")
     contract.respond_to_challenge(challenge_id, "https://github.com/alice", "I retain the account.")
+    direct_vm.clear_mocks()
     direct_vm.mock_web(
         r".*api\.github\.com/users/alice$",
-        {"status": 200, "body": json.dumps({"bio": challenge["owner_rebuttal_code"], "login": "alice", "id": 42})},
+        {"status": 200, "body": json.dumps({"bio": f"{challenge['challenger_code']} {challenge['owner_rebuttal_code']}", "login": "alice", "id": 42})},
     )
     proof_llm(direct_vm, decision="INCONCLUSIVE")
     contract.resolve_ownership_challenge(challenge_id)

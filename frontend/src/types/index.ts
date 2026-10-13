@@ -127,7 +127,8 @@ export type ChallengeStatus =
   | "RESOLVED_CHALLENGER"
   | "RESOLVED_INCONCLUSIVE"
   | "EXECUTED"
-  | "EXPIRED";
+  | "EXPIRED"
+  | "RECOVERY_CANCELLED";
 
 export interface OwnershipChallenge {
   found?: boolean;
@@ -139,6 +140,7 @@ export interface OwnershipChallenge {
   challenger_wallet: string;
   challenger_code: string;
   owner_rebuttal_code: string;
+  recovery_counter_code?: string;
   challenger_evidence_url: string;
   owner_rebuttal_url: string;
   owner_rebuttal_statement: string;
@@ -157,6 +159,8 @@ export interface OwnershipChallenge {
   owner_rebuttal_accepted_at?: number;
   resolved_at: number;
   recovery_not_before: number;
+  recovery_counter_deadline?: number;
+  recovery_cancelled_at?: number;
   status: ChallengeStatus;
   outcome: string;
   reason_code: string;
