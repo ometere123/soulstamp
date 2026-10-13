@@ -11,45 +11,59 @@ The v3 contribution is a lifecycle state machine, not a UI-only refresh: a consu
 | Service | URL |
 |---|---|
 | Frontend | https://soulstamp-gen.vercel.app |
-| Preview deployment | https://soulstamp-91idoe88o-delealufejoel-4184s-projects.vercel.app |
+| Preview deployment | https://soulstamp-o5v36e0zx-delealufejoel-4184s-projects.vercel.app |
 | Discord Worker | https://soulstamp-discord.delealufejoel.workers.dev |
 | Repository | https://github.com/ometere123/soulstamp |
 
 Current v3 Studionet deployment:
 
 ```text
-Contract: 0xD16Da83DF7189475564B520bC22ec465c9a88621
-Deployment: https://explorer-studio.genlayer.com/tx/0x330f956c29af8a7fea5b42f0058ef698f034ed33963a5e77b0f3c8e1aab32fde
+Contract: 0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d
+Deployment: https://explorer-studio.genlayer.com/tx/0x5614d0fc28aa4650e5aa2320dbd748cb7919446cd77c9180c1a1f08f9f54565a
 Status: FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN / SUCCESS, SUCCESS
 Deployment signer: 0x4E44636494650386b89C64011c10f48D4b344c4f
-Deployed source: exact after CRLF normalization for commit 55dcdf1
-Deployed source hash: c892d9afd3b7e6077ba2ee0c909dff3711b3baa175111bbc89bbac21030c71b0
+Deployed source: exact after CRLF normalization for commit 4b95cfd
+Deployed source hash: 4e4e54c8e60524f6fb0cf7ac9c7dbc5edb4ffdcae4019ad3ba7e7a9054b18c19
 Initial state: verifier `soulstamp-v3.0-continuity`, admin
 `0x4e44636494650386b89c64011c10f48d4b344c4f`, legacy contract
 `0x3108daffcbc24e261137056c56afcae17677bdfb`, and zero verifications,
 identities, challenges, and recoveries.
-Vercel: Production `dpl_3E5bAFzgVW1EgjJrHhh16NUSGUC5` READY at
+Vercel: Production `dpl_3o8q26xjj76fr3ctyJhB1h4xxxn5` READY at
 `https://soulstamp-gen.vercel.app`; Preview
-`dpl_4aixfrsNDPvExPsmxU846VavHPG7` READY at
-`https://soulstamp-91idoe88o-delealufejoel-4184s-projects.vercel.app`.
-Both served bundles contain the new contract address and not the superseded
-`0x279003ad03E224e26C328466135Ac83a1AC8ED8a` address.
+`dpl_JDM8fsgW57Ut77rJTstMauZbaJrv` READY at
+`https://soulstamp-o5v36e0zx-delealufejoel-4184s-projects.vercel.app`.
+The production, preview, and public alias bundles contain the new contract
+address and none of the checked superseded v3 addresses.
 Lifecycle proof: not recorded; real identity verification, challenge,
 rebuttal, recovery, revocation, and negative-transition testing remain operator-owned.
 ```
 
 The existing Discord Worker is healthy at the existing URL (`GET /health`
 returned HTTP 200 with `ok: true`, the expected public base URL, and
-stateless-signed-attestation storage). The new contract's attestation backend
-is configured by this operator-supplied admin transaction:
+stateless-signed-attestation storage). The new contract's
+`get_stats().discord_attestation_base_url` is currently empty, so Discord
+verification on this fresh deployment is not yet enabled. The configured
+admin must execute exactly one admin write:
 
 ```text
 set_discord_attestation_base_url("https://soulstamp-discord.delealufejoel.workers.dev")
 ```
 
 Transaction: [0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3](https://explorer-studio.genlayer.com/tx/0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3)
-(`FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN / SUCCESS, SUCCESS`),
-signed by the configured admin. `get_stats` confirms the Worker URL is stored.
+is for the superseded deployment and does not configure this contract. No
+configuration transaction is claimed for the new address. From the repository
+root, the admin can submit and then independently verify it with:
+
+```powershell
+$env:GENLAYER_PRIVATE_KEY = "<admin-only secret>"
+node scripts/live_submit.mjs write 0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d set_discord_attestation_base_url '["https://soulstamp-discord.delealufejoel.workers.dev"]'
+node scripts/finalized_tx.mjs <returned-tx-hash>
+node scripts/live_read.mjs 0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d get_stats '[]'
+```
+
+Only a `FINALIZED` / `MAJORITY_AGREE` / `FINISHED_WITH_RETURN` receipt with
+successful execution and a post-state URL equal to the Worker URL counts as
+configured. The private key must never be committed or returned by the Worker.
 
 The deployment and source-parity record is in
 [artifacts/live/studionet-v3-release-2026-10-13.json](./artifacts/live/studionet-v3-release-2026-10-13.json).
@@ -81,21 +95,21 @@ See [V3_MILESTONE.md](./V3_MILESTONE.md) for the protocol state machine, migrati
 
 ### Latest continuity correction — source parity verified live
 
-Commit `55dcdf1` is deployed at the contract address above with exact source
-parity. It keeps the X oEmbed compatibility and genuine Worker-signed Discord
-URL handling from the preceding release, while adding immutable challenge
-evidence snapshots, separate rebuttal deadlines, safe stale reclamation and
-V2 handle-only migration. The current security correction further binds every
-decision-critical evidence field, supports canonical-ID-safe username
-reassignment, requires live persistent-provider code at resolution, and adds
-bounded owner counter-evidence cancellation before recovery. These changes are
-implemented and covered by local executable tests; new live lifecycle proofs
-remain operator-owned.
+Commit `4b95cfdd3e806435666df3719e812de60348a686` is deployed at the contract
+address above with exact source parity. It keeps the X oEmbed compatibility and
+genuine Worker-signed Discord URL handling from the preceding release, while
+adding immutable challenge evidence snapshots, separate rebuttal deadlines,
+safe stale reclamation and V2 handle-only migration. The security correction
+also binds every decision-critical evidence field, supports canonical-ID-safe
+username reassignment, requires live persistent-provider code at resolution,
+and adds bounded owner counter-evidence cancellation before recovery. These
+changes are covered by local executable tests; new live lifecycle proofs remain
+operator-owned.
 
 The latest security-pass contract source has normalized LF SHA-256
 `4e4e54c8e60524f6fb0cf7ac9c7dbc5edb4ffdcae4019ad3ba7e7a9054b18c19`.
-This hash is a working-tree engineering result, not a claim about the currently
-deployed contract, because deployment is deliberately excluded from this pass.
+This is the exact normalized source hash independently matched to the deployed
+contract source.
 
 ## What Changed In v2
 

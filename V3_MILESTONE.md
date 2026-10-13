@@ -136,6 +136,41 @@ variance, HTTP source failures, canonical-ID changes, replay, invalid challenge
 decisions, misleading finality receipts, and exact signer/method/argument
 metadata.
 
+## Current verified deployment handoff
+
+The latest operator deployment is independently verified from public Studionet
+61999 data and matches the security-hardened source revision:
+
+- Commit: `4b95cfdd3e806435666df3719e812de60348a686`
+- Contract: `0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d`
+- Deployment: [0x5614d0fc28aa4650e5aa2320dbd748cb7919446cd77c9180c1a1f08f9f54565a](https://explorer-studio.genlayer.com/tx/0x5614d0fc28aa4650e5aa2320dbd748cb7919446cd77c9180c1a1f08f9f54565a)
+- Signer/admin: `0x4E44636494650386b89C64011c10f48D4b344c4f`
+- Receipt: `FINALIZED`, `MAJORITY_AGREE`, `FINISHED_WITH_RETURN`, raw
+  executions `SUCCESS`, `SUCCESS`.
+- Source parity: exact after CRLF normalization; normalized SHA-256
+  `4e4e54c8e60524f6fb0cf7ac9c7dbc5edb4ffdcae4019ad3ba7e7a9054b18c19`.
+- Initial state: verifier `soulstamp-v3.0-continuity`, legacy contract
+  `0x3108daffcbc24e261137056c56afcae17677bdfb`, and zero verifications,
+  identities, challenges, and recoveries.
+- Vercel: Production `dpl_3o8q26xjj76fr3ctyJhB1h4xxxn5` and Preview
+  `dpl_JDM8fsgW57Ut77rJTstMauZbaJrv` are `READY`. The production alias is
+  `https://soulstamp-gen.vercel.app`; the preview URL is
+  `https://soulstamp-o5v36e0zx-delealufejoel-4184s-projects.vercel.app`.
+  The protected deployment bundles and public alias bundle contain the new
+  address and none of the checked superseded v3 addresses.
+- Discord Worker: `GET /health` returned HTTP 200 with `ok: true`, but the new
+  contract's `get_stats().discord_attestation_base_url` is still empty. No
+  configuration transaction is claimed. The configured admin must call
+  `set_discord_attestation_base_url("https://soulstamp-discord.delealufejoel.workers.dev")`
+  and verify a finalized successful receipt plus the post-state read before
+  Discord verification is considered enabled for this address.
+
+This deployment-only evidence is recorded in
+`artifacts/live/studionet-v3-release-2026-10-13.json` and
+`artifacts/live/studionet-v3-external-proof-2026-10-13.json`. Lifecycle proof
+remains `not_recorded`; no social verification, challenge, rebuttal, recovery,
+revocation, eligibility, or negative-transition transaction is implied.
+
 ## Previous verified deployment handoff (superseded)
 
 The corrected v3 revision was deployed by the operator and independently
@@ -162,7 +197,7 @@ verification, challenge, rebuttal, recovery, revocation, eligibility, and
 negative-transition transactions remain operator-owned and are not implied by
 deployment finality.
 
-## Current verified deployment handoff
+## Previous verified deployment handoff (superseded)
 
 The latest operator deployment is independently verified from public Studionet
 61999 data:
@@ -232,7 +267,7 @@ Lifecycle proof remains intentionally `not_recorded`; real social verification,
 challenge, rebuttal, recovery, revocation, eligibility, and negative-transition
 transactions remain operator-owned.
 
-## Confidence and reputation correction (deployed)
+## Confidence and reputation correction (previous deployment)
 
 The engineering correction is source-parity verified on the new contract. Its normalized LF contract
 SHA-256 is
@@ -245,13 +280,17 @@ not claim new live identity or lifecycle proofs. Vercel and the Discord
 attestation base URL are now configured and verified; lifecycle proofs remain
 operator-owned.
 
-## Security and acceptance correction (not deployed by this pass)
+## Security and acceptance correction (deployed current)
 
-The normalized LF SHA-256 of the current contract source is
+Commit `4b95cfdd3e806435666df3719e812de60348a686` is deployed at
+`0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d` with exact source parity. The
+normalized LF SHA-256 of the current contract source is
 `4e4e54c8e60524f6fb0cf7ac9c7dbc5edb4ffdcae4019ad3ba7e7a9054b18c19`.
-It is intentionally not represented as source parity for the deployed
-`0xD16Da83DF7189475564B520bC22ec465c9a88621`, because this pass obeys the
-no-deployment boundary.
+The deployment reached `FINALIZED`, `MAJORITY_AGREE`, and
+`FINISHED_WITH_RETURN` with successful leader executions. The new contract
+starts empty as recorded above; the Worker health check passed, but its URL
+still requires the single authorized admin configuration call described in the
+current deployment handoff.
 
 This pass keeps the single contract, frontend and Discord Worker architecture
 and adds the following enforceable rules:

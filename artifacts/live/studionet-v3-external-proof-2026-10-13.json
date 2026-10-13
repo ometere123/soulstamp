@@ -1,0 +1,96 @@
+{
+  "protocol": "SoulStamp v3 identity continuity",
+  "network": {
+    "name": "Studionet",
+    "chain_id": 61999,
+    "rpc": "https://studio.genlayer.com/api"
+  },
+  "verification_mode": "external-read-only-deployment-only",
+  "lifecycle_proof_status": "not_recorded",
+  "contract_address": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d",
+  "deployment_transaction": {
+    "hash": "0x5614d0fc28aa4650e5aa2320dbd748cb7919446cd77c9180c1a1f08f9f54565a",
+    "explorer": "https://explorer-studio.genlayer.com/tx/0x5614d0fc28aa4650e5aa2320dbd748cb7919446cd77c9180c1a1f08f9f54565a",
+    "statusName": "FINALIZED",
+    "txExecutionResultName": "FINISHED_WITH_RETURN",
+    "rawResultName": "MAJORITY_AGREE",
+    "rawExecutionResults": [
+      "SUCCESS",
+      "SUCCESS"
+    ],
+    "contractAddress": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d",
+    "sender": "0x4E44636494650386b89C64011c10f48D4b344c4f",
+    "recipient": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d",
+    "transactionType": "unknown",
+    "method": null,
+    "args": [],
+    "calldataDecoded": false
+  },
+  "source_sha256": "4e4e54c8e60524f6fb0cf7ac9c7dbc5edb4ffdcae4019ad3ba7e7a9054b18c19",
+  "api_source_sha256": "4e4e54c8e60524f6fb0cf7ac9c7dbc5edb4ffdcae4019ad3ba7e7a9054b18c19",
+  "source_parity": "exact_after_line_ending_normalization",
+  "source_line_ending_note": "Studionet source is compared after CRLF/CR to LF normalization.",
+  "deployed_state": {
+    "method": "get_stats",
+    "assertions": [
+      {
+        "path": "verifier_version",
+        "expected": "soulstamp-v3.0-continuity",
+        "actual": "soulstamp-v3.0-continuity"
+      }
+    ],
+    "result": {
+      "admin": "0x4e44636494650386b89c64011c10f48d4b344c4f",
+      "challenge_statuses": [
+        "OPEN",
+        "AWAITING_REBUTTAL",
+        "RESPONDED",
+        "RESOLVED_OWNER",
+        "RESOLVED_CHALLENGER",
+        "RESOLVED_INCONCLUSIVE",
+        "EXECUTED",
+        "EXPIRED",
+        "RECOVERY_CANCELLED"
+      ],
+      "discord_attestation_base_url": "",
+      "legacy_contract_address": "0x3108daffcbc24e261137056c56afcae17677bdfb",
+      "proof_statuses": [
+        "ACTIVE",
+        "STALE",
+        "REVOKED",
+        "CONFLICTED",
+        "FLAGGED",
+        "RECOVERED"
+      ],
+      "supported_platforms": [
+        "github",
+        "twitter",
+        "discord"
+      ],
+      "total_challenges": 0,
+      "total_identities": 0,
+      "total_recoveries": 0,
+      "total_verifications": 0,
+      "verifier_version": "soulstamp-v3.0-continuity"
+    }
+  },
+  "lifecycle": [],
+  "negative_lifecycle": [],
+  "lifecycle_proof": {
+    "status": "not_recorded",
+    "required_successful_methods": [
+      "complete_verification",
+      "execute_wallet_recovery",
+      "request_ownership_challenge",
+      "request_verification",
+      "resolve_ownership_challenge",
+      "respond_to_challenge",
+      "revoke_platform",
+      "submit_challenge_evidence"
+    ],
+    "negative_transition_required": true
+  },
+  "recorded_at": "2026-10-13T17:51:35.184880+00:00",
+  "explorer": "https://explorer-studio.genlayer.com/address/0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d",
+  "local_source_revision": "4b95cfdd3e806435666df3719e812de60348a686"
+}
