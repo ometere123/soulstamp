@@ -33,10 +33,12 @@ PENDING_TTL_SECONDS = 30 * 60
 PROOF_VALIDITY_SECONDS = 30 * 24 * 60 * 60
 CHALLENGE_RESPONSE_WINDOW_SECONDS = 30 * 60
 # Recovery is deliberately slower than the rebuttal window.  This gives a
-# temporarily compromised owner a bounded, independently verified cancellation
-# path before an irreversible wallet change.
+# temporarily compromised owner an independently verified cancellation path
+# for the entire safety delay before an irreversible wallet change.
 RECOVERY_DELAY_SECONDS = 24 * 60 * 60
-RECOVERY_COUNTER_WINDOW_SECONDS = 60 * 60
+# Kept as a named policy constant for ABI/documentation clarity.  The counter
+# opportunity is intentionally aligned with the full recovery cooldown.
+RECOVERY_COUNTER_WINDOW_SECONDS = RECOVERY_DELAY_SECONDS
 VERIFIER_VERSION = "soulstamp-v3.0-continuity"
 ERROR_EXPECTED = "[EXPECTED]"
 ERROR_EXTERNAL = "[EXTERNAL]"
@@ -403,12 +405,16 @@ class SoulStamp(gl.Contract):
             self.canonical_id_to_address[ckey] = owner
 
     def _prepare_verified_username_reassignment(self, new_owner: str, acct: LinkedAccount) -> None:
-        """Move only the mutable handle index after a fresh canonical proof.
+        """Move only a stale handle index after a fresh canonical proof.
 
         The previous owner and canonical-ID index remain intact as historical
         state.  This is deliberately unavailable to X handle-only evidence;
         a mutable handle cannot prove that an old owner was legitimately
-        replaced and therefore cannot authorize reassignment or recovery.
+        replaced and therefore cannot authorize reassignment or recovery.  A
+        still-fresh GitHub/Discord proof must be explicitly released by its
+        owner/admin or handled by the challenge lifecycle; a new canonical-ID
+        holder cannot silently overwrite it.  Once the old proof is stale, the
+        bounded reservation can be safely reclaimed by fresh provider evidence.
         """
         pkey = self._platform_key(acct.platform, acct.username)
         old_owner = self.platform_to_address.get(pkey)
@@ -422,15 +428,19 @@ class SoulStamp(gl.Contract):
         self._require(old_idx >= 0, "Existing platform owner proof is missing")
         old_account = old_identity.linked_accounts[old_idx]
         self._require(bool(old_account.canonical_platform_id) and old_account.canonical_platform_id != acct.canonical_platform_id, "Canonical platform identity is already bound to this account")
+        self._require(
+            self._effective_proof_status(old_account) == "STALE",
+            "Fresh canonical ownership is still reserved; the current owner or a contested challenge must release it before reassignment",
+        )
         ckey = self._canonical_key(acct.platform, acct.canonical_platform_id)
         canonical_owner = self.canonical_id_to_address.get(ckey)
         self._require(canonical_owner is None or canonical_owner == new_owner, "Canonical platform ID is already linked to another wallet")
         marker = self._mark()
-        self._set_account_status(old_account, "CONFLICTED", "USERNAME_REASSIGNED_TO_NEW_CANONICAL_ID", marker)
+        self._set_account_status(old_account, "CONFLICTED", "USERNAME_REASSIGNED_AFTER_EXPIRY", marker)
         old_identity.linked_accounts[old_idx] = old_account
         self._append_audit(
             old_identity, "username_reassigned", acct.platform, acct.username,
-            "disputed_reassignment", 0, 0, "CONFLICTED", "USERNAME_REASSIGNED_TO_NEW_CANONICAL_ID",
+            "disputed_reassignment", 0, 0, "CONFLICTED", "USERNAME_REASSIGNED_AFTER_EXPIRY",
             details=f"old_canonical_id={old_account.canonical_platform_id};new_owner={new_owner};new_canonical_id={acct.canonical_platform_id}",
             actor=new_owner,
         )
@@ -1279,6 +1289,10 @@ Choose the allowed decision from those facts. The protocol boundary for this res
                 "Platform account is already linked to another wallet; fresh canonical evidence is required for reassignment",
             )
             self._require(self.open_challenges_by_platform.get(pkey) is None, "Cannot start reassignment while an ownership challenge is open")
+            self._require(
+                self._effective_proof_status(existing_account) == "STALE",
+                "Fresh canonical ownership is still reserved; wait for proof expiry or obtain an explicit owner/admin release",
+            )
         self.request_nonce = u32(int(self.request_nonce) + 1)
         pending_id = self._make_pending_id(caller, plat, clean_user, self.request_nonce)
         requested_at = self._now()
@@ -1650,7 +1664,9 @@ Choose the allowed decision from those facts. The protocol boundary for this res
         if decision == "CHALLENGER_UPHOLDS":
             challenge.status = "RESOLVED_CHALLENGER"
             challenge.recovery_not_before = u256(int(now) + RECOVERY_DELAY_SECONDS)
-            challenge.recovery_counter_deadline = u256(int(now) + RECOVERY_COUNTER_WINDOW_SECONDS)
+            # The owner may submit fresh counter-evidence at any point before
+            # the same 24-hour boundary that gates recovery execution.
+            challenge.recovery_counter_deadline = challenge.recovery_not_before
             if identity is not None:
                 idx = self._find_account(identity, challenge.platform, challenge.username)
                 if idx >= 0:

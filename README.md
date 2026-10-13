@@ -66,11 +66,11 @@ The normalized LF source SHA-256 for this deployed correction is
 | Area | v3 improvement |
 |---|---|
 | X impersonation | Submitted status URLs are only locators; authorship is checked from the provider's HTTPS oEmbed `author_url` and exact handle. Current oEmbed is handle-only (`MEDIUM`) because it does not return an immutable author ID, so it cannot authorize wallet recovery. |
-| Canonical ownership | Platform username and canonical platform ID are separate indexes. A fresh GitHub/Discord canonical-ID change can reassign only the mutable handle index; the old canonical binding, wallet, reputation, unrelated links and history remain with the old identity. X handle-only evidence cannot reassign a reserved handle. |
+| Canonical ownership | Platform username and canonical platform ID are separate indexes. A fresh GitHub/Discord canonical-ID change can reassign only a handle whose prior proof is stale, or one explicitly released by its owner/admin; a still-fresh canonical owner cannot be silently overwritten. The old canonical binding, wallet, reputation, unrelated links and history remain with the old identity. X handle-only evidence cannot reassign a reserved handle. |
 | Fresh evidence | Discord attestations are bound to wallet, code, pending/challenge ID, canonical Discord ID, configured issuer, expiry, attestation ID, nonce, and one-use on-chain token. |
 | Challenges | Challenger evidence is accepted into an immutable hash/commitment snapshot. The challenger has a bounded submission deadline; the owner’s rebuttal window starts only after valid challenger evidence is accepted. |
 | Resolution | GitHub/X evidence is independently revalidated at resolution and must still contain the accepted code plus the same normalized provider facts; expiring Discord attestations are resolved from their accepted snapshot without extending token lifetime. Validators compare all stable bindings, hashes and commitments—not prose or a preselected leader decision. |
-| Recovery | A winning challenger alone can execute account-scoped recovery after a 24-hour safety delay. The current owner has a separate one-hour fresh counter-evidence cancellation window; unrelated links and reputation remain with the old principal and both principals retain append-only history. |
+| Recovery | A winning challenger alone can execute account-scoped recovery after a 24-hour safety delay. The current owner has a fresh counter-evidence cancellation window for that entire 24-hour cooldown, ending at the same boundary as recovery; unrelated links and reputation remain with the old principal and both principals retain append-only history. |
 | Eligibility | `consumer_eligibility(address)` and `is_eligible(address)` require active identity state plus a fresh active proof. |
 | Finality | Frontend writes and live proof tooling require `FINALIZED`, majority agreement, and `FINISHED_WITH_RETURN`; `ACCEPTED`, `Undetermined`, `NO_MAJORITY`, and `MAJORITY_DISAGREE` are never treated as success. |
 | Continuity | `migrate_legacy_identity` explicitly imports v2 records, including handle-only historical X links, marks them stale, retains reservations, and writes a migration audit event. No V3-to-V3 migration is provided. |
@@ -93,7 +93,7 @@ implemented and covered by local executable tests; new live lifecycle proofs
 remain operator-owned.
 
 The latest security-pass contract source has normalized LF SHA-256
-`01aed40c311cdd220878af4f3e52f527c4d53099087e440341daf3adaf93a5e2`.
+`4e4e54c8e60524f6fb0cf7ac9c7dbc5edb4ffdcae4019ad3ba7e7a9054b18c19`.
 This hash is a working-tree engineering result, not a claim about the currently
 deployed contract, because deployment is deliberately excluded from this pass.
 
@@ -153,7 +153,7 @@ See [V2_MILESTONE.md](./V2_MILESTONE.md) for the milestone summary.
 
 7. cancel_wallet_recovery(challenge_id, evidence_url)
        |
-       +-> Before the bounded counter window closes, the current owner can publish a new counter code.
+       +-> Before the 24-hour recovery cooldown closes, the current owner can publish a new counter code.
        +-> Fresh canonical evidence is independently checked and the cancellation is recorded as RECOVERY_CANCELLED.
 ```
 

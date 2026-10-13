@@ -248,7 +248,7 @@ operator-owned.
 ## Security and acceptance correction (not deployed by this pass)
 
 The normalized LF SHA-256 of the current contract source is
-`01aed40c311cdd220878af4f3e52f527c4d53099087e440341daf3adaf93a5e2`.
+`4e4e54c8e60524f6fb0cf7ac9c7dbc5edb4ffdcae4019ad3ba7e7a9054b18c19`.
 It is intentionally not represented as source parity for the deployed
 `0xD16Da83DF7189475564B520bC22ec465c9a88621`, because this pass obeys the
 no-deployment boundary.
@@ -263,7 +263,9 @@ and adds the following enforceable rules:
   cannot select a verdict and ask validators to repeat it.
 - GitHub canonical IDs and Discord IDs can support a disputed handle
   reassignment only when fresh independent evidence proves a different
-  canonical principal. The old canonical-ID reservation, wallet, reputation,
+  canonical principal and the prior proof is stale, or the prior owner/admin
+  explicitly released the handle. A still-fresh proof cannot be silently
+  overwritten. The old canonical-ID reservation, wallet, reputation,
   unrelated links and audit history stay with the old identity; only the
   mutable platform-handle index changes. X has no immutable ID in oEmbed, so
   handle-only X evidence cannot reassign a reserved handle or authorize
@@ -275,7 +277,8 @@ and adds the following enforceable rules:
   five-minute attestation expires; the expired URL is not refetched.
 - Challenger evidence starts the owner rebuttal deadline only after valid
   acceptance. A challenger-upheld decision has a 24-hour recovery delay and a
-  one-hour owner-only counter-evidence window. The owner receives a new
+  full-24-hour owner-only counter-evidence window ending at the same boundary
+  as recovery. The owner receives a new
   cancellation code; cancellation is independently verified, recorded in new
   immutable challenge fields and changes the challenge to
   `RECOVERY_CANCELLED`. Recovery remains one-use and account-scoped.
@@ -313,8 +316,9 @@ Every live write below must be reported only after `FINALIZED`,
 4. For Discord, resolve after the Worker token expires and confirm the
    accepted snapshot/commitment is used. For GitHub/X, confirm live code and
    normalized source facts remain present at resolution.
-5. For a challenger-upheld result, confirm the 24-hour cooldown and owner
-   counter window. Publish the new owner counter code and call
+5. For a challenger-upheld result, confirm the 24-hour cooldown and that the
+   owner counter deadline equals the recovery deadline. Publish the new owner
+   counter code near the end of that period and call
    `cancel_wallet_recovery`; confirm `RECOVERY_CANCELLED`, restored eligibility,
    and that the challenger cannot replay recovery. In a separate fresh
    challenge, let the counter window lapse, wait for cooldown, execute recovery,

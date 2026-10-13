@@ -339,11 +339,18 @@ def test_verified_canonical_username_reassignment_does_not_transfer_old_identity
     contract = deploy(direct_deploy)
     verify_github(direct_vm, contract, OWNER, "alice", "42")
     old_reputation = contract.get_identity(OWNER)["reputation_score"]
+    old_account_before_reassignment = contract.get_identity(OWNER)["linked_accounts"][0]
 
     direct_vm.clear_mocks()
     direct_vm.sender = OTHER
-    # A new wallet may submit evidence for a recycled handle, but only the
-    # fresh provider canonical ID can authorize the disputed reassignment.
+    # A fresh proof cannot silently overwrite a still-fresh canonical owner.
+    with direct_vm.expect_revert("wait for proof expiry"):
+        contract.request_verification("github", "alice", "https://github.com/alice")
+
+    # Recycled handles become reclaimable only after the old proof's bounded
+    # validity period ends. The new wallet still needs fresh provider evidence
+    # for a different canonical ID at completion.
+    direct_vm.warp(datetime.fromtimestamp(old_account_before_reassignment["dossier"]["evidence_expires_at"] + 1, tz=timezone.utc).isoformat())
     contract.request_verification("github", "alice", "https://github.com/alice")
     pending = contract.get_pending_verification(OTHER)
     github_web(direct_vm, "alice", pending["verification_code"], canonical_id="99")
@@ -354,10 +361,67 @@ def test_verified_canonical_username_reassignment_does_not_transfer_old_identity
     new_account = contract.get_identity(OTHER)["linked_accounts"][0]
     assert old_account["canonical_platform_id"] == "42"
     assert old_account["proof_status"] == "CONFLICTED"
+    assert old_account["reason_code"] == "USERNAME_REASSIGNED_AFTER_EXPIRY"
     assert new_account["canonical_platform_id"] == "99"
     assert contract.lookup_by_platform("github", "alice")["owner_address"] == OTHER
     assert contract.get_identity(OWNER)["reputation_score"] == old_reputation
     assert contract.get_identity(OTHER)["reputation_score"] == 92
+
+
+def test_active_canonical_username_can_be_released_without_reassignment_bypass(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    verify_github(direct_vm, contract, OWNER, "alice", "42")
+
+    # Explicit owner release is the bounded fast path for a legitimate rename
+    # or transfer. It avoids waiting for expiry without allowing a new wallet
+    # to overwrite a live canonical claim.
+    direct_vm.sender = OWNER
+    contract.revoke_platform("github", "alice")
+    assert contract.lookup_by_platform("github", "alice")["found"] is False
+
+    direct_vm.clear_mocks()
+    direct_vm.sender = OTHER
+    contract.request_verification("github", "alice", "https://github.com/alice")
+    pending = contract.get_pending_verification(OTHER)
+    github_web(direct_vm, "alice", pending["verification_code"], canonical_id="99")
+    proof_llm(direct_vm, canonical_id="99")
+    contract.complete_verification("")
+
+    old = contract.get_identity(OWNER)["linked_accounts"][0]
+    new = contract.get_identity(OTHER)["linked_accounts"][0]
+    assert old["canonical_platform_id"] == "42"
+    assert old["proof_status"] == "REVOKED"
+    assert new["canonical_platform_id"] == "99"
+    assert contract.lookup_by_platform("github", "alice")["owner_address"] == OTHER
+
+
+def test_active_discord_canonical_username_cannot_be_reassigned_silently(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    direct_vm.sender = ADMIN
+    contract.set_discord_attestation_base_url("https://attest.example")
+    direct_vm.warp("2030-01-01T00:00:00Z")
+
+    direct_vm.sender = OWNER
+    contract.request_verification("discord", "alice#123", "https://discord.com/users/123")
+    pending = contract.get_pending_verification(OWNER)
+    token = "D" * 100 + "." + "d" * 43
+    url = f"https://attest.example/api/discord/attestations/{token}"
+    direct_vm.mock_web(
+        r".*attest\.example/api/discord/attestations/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$",
+        {"status": 200, "body": json.dumps({
+            "discord_user_id": "123", "issuer": "https://attest.example", "nonce": "discord-reassignment-nonce", "attestation_id": "discord-reassignment-attestation", "wallet": OWNER,
+            "verification_code": pending["verification_code"], "claimed_username": "alice#123", "pending_id": pending["pending_id"],
+            "issued_at": 1893455990, "expires_at": 1893456300,
+        })},
+    )
+    proof_llm(direct_vm, canonical_id="123")
+    contract.complete_verification(url)
+
+    direct_vm.clear_mocks()
+    direct_vm.sender = OTHER
+    with direct_vm.expect_revert("wait for proof expiry"):
+        contract.request_verification("discord", "alice#123", "https://discord.com/users/123")
+    assert contract.lookup_by_platform("discord", "alice#123")["canonical_platform_id"] == "123"
 
 
 def test_x_handle_only_evidence_cannot_reassign_a_reserved_username(direct_vm, direct_deploy):
@@ -421,14 +485,22 @@ def test_owner_can_cancel_temporary_compromise_with_bounded_fresh_evidence(direc
     contract.resolve_ownership_challenge(challenge["challenge_id"])
     resolved = contract.get_challenge(challenge["challenge_id"])
     assert resolved["recovery_not_before"] - resolved["resolved_at"] >= 24 * 60 * 60 - 1
+    assert resolved["recovery_counter_deadline"] == resolved["recovery_not_before"]
 
     direct_vm.clear_mocks()
+    direct_vm.sender = CHALLENGER
+    with direct_vm.expect_revert("Only the current owner"):
+        contract.cancel_wallet_recovery(challenge["challenge_id"], "https://github.com/alice")
+
     direct_vm.sender = OWNER
     direct_vm.mock_web(
         r".*api\.github\.com/users/alice$",
         {"status": 200, "body": json.dumps({"bio": resolved["recovery_counter_code"], "login": "alice", "id": 42})},
     )
     proof_llm(direct_vm, canonical_id="42")
+    # The counter path remains available until the same boundary that would
+    # permit recovery, not merely for the first hour after resolution.
+    direct_vm.warp(datetime.fromtimestamp(resolved["recovery_not_before"] - 1, tz=timezone.utc).isoformat())
     contract.cancel_wallet_recovery(challenge["challenge_id"], "https://github.com/alice")
     cancelled = contract.get_challenge(challenge["challenge_id"])
     assert cancelled["status"] == "RECOVERY_CANCELLED"
@@ -436,6 +508,78 @@ def test_owner_can_cancel_temporary_compromise_with_bounded_fresh_evidence(direc
     direct_vm.sender = CHALLENGER
     with direct_vm.expect_revert("not authorized"):
         contract.execute_wallet_recovery(challenge["challenge_id"])
+    direct_vm.warp(datetime.fromtimestamp(resolved["recovery_not_before"] + 1, tz=timezone.utc).isoformat())
+    with direct_vm.expect_revert("has not authorized recovery"):
+        contract.execute_wallet_recovery(challenge["challenge_id"])
+
+
+def test_recovery_cancellation_rejects_expired_counter_evidence(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    direct_vm.sender = ADMIN
+    contract.set_discord_attestation_base_url("https://attest.example")
+    direct_vm.warp("2030-01-01T00:00:00Z")
+
+    direct_vm.sender = OWNER
+    contract.request_verification("discord", "alice#123", "https://discord.com/users/123")
+    pending = contract.get_pending_verification(OWNER)
+    owner_token = "O" * 100 + "." + "o" * 43
+    owner_url = f"https://attest.example/api/discord/attestations/{owner_token}"
+    direct_vm.mock_web(
+        r".*attest\.example/api/discord/attestations/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$",
+        {"status": 200, "body": json.dumps({
+            "discord_user_id": "123", "issuer": "https://attest.example", "nonce": "owner-nonce", "attestation_id": "owner-attestation", "wallet": OWNER,
+            "verification_code": pending["verification_code"], "claimed_username": "alice#123", "pending_id": pending["pending_id"],
+            "issued_at": 1893455990, "expires_at": 1893456300,
+        })},
+    )
+    proof_llm(direct_vm, canonical_id="123")
+    contract.complete_verification(owner_url)
+
+    direct_vm.clear_mocks()
+    direct_vm.sender = CHALLENGER
+    contract.request_ownership_challenge("discord", "alice#123")
+    challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
+    challenger_token = "C" * 100 + "." + "c" * 43
+    challenger_url = f"https://attest.example/api/discord/attestations/{challenger_token}"
+    direct_vm.mock_web(
+        r".*attest\.example/api/discord/attestations/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$",
+        {"status": 200, "body": json.dumps({
+            "discord_user_id": "123", "issuer": "https://attest.example", "nonce": "challenger-nonce", "attestation_id": "challenger-attestation", "wallet": CHALLENGER,
+            "verification_code": challenge["challenger_code"], "claimed_username": "alice#123", "pending_id": challenge["challenge_id"],
+            "issued_at": 1893455990, "expires_at": 1893456300,
+        })},
+    )
+    proof_llm(direct_vm, canonical_id="123")
+    contract.submit_challenge_evidence(challenge["challenge_id"], challenger_url)
+    accepted = contract.get_challenge(challenge["challenge_id"])
+
+    # Resolution uses the accepted snapshot after the five-minute Worker token
+    # has expired, so the owner is still able to reach the recovery safeguard.
+    direct_vm.clear_mocks()
+    direct_vm.warp(datetime.fromtimestamp(accepted["rebuttal_deadline"] + 1, tz=timezone.utc).isoformat())
+    proof_llm(direct_vm, decision="CHALLENGER_UPHOLDS")
+    contract.resolve_ownership_challenge(challenge["challenge_id"])
+    resolved = contract.get_challenge(challenge["challenge_id"])
+
+    # This counter attestation is already expired by the time it is submitted,
+    # even though the 24-hour cancellation window is still open.
+    direct_vm.clear_mocks()
+    direct_vm.sender = OWNER
+    counter_token = "K" * 100 + "." + "k" * 43
+    counter_url = f"https://attest.example/api/discord/attestations/{counter_token}"
+    direct_vm.mock_web(
+        r".*attest\.example/api/discord/attestations/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$",
+        {"status": 200, "body": json.dumps({
+            "discord_user_id": "123", "issuer": "https://attest.example", "nonce": "counter-nonce", "attestation_id": "counter-attestation", "wallet": OWNER,
+            "verification_code": resolved["recovery_counter_code"], "claimed_username": "alice#123", "pending_id": resolved["challenge_id"],
+            "issued_at": 1893455990, "expires_at": 1893456300,
+        })},
+    )
+    proof_llm(direct_vm, canonical_id="123")
+    direct_vm.warp(datetime.fromtimestamp(resolved["recovery_not_before"] - 1, tz=timezone.utc).isoformat())
+    with direct_vm.expect_revert("Fresh recovery counter-evidence was not accepted"):
+        contract.cancel_wallet_recovery(resolved["challenge_id"], counter_url)
+    assert contract.get_challenge(resolved["challenge_id"])["status"] == "RESOLVED_CHALLENGER"
 
 
 def test_adversarial_validator_cannot_change_canonical_identity(direct_vm, direct_deploy):

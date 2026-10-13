@@ -3,18 +3,18 @@
   "scope": "engineering-security-pass",
   "deployed_contract": "0xD16Da83DF7189475564B520bC22ec465c9a88621",
   "deployed_contract_source_parity": "not_checked_for_this_revision",
-  "current_contract_source_sha256_normalized_lf": "01aed40c311cdd220878af4f3e52f527c4d53099087e440341daf3adaf93a5e2",
+  "current_contract_source_sha256_normalized_lf": "4e4e54c8e60524f6fb0cf7ac9c7dbc5edb4ffdcae4019ad3ba7e7a9054b18c19",
   "deployment_or_lifecycle_writes": "not_executed_by_instruction",
   "live_identity_and_recovery_proofs": "not_recorded",
   "engineering_gates": {
     "contract_lint_and_semantic_validation": "passed",
-    "pytest": {"passed": 68, "skipped": 2},
+    "pytest": {"passed": 71, "skipped": 2},
     "frontend_tests": {"passed": 11},
     "discord_worker_tests": {"passed": 6},
     "frontend_production_build": "passed"
   },
   "notes": [
-    "This record documents repository engineering evidence only.",
+    "This record documents repository engineering evidence only, including the final pre-deployment recovery-security correction.",
     "It does not claim that the current deployment contains this source revision.",
     "Manual live challenge, rebuttal, recovery, cancellation, revocation and migration proofs remain operator-owned."
   ]
