@@ -51,6 +51,12 @@ Worker URL is stored.
 The deployment and source-parity record is in
 [evidence/studionet-v3-deployment.json](./evidence/studionet-v3-deployment.json).
 
+The confidence/reputation correction in the current engineering branch is
+source-only and has not been deployed. It leaves the live address above and
+Vercel unchanged until an operator deploys and verifies the new source. The
+normalized LF source SHA-256 for this correction is
+`2a98eb064cc854eb693786c6b5153839e6ae7783f4292e27fc9d42198b3373a2`.
+
 ---
 
 ## What Changed In v3
@@ -65,6 +71,8 @@ The deployment and source-parity record is in
 | Eligibility | `consumer_eligibility(address)` and `is_eligible(address)` require active identity state plus a fresh active proof. |
 | Finality | Frontend writes and live proof tooling require `FINALIZED`, majority agreement, and `FINISHED_WITH_RETURN`; `ACCEPTED`, `Undetermined`, `NO_MAJORITY`, and `MAJORITY_DISAGREE` are never treated as success. |
 | Continuity | `migrate_legacy_identity` explicitly imports v2 records, retains the legacy address, and writes a migration audit event. |
+| Confidence policy | Successful GitHub, X handle-only, and Discord evidence receives deterministic confidence `92`, `82`, and `94` respectively. LLM omissions, zeroes, and wording variance cannot override provider facts. |
+| Assurance labels | The legacy on-chain `bot_score` field remains for v2 storage compatibility, but it is not a bot detector. The UI presents evidence assurance and protocol risk instead. |
 
 See [V3_MILESTONE.md](./V3_MILESTONE.md) for the protocol state machine, migration plan, testing gates, and live-proof rules.
 
@@ -147,13 +155,17 @@ GenLayer verification produces structured fields such as:
   "canonical_platform_id": "optional-id-if-available",
   "proof_strength": "strong",
   "risk_band": "low",
-  "confidence_bucket": 90,
+  "confidence_bucket": 92,
   "reason_code": "CODE_FOUND_ON_CANONICAL_PROFILE",
   "proof_status": "ACTIVE"
 }
 ```
 
-Critical fields are validated strictly. Confidence uses bounded tolerance, and risk/proof values must be from allowed sets.
+Critical provider facts are validated strictly. For an active proof, confidence is
+recomputed from the provider/platform policy (`92` GitHub, `82` X handle-only,
+`94` Discord); the LLM confidence field is explanatory input only. Risk and
+strength are protocol classifications, and the legacy `bot_score` storage field
+must not be read as bot detection.
 
 ---
 

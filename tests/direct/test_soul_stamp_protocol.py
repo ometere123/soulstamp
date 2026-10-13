@@ -42,6 +42,14 @@ def proof_llm(vm, *, account_match=True, canonical_id="42", decision=None, reaso
     )
 
 
+def proof_llm_payload(vm, payload):
+    """Return deliberately incomplete or contradictory AI output."""
+    vm.mock_llm(
+        r"(?s).*SoulStamp identity evidence decision.*",
+        json.dumps(payload),
+    )
+
+
 def github_web(vm, username, code, *, canonical_id="42", login=None):
     vm.mock_web(
         rf".*api\.github\.com/users/{re.escape(username)}$",
@@ -197,6 +205,105 @@ def test_llm_reason_code_and_reasoning_variance_cannot_change_derived_status(dir
     account = contract.get_identity(OWNER)["linked_accounts"][0]
     assert account["proof_status"] == "ACTIVE"
     assert account["reason_code"] == "CODE_FOUND_ON_CANONICAL_PROFILE"
+
+
+def test_policy_confidence_ignores_missing_zero_and_contradictory_ai_scores_for_all_platforms(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    direct_vm.sender = OWNER
+    direct_vm.warp("2030-01-01T00:00:00Z")
+
+    # GitHub: the provider proves the exact login, numeric ID, and code while
+    # the model omits/contradicts the material fields and reports zero.
+    contract.request_verification("github", "alice", "https://github.com/alice")
+    github_pending = contract.get_pending_verification(OWNER)
+    github_web(direct_vm, "alice", github_pending["verification_code"], canonical_id="42")
+    proof_llm_payload(direct_vm, {
+        "code_found": False,
+        "account_match": False,
+        "canonical_platform_id": "42",
+        "confidence_bucket": 0,
+        "reasoning": "The provider response contains the exact requested account and code.",
+    })
+    contract.complete_verification("")
+
+    # X: real oEmbed shape has no immutable author ID. The exact HTTPS
+    # provider author URL therefore remains MEDIUM/handle-only at 82.
+    direct_vm.clear_mocks()
+    contract.request_verification("twitter", "claimed", "https://x.com/claimed/status/123456")
+    x_pending = contract.get_pending_verification(OWNER)
+    direct_vm.mock_web(
+        r".*publish\.twitter\.com/oembed.*",
+        {"status": 200, "body": json.dumps({
+            "url": "https://x.com/claimed/status/123456",
+            "author_name": "Claimed",
+            "author_url": "https://x.com/claimed",
+            "html": f"<blockquote>{x_pending['verification_code']}</blockquote>",
+            "provider_name": "X",
+            "provider_url": "https://x.com",
+        })},
+    )
+    proof_llm_payload(direct_vm, {
+        "code_found": False,
+        "account_match": False,
+        "canonical_platform_id": "forged-immutable-id",
+        "confidence_bucket": 0,
+        "proof_strength": "STRONG",
+        "risk_band": "low",
+        "reasoning": "The provider returned the exact author handle but no immutable ID.",
+    })
+    contract.complete_verification("https://x.com/claimed/status/123456")
+
+    # Discord: Worker-shaped signed token and fresh attestation are enough for
+    # the deterministic 94 policy score even when the model omits all fields.
+    direct_vm.clear_mocks()
+    direct_vm.sender = ADMIN
+    contract.set_discord_attestation_base_url("https://attest.example")
+    direct_vm.sender = OWNER
+    contract.request_verification("discord", "alice#123", "https://discord.com/users/123")
+    discord_pending = contract.get_pending_verification(OWNER)
+    token = "eyJwdXJwb3NlIjoiZGlzY29yZF9hdHRlc3RhdGlvbiJ9" + "C" * 1040 + "." + "c" * 43
+    discord_url = f"https://attest.example/api/discord/attestations/{token}"
+    direct_vm.mock_web(
+        r".*attest\.example/api/discord/attestations/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$",
+        {"status": 200, "body": json.dumps({
+            "discord_user_id": "123",
+            "wallet": OWNER,
+            "verification_code": discord_pending["verification_code"],
+            "claimed_username": "alice#123",
+            "pending_id": discord_pending["pending_id"],
+            "issued_at": 1893455990,
+            "expires_at": 1893456300,
+        })},
+    )
+    proof_llm_payload(direct_vm, {"reasoning": "Fresh Worker attestation matches the wallet, code, and Discord ID."})
+    contract.complete_verification(discord_url)
+
+    identity = contract.get_identity(OWNER)
+    scores = [account["confidence_score"] for account in identity["linked_accounts"]]
+    dossier_scores = [account["dossier"]["confidence_bucket"] for account in identity["linked_accounts"]]
+    assert scores == [92, 82, 94]
+    assert dossier_scores == scores
+    assert [account["proof_status"] for account in identity["linked_accounts"]] == ["ACTIVE"] * 3
+    assert identity["linked_accounts"][1]["proof_strength"] == "MEDIUM"
+    assert identity["linked_accounts"][1]["risk_band"] == "medium"
+    assert identity["reputation_score"] == 89
+
+    # Reverification must apply the same policy score to both account and
+    # dossier, without letting a fresh contradictory AI response zero it.
+    direct_vm.clear_mocks()
+    direct_vm.sender = OWNER
+    github_web(direct_vm, "alice", github_pending["verification_code"], canonical_id="42")
+    proof_llm_payload(direct_vm, {
+        "code_found": False,
+        "account_match": False,
+        "confidence_bucket": 0,
+        "reasoning": "Fresh provider evidence still matches.",
+    })
+    contract.reverify_platform("github", "alice")
+    github_account = contract.get_identity(OWNER)["linked_accounts"][0]
+    assert github_account["confidence_score"] == 92
+    assert github_account["dossier"]["confidence_bucket"] == 92
+    assert contract.get_identity(OWNER)["reputation_score"] == 89
 
 
 def test_external_evidence_failure_is_classified_and_does_not_create_identity(direct_vm, direct_deploy):

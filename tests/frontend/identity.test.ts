@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hasLinkedAccount } from "../../frontend/src/lib/identity";
+import { evidenceAssuranceLabel } from "../../frontend/src/lib/evidence";
 import type { IdentityRecord } from "../../frontend/src/types";
 
 function identityWith(platform: "github" | "twitter", username: string): IdentityRecord {
@@ -24,5 +25,10 @@ describe("identity post-state confirmation", () => {
   it("does not treat an unrelated identity or platform as completion", () => {
     expect(hasLinkedAccount(identityWith("github", "alice"), "twitter", "alice")).toBe(false);
     expect(hasLinkedAccount({ ...identityWith("github", "alice"), found: false, linked_accounts: [] }, "github", "alice")).toBe(false);
+  });
+
+  it("uses evidence assurance and protocol risk labels instead of bot-detection claims", () => {
+    expect(evidenceAssuranceLabel("MEDIUM", "medium")).toBe("MEDIUM evidence · medium protocol risk");
+    expect(evidenceAssuranceLabel(undefined, undefined)).toBe("MEDIUM evidence · medium protocol risk");
   });
 });

@@ -52,12 +52,15 @@ result `FINISHED_WITH_RETURN` before reading the resulting state.
 Redeployment does not silently abandon v2 users. The new constructor accepts a
 legacy contract address. An admin explicitly calls `migrate_legacy_identity`
 for each legacy wallet after inspecting the legacy registry. The migration
-imports supported links and canonical IDs, marks imported proofs as `STALE` with
-reason `MIGRATED_REQUIRES_REVERIFICATION`, reserves non-revoked canonical indexes
-to prevent takeover during migration, and records the source contract in an
-immutable audit entry. Legacy state remains untouched and can
-be compared against the new record. Imported proofs with no fresh evidence are
-not consumer-eligible until reverification.
+imports every supported historical link, including records that have no
+canonical ID, marks imported proofs as `STALE` with reason
+`MIGRATED_REQUIRES_REVERIFICATION`, reserves the historical platform index and
+any available canonical index to prevent takeover during migration, and records
+the source contract in an immutable audit entry. Legacy state remains untouched
+and can be compared against the new record. Imported proofs with no fresh
+evidence are not consumer-eligible until reverification. There is intentionally
+no V3-to-V3 migration path; a newly deployed V3 instance starts empty and
+requires fresh operator verification.
 
 ## Gates and honest live evidence
 
@@ -85,10 +88,12 @@ The v2 implementation is available in repository history at `4b6d773` and
 compared the LLM-supplied `reason_code` and `proof_status` as consensus fields,
 with a confidence tolerance of 15 points. The v3 implementation added canonical
 IDs and stricter source checks but originally retained the same exact reason-code
-comparison. The current fix derives protocol `reason_code` from deterministic
-code, account, and freshness facts; LLM reasoning remains explanatory only.
-Validators still independently fetch and validate the source, canonical ID, and
-account binding, and confidence remains bounded to a 15-point tolerance.
+comparison. The current correction derives protocol status, reason code,
+strength, risk, and confidence from deterministic code, account, canonical-ID,
+and freshness facts; LLM reasoning remains explanatory only. Validators still
+independently fetch and validate the source and account binding. Active policy
+confidence is exactly `92` for GitHub, `82` for X handle-only, and `94` for
+Discord, regardless of missing or contradictory LLM score fields.
 
 Two public live v3 receipts were inspected before this fix:
 
@@ -167,3 +172,13 @@ It reached `FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN` with
 Lifecycle proof remains intentionally `not_recorded`; real social verification,
 challenge, rebuttal, recovery, revocation, eligibility, and negative-transition
 transactions remain operator-owned.
+
+## Confidence and reputation correction (not deployed)
+
+The current engineering correction is source-only. Its normalized LF contract
+SHA-256 is
+`2a98eb064cc854eb693786c6b5153839e6ae7783f4292e27fc9d42198b3373a2`.
+The live contract and Vercel release above remain unchanged. The correction
+deterministically assigns active-proof confidence `92` (GitHub), `82` (X
+handle-only), and `94` (Discord), keeps account/dossier values aligned, and
+does not claim new live identity or lifecycle proofs.

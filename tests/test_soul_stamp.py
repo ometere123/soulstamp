@@ -38,3 +38,14 @@ def test_contract_preserves_provider_limited_x_evidence_and_safe_v2_migration():
     assert "DISCORD_ATTESTATION_TOKEN_MAX_LENGTH" in source
     assert 'MIGRATED_REQUIRES_REVERIFICATION' in source
     assert 'status not in ("REVOKED", "RECOVERED")' in source
+
+
+def test_confidence_policy_is_contract_deterministic_and_legacy_handles_are_imported():
+    source = CONTRACT.read_text(encoding="utf-8")
+    assert "def _policy_confidence" in source
+    assert "if platform == \"github\":\n            return 92" in source
+    assert "if platform == \"twitter\":\n            return 82" in source
+    assert "if platform == \"discord\":\n            return 94" in source
+    assert "confidence = self._policy_confidence(platform, code_found, account_match, fresh)" in source
+    assert 'if not platform or not username or platform not in SUPPORTED_PLATFORMS:' in source
+    assert 'canonical_id = str(legacy_acct.get("canonical_platform_id", "") or "")' in source

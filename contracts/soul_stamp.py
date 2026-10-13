@@ -436,11 +436,37 @@ class SoulStamp(gl.Contract):
 
     # -- Evidence and independent GenLayer resolution --------------------------
 
-    def _coerce_verdict(self, value, platform: str, username: str, code: str, content: str, fallback_status: str, expected_canonical_id: str, evidence_issued_at: int = 0, evidence_expires_at: int = 0) -> dict:
+    def _policy_confidence(self, platform: str, code_found: bool, account_match: bool, fresh: bool) -> int:
+        """Return the protocol score for independently verified evidence.
+
+        The LLM explains the evidence, but it is not the source of truth for
+        protocol confidence. Keeping this mapping in the contract also makes
+        the score stable when validators use different wording or omit a
+        confidence field entirely.
+        """
+        if not code_found or not account_match or not fresh:
+            return 0
+        if platform == "github":
+            return 92
+        if platform == "twitter":
+            return 82
+        if platform == "discord":
+            return 94
+        return 0
+
+    def _coerce_verdict(
+        self, value, platform: str, username: str, code: str, content: str,
+        fallback_status: str, expected_canonical_id: str, evidence_issued_at: int = 0,
+        evidence_expires_at: int = 0, deterministic_code_found: bool = False,
+        deterministic_account_match: bool = False,
+    ) -> dict:
         if not isinstance(value, dict):
             raise gl.vm.UserError(f"{ERROR_LLM} GenLayer proof verdict was not structured JSON")
-        code_found = bool(value.get("code_found", code in content))
-        account_match = bool(value.get("account_match", False))
+        # These facts come from the fetched provider evidence and are passed
+        # in by the leader/validator. LLM omissions, zero scores, or
+        # contradictory booleans must not downgrade a verified proof.
+        code_found = bool(deterministic_code_found)
+        account_match = bool(deterministic_account_match)
         reported_canonical_id = str(value.get("canonical_platform_id", "") or "").strip()
         if expected_canonical_id and reported_canonical_id and reported_canonical_id != expected_canonical_id:
             raise gl.vm.UserError(f"{ERROR_LLM} GenLayer verdict changed the canonical platform ID")
@@ -449,10 +475,6 @@ class SoulStamp(gl.Contract):
         canonical_id = expected_canonical_id
         risk_band = str(value.get("risk_band", "medium") or "medium").strip().lower()
         proof_strength = str(value.get("proof_strength", "WEAK") or "WEAK").strip().upper()
-        try:
-            confidence = int(value.get("confidence_bucket", 0))
-        except Exception:
-            confidence = 0
         fresh = not (platform == "discord" and (evidence_issued_at <= 0 or evidence_expires_at <= 0 or evidence_expires_at < int(self._now())))
         if code_found and account_match and fresh:
             proof_status = "ACTIVE"
@@ -475,18 +497,25 @@ class SoulStamp(gl.Contract):
             reason_code = "CODE_FOUND_ON_CANONICAL_TWEET_HANDLE_ONLY"
         else:
             reason_code = "CODE_FOUND_ON_CANONICAL_PROFILE"
-        if risk_band not in RISK_BANDS:
-            risk_band = "high" if proof_status != "ACTIVE" else "medium"
-        if proof_strength not in PROOF_STRENGTHS:
-            proof_strength = "WEAK"
+        # Risk and strength are also protocol classifications derived from
+        # provider facts. The LLM's free-form reasoning remains useful and is
+        # stored below, but cannot upgrade X or manufacture a safer class.
+        if proof_status == "ACTIVE":
+            risk_band = "medium" if platform == "twitter" and not canonical_id else "low"
+        else:
+            risk_band = "high"
         if platform == "twitter" and not canonical_id:
             # X oEmbed proves the provider-returned handle URL, not an
             # immutable account identifier. Keep this explicitly weaker and
             # prevent an LLM from upgrading it to recovery-grade evidence.
             proof_strength = "MEDIUM"
-            if proof_status == "ACTIVE" and risk_band == "low":
-                risk_band = "medium"
-            confidence = min(confidence, 82)
+        elif platform == "github":
+            proof_strength = "STRONG" if canonical_id else "MEDIUM"
+        elif platform == "discord":
+            proof_strength = "STRONG" if canonical_id else "WEAK"
+        elif proof_strength not in PROOF_STRENGTHS:
+            proof_strength = "WEAK"
+        confidence = self._policy_confidence(platform, code_found, account_match, fresh)
         return {
             "code_found": code_found, "account_match": account_match, "platform": platform,
             "username": self._normalize_username(platform, username), "canonical_platform_id": canonical_id,
@@ -614,11 +643,12 @@ Source excerpt:
 Never set code_found true unless the exact code {code!r} is present. Never change the deterministic account match or canonical ID.
 """
             ai = gl.nondet.exec_prompt(prompt, response_format="json")
-            verdict = self._coerce_verdict(ai, platform, username, code, content, "STALE", canonical_id, evidence_issued_at, evidence_expires_at)
-            if verdict["code_found"] != code_found:
-                raise gl.vm.UserError(f"{ERROR_LLM} GenLayer verdict contradicted exact code scan")
-            if verdict["account_match"] != account_match:
-                raise gl.vm.UserError(f"{ERROR_LLM} GenLayer verdict contradicted source account match")
+            verdict = self._coerce_verdict(
+                ai, platform, username, code, content, "STALE", canonical_id,
+                evidence_issued_at, evidence_expires_at,
+                deterministic_code_found=code_found,
+                deterministic_account_match=account_match,
+            )
             return verdict
 
         def validator_fn(leader_result) -> bool:
@@ -655,9 +685,13 @@ Never set code_found true unless the exact code {code!r} is present. Never chang
         result_canonical = str(result.get("canonical_platform_id", "") or "") if isinstance(result, dict) else ""
         result_issued_at = int(result.get("evidence_issued_at", 0) or 0) if isinstance(result, dict) else 0
         result_expires_at = int(result.get("evidence_expires_at", 0) or 0) if isinstance(result, dict) else 0
+        result_code_found = bool(result.get("code_found", False)) if isinstance(result, dict) else False
+        result_account_match = bool(result.get("account_match", False)) if isinstance(result, dict) else False
         return self._coerce_verdict(
             result, platform, username, code, "", "STALE", result_canonical,
             result_issued_at, result_expires_at,
+            deterministic_code_found=result_code_found,
+            deterministic_account_match=result_account_match,
         )
 
     def _challenge_source_text(self, evidence_url: str) -> str:
@@ -1333,14 +1367,16 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
             platform = self._normalize_platform(str(legacy_acct.get("platform", "")))
             username = self._normalize_username(platform, str(legacy_acct.get("username", "")))
             canonical_id = str(legacy_acct.get("canonical_platform_id", "") or "")
-            if not platform or not username or not canonical_id:
+            if not platform or not username or platform not in SUPPORTED_PLATFORMS:
                 continue
             status = str(legacy_acct.get("proof_status", "STALE") or "STALE")
             if status not in PROOF_STATUSES:
                 status = "STALE"
             # v2 did not persist a fresh-evidence expiry. Preserve the record
-            # and canonical indexes, but require explicit v3 reverification
-            # before consumer eligibility returns true.
+            # and platform index, but require explicit v3 reverification before
+            # consumer eligibility returns true. This includes legacy records
+            # with no canonical ID: they remain discoverable and relinkable by
+            # their historical handle, but are never treated as fresh proof.
             if status == "ACTIVE":
                 status = "STALE"
             if identity.is_flagged and status not in ("REVOKED", "RECOVERED"):

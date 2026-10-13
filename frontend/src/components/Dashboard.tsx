@@ -6,6 +6,7 @@ import {
 import clsx from "clsx";
 import { useWallet } from "../lib/useWallet";
 import { getIdentity, reverifyPlatform } from "../lib/contract";
+import { evidenceAssuranceLabel } from "../lib/evidence";
 import type { IdentityRecord, LinkedAccount, ProofStatus } from "../types";
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
@@ -102,7 +103,10 @@ function AccountCard({ account, onReverified }: { account: LinkedAccount; onReve
 
       <div className="space-y-2">
         <ScoreMeter value={account.confidence_score} label="Identity confidence" />
-        <ScoreMeter value={100 - account.bot_score} label="Proof safety" />
+        <div className="flex items-center justify-between text-xs text-gray-400 border border-gray-800 rounded-lg px-3 py-2">
+          <span>Evidence assurance</span>
+          <span className="font-medium text-white">{evidenceAssuranceLabel(account.proof_strength, account.risk_band)}</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-2 text-xs">

@@ -120,11 +120,11 @@ export function AuditTrail() {
                         entry.confidence >= 50 ? "text-yellow-400" : "text-danger"
                       )}>{entry.confidence}%</span></span>
                       {entry.bot_score > 0 && (
-                        <span>Bot score: <span className={clsx(
+                        <span>Evidence risk: <span className={clsx(
                           "font-mono font-medium",
                           entry.bot_score < 30 ? "text-success" :
                           entry.bot_score < 60 ? "text-yellow-400" : "text-danger"
-                        )}>{entry.bot_score}%</span></span>
+                        )}>{entry.bot_score < 30 ? "low" : entry.bot_score < 60 ? "medium" : "high"}</span></span>
                       )}
                     </div>
                   )}
