@@ -9,12 +9,14 @@ describe("frontend transaction finality gate", () => {
     expect(isFinalizedSuccessfulReceipt({
       statusName: "FINALIZED",
       txExecutionResultName: "FINISHED_WITH_RETURN",
+      rawResultName: "MAJORITY_AGREE",
     })).toBe(true);
   });
 
   it("accepts the current Studionet leader-receipt shape only when every leader succeeds", () => {
     expect(isFinalizedSuccessfulReceipt({
       status_name: "FINALIZED",
+      result_name: "MAJORITY_AGREE",
       consensus_data: {
         leader_receipt: [
           { execution_result: "SUCCESS" },
@@ -36,6 +38,13 @@ describe("frontend transaction finality gate", () => {
   it("rejects an accepted transaction even when execution looks successful", () => {
     expect(isFinalizedSuccessfulReceipt({
       statusName: "ACCEPTED",
+      txExecutionResultName: "FINISHED_WITH_RETURN",
+    })).toBe(false);
+  });
+
+  it("rejects finalized success when majority consensus metadata is absent", () => {
+    expect(isFinalizedSuccessfulReceipt({
+      statusName: "FINALIZED",
       txExecutionResultName: "FINISHED_WITH_RETURN",
     })).toBe(false);
   });

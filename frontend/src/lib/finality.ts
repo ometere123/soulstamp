@@ -28,7 +28,10 @@ function consensusResultName(receipt: any): string | number | null {
  */
 function hasMajorityAgreement(receipt: any): boolean {
   const result = consensusResultName(receipt);
-  if (result === null) return true;
+  // A finalized receipt without an explicit majority result is not enough to
+  // prove that validators agreed. Fail closed instead of treating missing
+  // consensus metadata as success.
+  if (result === null) return false;
   return result === MAJORITY_AGREE || result === 6 || result === "6";
 }
 

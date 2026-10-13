@@ -58,7 +58,7 @@ export interface IdentityRecord {
   last_updated: number;
   verification_count: number;
   principal_id?: string;
-  identity_state?: "ACTIVE" | "FLAGGED" | "RECOVERY_PENDING" | "RECOVERED";
+  identity_state?: "ACTIVE" | "FLAGGED" | "RECOVERY_PENDING" | "CONTESTED" | "RECOVERED";
   recovery_target?: string;
   eligible?: boolean;
   eligibility_reason?: string;

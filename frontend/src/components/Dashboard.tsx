@@ -136,6 +136,12 @@ function AccountCard({ account, onReverified }: { account: LinkedAccount; onReve
         </div>
       )}
 
+      {account.platform === "twitter" && !account.canonical_platform_id && (
+        <p className="text-xs text-yellow-300/80 border-t border-yellow-800/30 pt-2">
+          X handle-level evidence is active but not recovery-grade because X oEmbed did not return an immutable account ID.
+        </p>
+      )}
+
       <div className="flex gap-2">
         <input
           value={fetchUrl}

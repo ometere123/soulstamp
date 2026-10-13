@@ -296,6 +296,11 @@ export function PublicLookup() {
                     )}
                   </div>
                 )}
+                {acct.platform === "twitter" && !acct.canonical_platform_id && (
+                  <div className="text-[11px] text-yellow-400/80 sm:col-span-2">
+                    Handle-level X evidence only; no immutable provider ID was returned, so this proof cannot authorize wallet recovery.
+                  </div>
+                )}
               </div>
             ))}
           </div>

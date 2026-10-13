@@ -4,6 +4,7 @@ const DISCORD_TOKEN_ENDPOINT = "https://discord.com/api/oauth2/token";
 const DISCORD_EPOCH_MS = 1420070400000n;
 const SESSION_TTL_SECONDS = 10 * 60;
 const ATTESTATION_TTL_SECONDS = 5 * 60;
+const SIGNED_TOKEN_MAX_LENGTH = 4096;
 
 function publicBaseUrl(env) {
   return (env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
@@ -71,8 +72,12 @@ async function makeToken(payload, env) {
 }
 
 async function verifyToken(token, purpose, env) {
-  const [body, signature] = String(token || "").split(".");
-  if (!body || !signature) throw new Error("Invalid signed token");
+  const parts = String(token || "").split(".");
+  if (parts.length !== 2) throw new Error("Invalid signed token");
+  const [body, signature] = parts;
+  if (!body || !signature || String(token).length > SIGNED_TOKEN_MAX_LENGTH || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/.test(String(token))) {
+    throw new Error("Invalid signed token");
+  }
 
   const expected = await sign(body, env);
   if (!timingSafeEqualString(signature, expected)) {

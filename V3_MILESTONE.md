@@ -12,7 +12,7 @@ The contract is authoritative for:
 - append-only audit events with a hash chain; and
 - explicit v2 migration with a configured legacy contract address.
 
-X/Twitter submitted URLs are locators only. The contract validates the exact claimed status URL and derives authorship from the fetched oEmbed `author_url` and canonical author ID. This prevents a claimant from submitting a URL under the claimed handle that was authored by somebody else.
+X/Twitter submitted URLs are locators only. The contract validates the exact claimed status URL and derives authorship from the fetched provider HTTPS `author_url` and exact handle. X oEmbed does not currently return an immutable author ID, so this is recorded as medium-strength handle-only evidence and cannot authorize full-principal recovery.
 
 ## Challenge and recovery state machine
 
@@ -31,11 +31,12 @@ Resolution requires challenger evidence and either a rebuttal or an elapsed
 30-minute deadline. The resolver independently fetches both evidence URLs and
 validators must agree on the material outcome. Recovery has a safety delay and
 can only be executed by the winning challenger into a wallet without an
-existing identity. The old identity is retained as `RECOVERED`; its audit
-history is copied into the new principal record and the new active indexes are
-reserved atomically. An unanswered `OPEN` challenge can be expired by any
-caller after the deadline, and a later challenge attempt also performs this
-bounded cleanup so an abandoned challenge cannot permanently lock a link.
+existing identity. Recovery is account-scoped: the challenged account and its
+challenge history move to a new principal, while unrelated links and
+reputation remain with the source identity. An unanswered `OPEN` challenge can
+be expired by any caller after the deadline, and a later challenge attempt also
+performs this bounded cleanup so an abandoned challenge cannot permanently lock
+a link.
 
 ## Eligibility
 
@@ -131,3 +132,17 @@ Lifecycle proof is intentionally still `not_recorded`. Real social
 verification, challenge, rebuttal, recovery, revocation, eligibility, and
 negative-transition transactions remain operator-owned and are not implied by
 deployment finality.
+
+## Compatibility and security pass (not deployed)
+
+The current deployed address remains the verified `b291e60` revision above.
+This pass is intentionally deployment-required and was not sent to Studionet or
+Vercel. Its normalized contract source SHA-256 is
+`b2d04d220e62f96a6877bddc9e076c44857b546095b4341eda6670635303b0a2`.
+
+The pass restores real X oEmbed compatibility without inventing `author_id`,
+accepts the Worker-produced `body.signature` Discord token format (including
+tokens over 256 characters), rejects malformed extra token segments, prevents
+X handle-only proofs from opening recovery-grade challenges, makes wallet
+recovery account-scoped, and requires explicit majority consensus metadata in
+the frontend finality gate.

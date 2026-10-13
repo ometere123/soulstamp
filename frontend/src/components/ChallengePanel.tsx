@@ -204,7 +204,7 @@ export function ChallengePanel() {
           <Gavel className="w-5 h-5 text-brand-300 mt-0.5" />
           <div>
             <h3 className="font-semibold">Open a challenge</h3>
-            <p className="text-xs text-gray-500 mt-1">The account must already have an active SoulStamp proof. You cannot challenge your own link.</p>
+            <p className="text-xs text-gray-500 mt-1">The account must already have an active SoulStamp proof. You cannot challenge your own link. X oEmbed is handle-only today, so recovery-grade challenges require GitHub or Discord canonical identity evidence.</p>
           </div>
         </div>
         <div className="grid gap-2 sm:grid-cols-[auto_1fr_auto]">
@@ -212,7 +212,7 @@ export function ChallengePanel() {
             {PLATFORM_OPTIONS.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
           </select>
           <input value={username} onChange={e => setUsername(e.target.value)} className="input" placeholder="Exact username, e.g. octocat" />
-          <button onClick={startChallenge} disabled={action === "new"} className="btn-primary">
+          <button onClick={startChallenge} disabled={action === "new" || platform === "twitter"} className="btn-primary">
             {action === "new" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Gavel className="w-4 h-4" />} Open challenge
           </button>
         </div>
@@ -311,7 +311,7 @@ export function ChallengePanel() {
                   {challenge.status === "RESOLVED_CHALLENGER" && (
                     <div className="border-t border-gray-800 pt-3 flex flex-wrap items-center justify-between gap-3">
                       <div className="text-xs text-gray-400">Recovery safety delay ends {dateLabel(challenge.recovery_not_before)}.</div>
-                      {isChallenger && <button onClick={() => runAction(`recover:${challenge.challenge_id}`, () => executeWalletRecovery(challenge.challenge_id), "Wallet recovery finalized and the immutable history was copied to this wallet.")} disabled={!canRecover || action === `recover:${challenge.challenge_id}`} className="btn-primary text-xs"><WalletCards className="w-3.5 h-3.5" /> Execute safe recovery</button>}
+                      {isChallenger && <button onClick={() => runAction(`recover:${challenge.challenge_id}`, () => executeWalletRecovery(challenge.challenge_id), "Challenged-account recovery finalized; unrelated links and reputation remain with the source identity.")} disabled={!canRecover || action === `recover:${challenge.challenge_id}`} className="btn-primary text-xs"><WalletCards className="w-3.5 h-3.5" /> Execute safe recovery</button>}
                     </div>
                   )}
 

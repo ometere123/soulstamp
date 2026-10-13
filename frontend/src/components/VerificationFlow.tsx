@@ -432,6 +432,10 @@ export function VerificationFlow() {
                 Why a tweet URL? X blocks anonymous profile scraping. The contract uses Twitter's
                 public oEmbed endpoint to read the specific tweet you point at — works every time.
               </p>
+              <p className="text-yellow-400/70 text-xs">
+                X oEmbed currently proves the exact HTTPS author handle, not an immutable account ID;
+                this is recorded as medium-strength evidence and cannot authorize wallet recovery.
+              </p>
               <p>Proof ID: <strong className="font-mono">{pendingId}</strong></p>
             </div>
           )}

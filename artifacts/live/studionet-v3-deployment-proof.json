@@ -1,7 +1,7 @@
 {
   "protocol": "SoulStamp v3 identity continuity",
-  "verification_mode": "external-read-only-deployment-only",
-  "proof_scope": "deployed revision with preserved prior deployment history",
+  "verification_mode": "external-read-only-deployment-plus-local-compatibility-pass",
+  "proof_scope": "previous deployed revision plus unexecuted compatibility pass",
   "lifecycle_proof_status": "not_recorded",
   "network": {
     "name": "Studionet",
@@ -21,11 +21,20 @@
   "deployed_source_sha256": "b46addab5800fab8d87d7019efb76866b13e15644d3b7b4361fb3435c35d96bf",
   "api_source_sha256": "b46addab5800fab8d87d7019efb76866b13e15644d3b7b4361fb3435c35d96bf",
   "api_raw_source_sha256": "b9a9c57940d48881f693592b89fa494b918f50722c27318f220ea170c76f292b",
-  "source_parity": "exact_after_line_ending_normalization",
+  "source_parity": "exact_after_line_ending_normalization_for_deployed_revision",
   "source_line_ending_note": "Studionet source is compared after CRLF/CR to LF normalization.",
   "deployed_source_revision": "b291e6091d0025102c75874501d625ea63855d23",
-  "current_candidate_source_sha256": "b46addab5800fab8d87d7019efb76866b13e15644d3b7b4361fb3435c35d96bf",
-  "current_candidate_status": "deployed; parity_verified",
+  "current_candidate_source_sha256": "b2d04d220e62f96a6877bddc9e076c44857b546095b4341eda6670635303b0a2",
+  "current_candidate_status": "implemented_not_deployed; redeployment_required",
+  "compatibility_pass": {
+    "status": "implemented_not_deployed",
+    "source_sha256_normalized_lf": "b2d04d220e62f96a6877bddc9e076c44857b546095b4341eda6670635303b0a2",
+    "deployment_required": true,
+    "network": "Studionet 61999",
+    "live_contract_unchanged": "0xa3B01Cf1512734C7747e75520751BC2220880041",
+    "vercel_changed": false,
+    "lifecycle_proof_changed": false
+  },
   "deployed_state": {
     "method": "get_stats",
     "verifier_version": "soulstamp-v3.0-continuity",
@@ -37,6 +46,7 @@
     "legacy_contract_address": "0x3108daffcbc24e261137056c56afcae17677bdfb"
   },
   "vercel": {
+    "record_type": "historical_deployed_revision; unchanged_by_compatibility_pass",
     "project": "delealufejoel-4184s-projects/soulstamp",
     "project_id": "prj_9ENlvmzbHlnkDAOB9HQwTnBmoN6G",
     "environment_variable": "VITE_CONTRACT_ADDRESS",
@@ -57,7 +67,8 @@
       "production_address_present": true,
       "preview_address_present": true,
       "previous_contract_address_present": false
-    }
+    },
+    "changed_in_this_pass": false
   },
   "previous_v3_deployment": {
     "contract_address": "0x4717b4e830e9111AAF97aCb0159f58D750085D1A",
@@ -82,6 +93,6 @@
     ],
     "negative_transition_required": true
   },
-  "recorded_at": "2026-10-12T20:16:36.617210+00:00",
+  "recorded_at": "2026-10-13T01:30:00+01:00",
   "explorer": "https://explorer-studio.genlayer.com/address/0xa3B01Cf1512734C7747e75520751BC2220880041"
 }

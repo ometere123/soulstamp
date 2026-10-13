@@ -37,7 +37,7 @@ The deployment and source-parity record is in
 
 | Area | v3 improvement |
 |---|---|
-| X impersonation | Submitted status URLs are only locators; authorship is checked from the oEmbed `author_url` and canonical author ID. |
+| X impersonation | Submitted status URLs are only locators; authorship is checked from the provider's HTTPS oEmbed `author_url` and exact handle. Current oEmbed is handle-only (`MEDIUM`) because it does not return an immutable author ID, so it cannot authorize wallet recovery. |
 | Canonical ownership | Platform username and canonical platform ID are separate indexes and both are reserved/released atomically. |
 | Fresh evidence | Discord attestations are bound to wallet, code, pending/challenge ID, issuer, expiry, and a one-use on-chain token. |
 | Challenges | Challengers receive a fresh code and bounded rebuttal window; both evidence paths are independently resolved through GenLayer. |
@@ -47,6 +47,19 @@ The deployment and source-parity record is in
 | Continuity | `migrate_legacy_identity` explicitly imports v2 records, retains the legacy address, and writes a migration audit event. |
 
 See [V3_MILESTONE.md](./V3_MILESTONE.md) for the protocol state machine, migration plan, testing gates, and live-proof rules.
+
+### Compatibility and security pass — deployment required
+
+The current live contract above is the previously verified `b291e60` deployment.
+This compatibility pass is implemented locally but has **not** been deployed or
+put on Vercel. The normalized source SHA-256 for the new contract is
+`b2d04d220e62f96a6877bddc9e076c44857b546095b4341eda6670635303b0a2`.
+
+It fixes real X oEmbed compatibility, accepts genuine Worker-signed Discord
+attestation URLs, keeps Discord replay/freshness checks, scopes recovery to the
+challenged account, and makes frontend writes fail closed when majority
+consensus metadata is missing. Operator deployment is required before these
+changes are live; no deployment or Vercel change was performed in this pass.
 
 ## What Changed In v2
 

@@ -37,6 +37,7 @@ ERROR_EXPECTED = "[EXPECTED]"
 ERROR_EXTERNAL = "[EXTERNAL]"
 ERROR_TRANSIENT = "[TRANSIENT]"
 ERROR_LLM = "[LLM_ERROR]"
+DISCORD_ATTESTATION_TOKEN_MAX_LENGTH = 2048
 
 
 @allow_storage
@@ -345,15 +346,18 @@ class SoulStamp(gl.Contract):
                 del self.canonical_id_to_address[ckey]
 
     def _reserve_indexes(self, owner: str, acct: LinkedAccount) -> None:
-        self._require(bool(acct.canonical_platform_id), "Fresh evidence did not include a canonical platform ID")
         pkey = self._platform_key(acct.platform, acct.username)
         existing_owner = self.platform_to_address.get(pkey)
         self._require(existing_owner is None or existing_owner == owner, "Platform account is already linked to another wallet")
-        ckey = self._canonical_key(acct.platform, acct.canonical_platform_id)
-        existing_canonical_owner = self.canonical_id_to_address.get(ckey)
-        self._require(existing_canonical_owner is None or existing_canonical_owner == owner, "Canonical platform ID is already linked to another wallet")
         self.platform_to_address[pkey] = owner
-        self.canonical_id_to_address[ckey] = owner
+        # Some providers, notably X oEmbed, publish no immutable account ID.
+        # Preserve the handle index for that weaker evidence, but only reserve
+        # the canonical-ID index when the provider actually returned one.
+        if acct.canonical_platform_id:
+            ckey = self._canonical_key(acct.platform, acct.canonical_platform_id)
+            existing_canonical_owner = self.canonical_id_to_address.get(ckey)
+            self._require(existing_canonical_owner is None or existing_canonical_owner == owner, "Canonical platform ID is already linked to another wallet")
+            self.canonical_id_to_address[ckey] = owner
 
     def _target_url(self, platform: str, username: str, fetch_url: str) -> str:
         clean_username = self._normalize_username(platform, username)
@@ -408,7 +412,11 @@ class SoulStamp(gl.Contract):
             "Discord attestation URL is not from the configured backend",
         )
         token = parsed.path[len(prefix_path):].strip()
-        self._require(bool(re.match(r"^[A-Za-z0-9_-]{1,256}$", token)), "Discord attestation URL is malformed")
+        self._require(
+            len(token) <= DISCORD_ATTESTATION_TOKEN_MAX_LENGTH
+            and bool(re.match(r"^[A-Za-z0-9_-]{1,2004}\.[A-Za-z0-9_-]{43}$", token)),
+            "Discord attestation URL is malformed",
+        )
         self._require(self.used_discord_attestations.get(token) is None, "Discord attestation has already been used")
         return token
 
@@ -433,10 +441,12 @@ class SoulStamp(gl.Contract):
             raise gl.vm.UserError(f"{ERROR_LLM} GenLayer proof verdict was not structured JSON")
         code_found = bool(value.get("code_found", code in content))
         account_match = bool(value.get("account_match", False))
-        canonical_id = str(value.get("canonical_platform_id", "") or "").strip()
-        if expected_canonical_id and canonical_id and canonical_id != expected_canonical_id:
+        reported_canonical_id = str(value.get("canonical_platform_id", "") or "").strip()
+        if expected_canonical_id and reported_canonical_id and reported_canonical_id != expected_canonical_id:
             raise gl.vm.UserError(f"{ERROR_LLM} GenLayer verdict changed the canonical platform ID")
-        canonical_id = expected_canonical_id or canonical_id
+        # Canonical IDs are provider facts. Never let an LLM invent one when a
+        # provider did not return it (the X oEmbed response is handle-only).
+        canonical_id = expected_canonical_id
         risk_band = str(value.get("risk_band", "medium") or "medium").strip().lower()
         proof_strength = str(value.get("proof_strength", "WEAK") or "WEAK").strip().upper()
         try:
@@ -461,12 +471,22 @@ class SoulStamp(gl.Contract):
             reason_code = "ACCOUNT_MISMATCH"
         elif not fresh:
             reason_code = "EVIDENCE_EXPIRED"
+        elif platform == "twitter" and not canonical_id:
+            reason_code = "CODE_FOUND_ON_CANONICAL_TWEET_HANDLE_ONLY"
         else:
             reason_code = "CODE_FOUND_ON_CANONICAL_PROFILE"
         if risk_band not in RISK_BANDS:
             risk_band = "high" if proof_status != "ACTIVE" else "medium"
         if proof_strength not in PROOF_STRENGTHS:
             proof_strength = "WEAK"
+        if platform == "twitter" and not canonical_id:
+            # X oEmbed proves the provider-returned handle URL, not an
+            # immutable account identifier. Keep this explicitly weaker and
+            # prevent an LLM from upgrading it to recovery-grade evidence.
+            proof_strength = "MEDIUM"
+            if proof_status == "ACTIVE" and risk_band == "low":
+                risk_band = "medium"
+            confidence = min(confidence, 82)
         return {
             "code_found": code_found, "account_match": account_match, "platform": platform,
             "username": self._normalize_username(platform, username), "canonical_platform_id": canonical_id,
@@ -506,11 +526,10 @@ class SoulStamp(gl.Contract):
                 candidate_id = str(parsed.get("id", "") or "")
                 canonical_id = candidate_id if re.match(r"^[0-9]+$", candidate_id) else ""
             elif platform == "twitter" and isinstance(parsed, dict):
-                author_url = str(parsed.get("author_url", "") or "")
-                author_id = str(parsed.get("author_id", "") or "")
-                # Handles are mutable and are not canonical identity keys.
-                # Require the provider's immutable numeric author ID.
-                canonical_id = f"id:{author_id}" if re.match(r"^[0-9]+$", author_id) else ""
+                # X oEmbed currently returns author_url/author_name/html but
+                # does not return an author_id. Keep canonical_id empty and
+                # classify an exact provider author URL as handle-only proof.
+                canonical_id = ""
             elif platform == "discord" and isinstance(parsed, dict):
                 canonical_id = str(parsed.get("discord_user_id", "") or parsed.get("discord_id", "") or "")
                 if not re.match(r"^[0-9]+$", canonical_id):
@@ -540,6 +559,18 @@ class SoulStamp(gl.Contract):
                 author_host = parsed_author.netloc.lower() if parsed_author else ""
                 author_parts = [part for part in parsed_author.path.split("/") if part] if parsed_author else []
                 # Never infer authorship from the submitted URL.
+                provider_url = str(parsed.get("provider_url", "") or "")
+                provider_parsed = urlparse(provider_url) if provider_url else None
+                provider_host = provider_parsed.netloc.lower() if provider_parsed else ""
+                provider_origin_ok = (
+                    provider_parsed is None
+                    or (
+                        provider_parsed.scheme == "https"
+                        and provider_host in ("x.com", "twitter.com")
+                        and provider_parsed.path in ("", "/")
+                        and not provider_parsed.params and not provider_parsed.query and not provider_parsed.fragment
+                    )
+                )
                 account_match = (
                     parsed_author is not None
                     and parsed_author.scheme == "https"
@@ -547,11 +578,11 @@ class SoulStamp(gl.Contract):
                     and not parsed_author.params and not parsed_author.query and not parsed_author.fragment
                     and len(author_parts) == 1
                     and author_parts[0].lower() == username_lc
-                    and bool(canonical_id)
+                    and provider_origin_ok
                 )
-                proof_strength = "STRONG" if str(parsed.get("author_id", "") or "") else "MEDIUM"
+                proof_strength = "MEDIUM"
                 if code_found and account_match:
-                    confidence, risk_band, reason_code = 88, "low", "CODE_FOUND_ON_CANONICAL_TWEET"
+                    confidence, risk_band, reason_code = 82, "medium", "CODE_FOUND_ON_CANONICAL_TWEET_HANDLE_ONLY"
                 elif code_found:
                     confidence, reason_code = 30, "AUTHOR_MISMATCH"
             elif platform == "discord" and isinstance(parsed, dict):
@@ -778,7 +809,8 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
         self._require(verdict["code_found"], f"Verification code was not confirmed. Reason: {verdict['reason_code']}")
         self._require(verdict["account_match"], f"Account ownership could not be confirmed. Reason: {verdict['reason_code']}")
         self._require(verdict["proof_status"] == "ACTIVE", f"Proof is not active. Reason: {verdict['reason_code']}")
-        self._require(bool(verdict["canonical_platform_id"]), "Canonical platform ID is required")
+        if pending.platform != "twitter":
+            self._require(bool(verdict["canonical_platform_id"]), "Canonical platform ID is required for this provider")
         marker = self._mark()
         identity = self.identities.get(caller)
         if identity is None:
@@ -971,6 +1003,7 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
         self._require(identity is not None and identity.identity_state == "ACTIVE", "Identity is not challengeable in its current state")
         idx = self._find_account(identity, plat, clean_user)
         self._require(idx >= 0 and self._is_active_account(identity.linked_accounts[idx]), "Only a fresh active proof can be challenged")
+        self._require(bool(identity.linked_accounts[idx].canonical_platform_id), "Ownership challenges require provider-returned canonical identity evidence")
         existing_id = self.open_challenges_by_platform.get(pkey)
         if existing_id is not None:
             existing = self.challenges.get(existing_id)
@@ -1152,50 +1185,43 @@ The deterministic admissible outcome is {boundary_decision}. The returned decisi
             "Source principal binding is inconsistent; recovery is halted",
         )
         marker = self._mark()
-        new_identity = IdentityRecord(
-            owner=new_wallet, linked_accounts=[], reputation_score=old_identity.reputation_score, is_flagged=False,
-            flag_reason="", created_at=old_identity.created_at, last_updated=marker, verification_count=old_identity.verification_count,
-            audit_log=[], principal_id=old_identity.principal_id, identity_state="ACTIVE", recovery_target="",
-        )
-        for old_entry in old_identity.audit_log:
-            new_identity.audit_log.append(self._clone_audit(old_entry))
+        # Recovery is account-scoped. A challenge over one provider account
+        # must not silently transfer unrelated links, history, or reputation.
+        target_idx = self._find_account(old_identity, challenge.platform, challenge.username)
+        self._require(target_idx >= 0, "Challenged account is missing from the source identity")
+        challenged = old_identity.linked_accounts[target_idx]
+        self._require(challenged.proof_status == "CONFLICTED", "Challenged account is not pending recovery")
+        self._remove_indexes(challenge.current_owner, challenged)
+        challenged.proof_status = "ACTIVE"
+        challenged.is_active = True
+        challenged.reason_code = "RECOVERED_BY_INDEPENDENT_CONSENSUS"
+        challenged.dossier.proof_status = "ACTIVE"
+        challenged.dossier.reason_code = challenged.reason_code
+        challenged.dossier.verified_wallet = new_wallet
+        challenged.dossier.updated_marker = marker
+        challenged.dossier.evidence_expires_at = u256(int(self._now()) + PROOF_VALIDITY_SECONDS)
+        copied = self._clone_account(challenged, new_wallet, marker)
+        self._reserve_indexes(new_wallet, copied)
+        self._set_account_status(challenged, "RECOVERED", "WALLET_RECOVERED", marker)
+        old_identity.linked_accounts[target_idx] = challenged
+        old_identity.identity_state = "ACTIVE"
+        has_other_active_proof = False
         for i in range(len(old_identity.linked_accounts)):
-            acct = old_identity.linked_accounts[i]
-            if acct.proof_status == "CONFLICTED" and acct.platform == challenge.platform and acct.username.lower() == challenge.username.lower():
-                acct.proof_status = "ACTIVE"
-                acct.is_active = True
-                acct.reason_code = "RECOVERED_BY_INDEPENDENT_CONSENSUS"
-                acct.dossier.proof_status = "ACTIVE"
-                acct.dossier.reason_code = acct.reason_code
-                acct.dossier.verified_wallet = new_wallet
-                acct.dossier.updated_marker = marker
-                # The winning challenge supplied fresh evidence. Start a new
-                # proof-validity window from the finalized recovery event.
-                acct.dossier.evidence_expires_at = u256(int(self._now()) + PROOF_VALIDITY_SECONDS)
-            else:
-                # Recovery transfers the principal, not only the challenged
-                # proof. Keep every retained dossier bound to the new wallet.
-                acct.dossier.verified_wallet = new_wallet
-            self._remove_indexes(challenge.current_owner, acct)
-            copied = self._clone_account(acct, new_wallet, marker)
-            new_identity.linked_accounts.append(copied)
-            # Non-revoked historical links remain reserved during recovery so
-            # a stale/conflicted record cannot be claimed by a third party
-            # while its immutable history is carried to the new wallet.
-            if copied.proof_status not in ("REVOKED", "RECOVERED"):
-                self._reserve_indexes(new_wallet, copied)
-            self._set_account_status(acct, "RECOVERED", "WALLET_RECOVERED", marker)
-            old_identity.linked_accounts[i] = acct
-        old_identity.identity_state = "RECOVERED"
+            if i != target_idx and self._is_active_account(old_identity.linked_accounts[i]):
+                has_other_active_proof = True
+                break
+        if not has_other_active_proof:
+            old_identity.identity_state = "RECOVERED"
         old_identity.recovery_target = new_wallet
         old_identity.last_updated = marker
         self._append_audit(old_identity, "wallet_recovery_executed", challenge.platform, challenge.username, "recovered", 0, 0, "RECOVERED", "WALLET_RECOVERED", details=f"challenge={challenge_id};new_wallet={new_wallet}", actor=new_wallet)
-        self._append_audit(new_identity, "wallet_recovery_executed", challenge.platform, challenge.username, "recovered", 0, 0, "ACTIVE", "WALLET_RECOVERED", details=f"challenge={challenge_id};old_wallet={challenge.current_owner}", actor=new_wallet)
+        new_identity = self._create_identity(new_wallet, marker)
+        new_identity.linked_accounts.append(copied)
+        new_identity.verification_count = u32(1)
+        self._append_audit(new_identity, "wallet_recovery_executed", challenge.platform, challenge.username, "recovered", 0, 0, "ACTIVE", "WALLET_RECOVERED", details=f"challenge={challenge_id};old_wallet={challenge.current_owner};scope=single_account", actor=new_wallet)
+        new_identity.last_updated = self.event_marker
         self.identities[challenge.current_owner] = old_identity
         self.identities[new_wallet] = new_identity
-        self.all_addresses.append(new_wallet)
-        self.wallet_to_principal[new_wallet] = old_identity.principal_id
-        self.principal_to_wallet[old_identity.principal_id] = new_wallet
         challenge.status = "EXECUTED"
         challenge.recovery_executed_at = marker
         challenge.reason_code = "WALLET_RECOVERED_BY_CONSENSUS"

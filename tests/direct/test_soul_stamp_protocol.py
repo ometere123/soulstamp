@@ -95,7 +95,7 @@ def test_x_author_impersonation_is_rejected(direct_vm, direct_deploy):
         contract.complete_verification("https://x.com/claimed/status/123456")
 
 
-def test_x_requires_provider_author_id_not_handle_fallback(direct_vm, direct_deploy):
+def test_x_oembed_handle_only_proof_is_accepted_but_not_recovery_grade(direct_vm, direct_deploy):
     contract = deploy(direct_deploy)
     direct_vm.sender = OWNER
     contract.request_verification("twitter", "claimed", "https://x.com/claimed/status/123456")
@@ -103,13 +103,24 @@ def test_x_requires_provider_author_id_not_handle_fallback(direct_vm, direct_dep
     direct_vm.mock_web(
         r".*publish\.twitter\.com/oembed.*",
         {"status": 200, "body": json.dumps({
+            "url": "https://x.com/claimed/status/123456",
+            "author_name": "Claimed",
             "author_url": "https://x.com/claimed",
-            "html": f"<p>{pending['verification_code']}</p>",
+            "html": f"<blockquote>{pending['verification_code']}</blockquote>",
+            "provider_name": "X",
+            "provider_url": "https://x.com",
         })},
     )
-    proof_llm(direct_vm, account_match=False, canonical_id="")
-    with direct_vm.expect_revert("ownership"):
-        contract.complete_verification("https://x.com/claimed/status/123456")
+    proof_llm(direct_vm, account_match=True, canonical_id="")
+    contract.complete_verification("https://x.com/claimed/status/123456")
+    account = contract.get_identity(OWNER)["linked_accounts"][0]
+    assert account["proof_status"] == "ACTIVE"
+    assert account["canonical_platform_id"] == ""
+    assert account["proof_strength"] == "MEDIUM"
+    assert account["reason_code"] == "CODE_FOUND_ON_CANONICAL_TWEET_HANDLE_ONLY"
+    direct_vm.sender = CHALLENGER
+    with direct_vm.expect_revert("canonical identity evidence"):
+        contract.request_ownership_challenge("twitter", "claimed")
 
 
 def test_x_rejects_non_provider_author_url_even_when_path_matches(direct_vm, direct_deploy):
@@ -146,6 +157,28 @@ def test_x_rejects_http_provider_author_url_even_when_identity_matches(direct_vm
     proof_llm(direct_vm, account_match=False, canonical_id="id:555")
     with direct_vm.expect_revert("ownership"):
         contract.complete_verification("https://x.com/claimed/status/123456")
+
+
+def test_x_real_oembed_shape_does_not_require_unsupported_author_id(direct_vm, direct_deploy):
+    contract = deploy(direct_deploy)
+    direct_vm.sender = OWNER
+    contract.request_verification("twitter", "papito_dele", "https://x.com/papito_dele")
+    pending = contract.get_pending_verification(OWNER)
+    direct_vm.mock_web(
+        r".*publish\.twitter\.com/oembed.*",
+        {"status": 200, "body": json.dumps({
+            "url": "https://x.com/papito_dele/status/2109798117659009109",
+            "author_name": "PAPITO",
+            "author_url": "https://x.com/papito_dele",
+            "html": f"<blockquote><p>Verifying my identity on SoulStamp<br>{pending['verification_code']}</p></blockquote>",
+            "provider_name": "X",
+            "provider_url": "https://x.com",
+            "version": "1.0",
+        })},
+    )
+    proof_llm(direct_vm, account_match=True, canonical_id="", reasoning="Provider oEmbed confirms the exact HTTPS author handle; no immutable ID was returned.")
+    contract.complete_verification("https://x.com/papito_dele/status/2109798117659009109")
+    assert contract.lookup_by_platform("twitter", "papito_dele")["proof_status"] == "ACTIVE"
 
 
 def test_llm_reason_code_and_reasoning_variance_cannot_change_derived_status(direct_vm, direct_deploy):
@@ -454,14 +487,15 @@ def test_discord_attestation_is_fresh_and_one_use(direct_vm, direct_deploy):
     direct_vm.sender = OWNER
     contract.request_verification("discord", "alice#123", "https://discord.com/users/123")
     pending = contract.get_pending_verification(OWNER)
-    attestation_url = "https://attest.example/api/discord/attestations/token-1"
+    attestation_token = "A" * 100 + "." + "a" * 43
+    attestation_url = f"https://attest.example/api/discord/attestations/{attestation_token}"
     body = {
         "discord_user_id": "123", "wallet": OWNER,
         "verification_code": pending["verification_code"],
         "claimed_username": "alice#123", "pending_id": pending["pending_id"],
         "issued_at": 1893455990, "expires_at": 1893456300,
     }
-    direct_vm.mock_web(r".*attest\.example/api/discord/attestations/token-1$", {"status": 200, "body": json.dumps(body)})
+    direct_vm.mock_web(r".*attest\.example/api/discord/attestations/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$", {"status": 200, "body": json.dumps(body)})
     proof_llm(direct_vm, canonical_id="123")
     with direct_vm.expect_revert("configured backend"):
         contract.complete_verification(attestation_url + "?replay=1")
@@ -478,14 +512,15 @@ def test_expired_discord_attestation_is_not_active(direct_vm, direct_deploy):
     direct_vm.sender = OTHER
     contract.request_verification("discord", "expired#123", "https://discord.com/users/123")
     pending = contract.get_pending_verification(OTHER)
-    attestation_url = "https://attest.example/api/discord/attestations/token-expired"
+    attestation_token = "B" * 100 + "." + "b" * 43
+    attestation_url = f"https://attest.example/api/discord/attestations/{attestation_token}"
     body = {
         "discord_user_id": "123", "wallet": OTHER,
         "verification_code": pending["verification_code"],
         "claimed_username": "expired#123", "pending_id": pending["pending_id"],
         "issued_at": 1893455000, "expires_at": 1893455999,
     }
-    direct_vm.mock_web(r".*attest\.example/api/discord/attestations/token-expired$", {"status": 200, "body": json.dumps(body)})
+    direct_vm.mock_web(r".*attest\.example/api/discord/attestations/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$", {"status": 200, "body": json.dumps(body)})
     proof_llm(direct_vm, account_match=False, canonical_id="123")
     with direct_vm.expect_revert("ownership"):
         contract.complete_verification(attestation_url)
@@ -650,9 +685,12 @@ def test_recovery_preserves_non_revoked_historical_indexes(direct_vm, direct_dep
     contract.execute_wallet_recovery(challenge["challenge_id"])
 
     bob_after = contract.lookup_by_platform("github", "bob")
-    assert bob_after["owner_address"] == CHALLENGER
+    assert bob_after["owner_address"] == OWNER
     assert bob_after["proof_status"] == "STALE"
     assert contract.is_platform_taken("github", "bob") is True
+    challenger_identity = contract.get_identity(CHALLENGER)
+    assert [account["username"] for account in challenger_identity["linked_accounts"]] == ["alice"]
+    assert challenger_identity["reputation_score"] == 0
 
 
 def test_discord_challenge_attestation_is_consumed_once(direct_vm, direct_deploy):
@@ -663,28 +701,32 @@ def test_discord_challenge_attestation_is_consumed_once(direct_vm, direct_deploy
     direct_vm.sender = OWNER
     contract.request_verification("discord", "alice#123", "https://discord.com/users/123")
     pending = contract.get_pending_verification(OWNER)
-    verification_url = "https://attest.example/api/discord/attestations/verify-token"
+    verification_token = "eyJwdXJwb3NlIjoiZGlzY29yZF9hdHRlc3RhdGlvbiJ9" + "A" * 1040 + "." + "a" * 43
+    assert len(verification_token) > 256
+    verification_url = f"https://attest.example/api/discord/attestations/{verification_token}"
     verification_body = {
         "discord_user_id": "123", "wallet": OWNER,
         "verification_code": pending["verification_code"],
         "claimed_username": "alice#123", "pending_id": pending["pending_id"],
         "issued_at": 1893455990, "expires_at": 1893456300,
     }
-    direct_vm.mock_web(r".*attest\.example/api/discord/attestations/verify-token$", {"status": 200, "body": json.dumps(verification_body)})
+    direct_vm.mock_web(r".*attest\.example/api/discord/attestations/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$", {"status": 200, "body": json.dumps(verification_body)})
     proof_llm(direct_vm, canonical_id="123")
     contract.complete_verification(verification_url)
     direct_vm.clear_mocks()
     direct_vm.sender = CHALLENGER
     contract.request_ownership_challenge("discord", "alice#123")
     challenge = contract.get_challenges(CHALLENGER, 0, 10)[0]
-    challenge_url = "https://attest.example/api/discord/attestations/challenge-token"
+    challenge_token = "eyJwdXJwb3NlIjoiZGlzY29yZF9hdHRlc3RhdGlvbiJ9" + "B" * 1040 + "." + "b" * 43
+    assert len(challenge_token) > 256
+    challenge_url = f"https://attest.example/api/discord/attestations/{challenge_token}"
     challenge_body = {
         "discord_user_id": "123", "wallet": CHALLENGER,
         "verification_code": challenge["challenger_code"],
         "claimed_username": "alice#123", "pending_id": challenge["challenge_id"],
         "issued_at": 1893455990, "expires_at": 1893456300,
     }
-    direct_vm.mock_web(r".*attest\.example/api/discord/attestations/challenge-token$", {"status": 200, "body": json.dumps(challenge_body)})
+    direct_vm.mock_web(r".*attest\.example/api/discord/attestations/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$", {"status": 200, "body": json.dumps(challenge_body)})
     proof_llm(direct_vm, canonical_id="123")
     contract.submit_challenge_evidence(challenge["challenge_id"], challenge_url)
     direct_vm.sender = OWNER

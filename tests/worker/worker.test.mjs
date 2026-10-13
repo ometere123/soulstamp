@@ -74,6 +74,9 @@ test("attestation binds the OAuth Discord identity, wallet, code, and pending ID
   assert.equal(response.status, 201);
   const body = await response.json();
   assert.match(body.attestation_url, /^https:\/\/worker\.example\/api\/discord\/attestations\//);
+  const token = new URL(body.attestation_url).pathname.split("/").pop();
+  assert.ok(token.length > 256, "real Worker token must cover the contract's old 256-character regression");
+  assert.match(token, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/);
   assert.equal(body.wallet, OWNER_WALLET);
   assert.equal(body.verification_code, "SOULSTAMP-CHALLENGE-AAAAAAAAAAAA");
   assert.equal(body.pending_id, "AAAAAAAAAAAAAAAAAAAAAAAA");
@@ -113,6 +116,10 @@ test("tampered and expired signed attestation URLs fail closed", async () => {
   const tamperedResponse = await worker.fetch(new Request(attestationUrl(tampered)), env);
   assert.equal(tamperedResponse.status, 500);
   assert.match(await tamperedResponse.text(), /Invalid signed token signature/);
+
+  const extraSegmentResponse = await worker.fetch(new Request(attestationUrl(`${valid}.extra`)), env);
+  assert.equal(extraSegmentResponse.status, 500);
+  assert.match(await extraSegmentResponse.text(), /Invalid signed token/);
 
   const expired = signedToken({
     purpose: "discord_attestation",
