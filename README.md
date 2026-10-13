@@ -28,8 +28,9 @@ Initial state: verifier `soulstamp-v3.0-continuity`, admin
 `0x4e44636494650386b89c64011c10f48d4b344c4f`, legacy contract
 `0x3108daffcbc24e261137056c56afcae17677bdfb`, and zero verifications,
 identities, challenges, and recoveries.
-Vercel: Production `dpl_3o8q26xjj76fr3ctyJhB1h4xxxn5` READY at
-`https://soulstamp-gen.vercel.app`; Preview
+Vercel: Production `dpl_GvrU6Ca5ZEd9ePzqdCDyuc3Z7DAH` READY at
+`https://soulstamp-12k9ue6xx-delealufejoel-4184s-projects.vercel.app`
+(`https://soulstamp-gen.vercel.app`); Preview
 `dpl_JDM8fsgW57Ut77rJTstMauZbaJrv` READY at
 `https://soulstamp-o5v36e0zx-delealufejoel-4184s-projects.vercel.app`.
 The production, preview, and public alias bundles contain the new contract
