@@ -901,7 +901,7 @@ Never set code_found true unless the exact code {code!r} is present. Never chang
         )
         return hashlib.sha256(material.encode()).hexdigest()
 
-    def _challenge_evidence_facts(self, challenge: OwnershipChallenge, role: str) -> dict:
+    def _legacy_challenge_evidence_facts(self, challenge: OwnershipChallenge, role: str) -> dict:
         """Independently derive challenge facts from live or immutable evidence.
 
         Discord attestations are intentionally verified at acceptance time and
@@ -1026,7 +1026,7 @@ Never set code_found true unless the exact code {code!r} is present. Never chang
             "evidence_hash": hashlib.sha256(content.encode()).hexdigest(),
         }
 
-    def _challenge_evidence_facts(self, challenge: OwnershipChallenge, role: str) -> dict:
+    def _secure_challenge_evidence_facts(self, challenge: OwnershipChallenge, role: str) -> dict:
         """Return validator-comparable decision material for one evidence path.
 
         The earlier implementation compared only a few booleans and, for
@@ -1173,10 +1173,10 @@ Never set code_found true unless the exact code {code!r} is present. Never chang
             return "CHALLENGER_UPHOLDS"
 
         def leader_fn():
-            challenger_facts = self._challenge_evidence_facts(challenge, "challenger")
+            challenger_facts = self._secure_challenge_evidence_facts(challenge, "challenger")
             owner_facts = {"present": bool(challenge.owner_rebuttal_url), "facts": {}}
             if owner_facts["present"]:
-                owner_facts["facts"] = self._challenge_evidence_facts(challenge, "owner")
+                owner_facts["facts"] = self._secure_challenge_evidence_facts(challenge, "owner")
             boundary_decision = derive_decision(challenger_facts, owner_facts)
             prompt = f"""Return strict JSON only for this independent SoulStamp ownership challenge resolution.
 Fields: decision, reasoning. Allowed decision: CHALLENGER_UPHOLDS, OWNER_UPHOLDS, INCONCLUSIVE.
@@ -1207,10 +1207,10 @@ Choose the allowed decision from those facts. The protocol boundary for this res
             if not isinstance(data, dict):
                 return False
             try:
-                challenger_facts = self._challenge_evidence_facts(challenge, "challenger")
+                challenger_facts = self._secure_challenge_evidence_facts(challenge, "challenger")
                 owner_facts = {"present": bool(challenge.owner_rebuttal_url), "facts": {}}
                 if owner_facts["present"]:
-                    owner_facts["facts"] = self._challenge_evidence_facts(challenge, "owner")
+                    owner_facts["facts"] = self._secure_challenge_evidence_facts(challenge, "owner")
                 boundary_decision = derive_decision(challenger_facts, owner_facts)
                 prompt = f"""Return strict JSON only for this independent SoulStamp ownership challenge resolution.
 Fields: decision, reasoning. Allowed decision: CHALLENGER_UPHOLDS, OWNER_UPHOLDS, INCONCLUSIVE.

@@ -248,7 +248,7 @@ operator-owned.
 ## Security and acceptance correction (not deployed by this pass)
 
 The normalized LF SHA-256 of the current contract source is
-`8ac00d1522257ab15978a1feec2630acfea368e304866f8a763928e28bd70d52`.
+`01aed40c311cdd220878af4f3e52f527c4d53099087e440341daf3adaf93a5e2`.
 It is intentionally not represented as source parity for the deployed
 `0xD16Da83DF7189475564B520bC22ec465c9a88621`, because this pass obeys the
 no-deployment boundary.

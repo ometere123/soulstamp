@@ -93,7 +93,7 @@ implemented and covered by local executable tests; new live lifecycle proofs
 remain operator-owned.
 
 The latest security-pass contract source has normalized LF SHA-256
-`8ac00d1522257ab15978a1feec2630acfea368e304866f8a763928e28bd70d52`.
+`01aed40c311cdd220878af4f3e52f527c4d53099087e440341daf3adaf93a5e2`.
 This hash is a working-tree engineering result, not a claim about the currently
 deployed contract, because deployment is deliberately excluded from this pass.
 
