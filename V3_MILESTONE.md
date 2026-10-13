@@ -163,6 +163,36 @@ deployment finality.
 
 ## Current verified deployment handoff
 
+The latest operator deployment is independently verified from public Studionet
+61999 data:
+
+- Commit: `55dcdf15a665660f0a8de0da6c031796009325d1`
+- Contract: `0xD16Da83DF7189475564B520bC22ec465c9a88621`
+- Deployment: [0x330f956c29af8a7fea5b42f0058ef698f034ed33963a5e77b0f3c8e1aab32fde](https://explorer-studio.genlayer.com/tx/0x330f956c29af8a7fea5b42f0058ef698f034ed33963a5e77b0f3c8e1aab32fde)
+- Signer: `0x4E44636494650386b89C64011c10f48D4b344c4f`
+- Receipt: `FINALIZED`, `MAJORITY_AGREE`, `FINISHED_WITH_RETURN`, raw
+  executions `SUCCESS`, `SUCCESS`.
+- Source parity: exact after CRLF normalization; normalized SHA-256
+  `c892d9afd3b7e6077ba2ee0c909dff3711b3baa175111bbc89bbac21030c71b0`.
+- Initial state: verifier `soulstamp-v3.0-continuity`, admin
+  `0x4e44636494650386b89c64011c10f48d4b344c4f`, legacy contract
+  `0x3108daffcbc24e261137056c56afcae17677bdfb`, and zero verifications,
+  identities, challenges, and recoveries.
+- Vercel: not updated or redeployed in this handoff because the available CLI
+  and connector credentials are not authorized for the linked project scope.
+  No Vercel status or public bundle parity is claimed for this release.
+- Discord Worker: `GET /health` returned HTTP 200 with `ok: true` and the
+  expected stateless attestation storage. The new contract still needs the
+  authorized admin call
+  `set_discord_attestation_base_url("https://soulstamp-discord.delealufejoel.workers.dev")`.
+
+This deployment-only evidence is recorded in
+`artifacts/live/studionet-v3-release-2026-10-13.json`. Lifecycle proof remains
+`not_recorded`; no social verification, challenge, rebuttal, recovery,
+revocation, eligibility, or negative-transition transaction is implied.
+
+## Previous verified deployment handoff (superseded)
+
 The compatibility-fixed revision was deployed by the operator and independently
 verified from public Studionet 61999 data:
 
@@ -196,13 +226,15 @@ Lifecycle proof remains intentionally `not_recorded`; real social verification,
 challenge, rebuttal, recovery, revocation, eligibility, and negative-transition
 transactions remain operator-owned.
 
-## Confidence and reputation correction (not deployed)
+## Confidence and reputation correction (deployed; hosting/config pending)
 
-The current engineering correction is source-only. Its normalized LF contract
+The engineering correction is source-parity verified on the new contract. Its normalized LF contract
 SHA-256 is
 `c892d9afd3b7e6077ba2ee0c909dff3711b3baa175111bbc89bbac21030c71b0`.
-The live contract and Vercel release above remain unchanged. The correction
+The correction
 deterministically assigns active-proof confidence `92` (GitHub), `82` (X
 handle-only), and `94` (Discord), keeps account/dossier values aligned, adds
 immutable challenge evidence snapshots and safe stale reclamation, and does
-not claim new live identity or lifecycle proofs.
+not claim new live identity or lifecycle proofs. Vercel environment/redeploy
+and the new contract's Discord base URL remain manual release actions because
+the required Vercel/admin credentials were unavailable in this workspace.

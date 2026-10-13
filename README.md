@@ -18,43 +18,42 @@ The v3 contribution is a lifecycle state machine, not a UI-only refresh: a consu
 Current v3 Studionet deployment:
 
 ```text
-Contract: 0x279003ad03E224e26C328466135Ac83a1AC8ED8a
-Deployment: https://explorer-studio.genlayer.com/tx/0xc4fbdcbea4a01fc12a6fd4f8a0e392e2e3cbc8fb83be1a1fa8365f58a4b19119
+Contract: 0xD16Da83DF7189475564B520bC22ec465c9a88621
+Deployment: https://explorer-studio.genlayer.com/tx/0x330f956c29af8a7fea5b42f0058ef698f034ed33963a5e77b0f3c8e1aab32fde
 Status: FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN / SUCCESS, SUCCESS
 Deployment signer: 0x4E44636494650386b89C64011c10f48D4b344c4f
-Deployed source: exact after CRLF normalization for commit 59e6282
-Deployed source hash: b2d04d220e62f96a6877bddc9e076c44857b546095b4341eda6670635303b0a2
+Deployed source: exact after CRLF normalization for commit 55dcdf1
+Deployed source hash: c892d9afd3b7e6077ba2ee0c909dff3711b3baa175111bbc89bbac21030c71b0
 Initial state: verifier `soulstamp-v3.0-continuity`, admin
 `0x4e44636494650386b89c64011c10f48d4b344c4f`, legacy contract
 `0x3108daffcbc24e261137056c56afcae17677bdfb`, and zero verifications,
 identities, challenges, and recoveries.
-Vercel: Production `dpl_7FnBQ8Ny2huSNKrPdxi12ZmqsXfD` READY; Preview
-`dpl_29LikYPv5eUEdnMBfADJP1DKJC5W` READY; both bundles point to this contract.
+Vercel update: not completed in this handoff because the local CLI and Vercel
+connector both lack authorization for the project scope; existing public
+deployment values were not changed or represented as current.
 Lifecycle proof: not recorded; real identity verification, challenge,
 rebuttal, recovery, revocation, and negative-transition testing remain operator-owned.
 ```
 
-The Discord Worker was updated in place from commit `59e6282` and is healthy at
-the existing URL. Current Worker version:
-`68358f76-9982-4bb6-ab4b-dc22eea88bfa`. The Discord attestation backend is now
-configured by this finalized Studionet 61999 admin write:
+The existing Discord Worker is healthy at the existing URL (`GET /health`
+returned HTTP 200 with `ok: true`, the expected public base URL, and
+stateless-signed-attestation storage). The new contract's attestation backend
+is not configured yet: the local workspace has no authorized admin private-key
+value, so no configuration transaction was submitted. The admin must execute:
 
 ```text
 set_discord_attestation_base_url("https://soulstamp-discord.delealufejoel.workers.dev")
 ```
 
-Transaction: https://explorer-studio.genlayer.com/tx/0xdb54b28ed5645d5599d61fe116a2d612d1e3ce00019aabcde17b37e0a8106582
-(`FINALIZED / MAJORITY_AGREE / SUCCESS, SUCCESS`), signed by the configured
-admin `0x4e44636494650386b89c64011c10f48d4b344c4f`. `get_stats` confirms the
-Worker URL is stored.
+from the admin wallet on Studionet 61999, then verify a finalized
+`MAJORITY_AGREE` receipt and `get_stats().discord_attestation_base_url`.
 
 The deployment and source-parity record is in
-[evidence/studionet-v3-deployment.json](./evidence/studionet-v3-deployment.json).
+[artifacts/live/studionet-v3-release-2026-10-13.json](./artifacts/live/studionet-v3-release-2026-10-13.json).
+Earlier deployment and Vercel/Worker history remains in the prior evidence
+records and the superseded release sections below.
 
-The confidence, reputation, and challenge-evidence correction in the current
-engineering branch is source-only and has not been deployed. It leaves the
-live address above and Vercel unchanged until an operator deploys and verifies
-the new source. The normalized LF source SHA-256 for this correction is
+The normalized LF source SHA-256 for this deployed correction is
 `c892d9afd3b7e6077ba2ee0c909dff3711b3baa175111bbc89bbac21030c71b0`.
 
 ---
@@ -77,15 +76,14 @@ the new source. The normalized LF source SHA-256 for this correction is
 
 See [V3_MILESTONE.md](./V3_MILESTONE.md) for the protocol state machine, migration plan, testing gates, and live-proof rules.
 
-### Compatibility and security pass — verified live
+### Latest continuity correction — source parity verified live
 
-The compatibility pass from commit `59e6282` is now deployed at the contract
-address above and the frontend has been rebuilt for it. It fixes real X oEmbed
-compatibility, accepts genuine Worker-signed Discord attestation URLs, keeps
-Discord replay/freshness checks, scopes recovery to the challenged account, and
-makes frontend writes fail closed when majority consensus metadata is missing.
-The normalized source SHA-256 is
-`b2d04d220e62f96a6877bddc9e076c44857b546095b4341eda6670635303b0a2`.
+Commit `55dcdf1` is deployed at the contract address above with exact source
+parity. It keeps the X oEmbed compatibility and genuine Worker-signed Discord
+URL handling from the preceding release, while adding immutable challenge
+evidence snapshots, separate rebuttal deadlines, safe stale reclamation and
+V2 handle-only migration. The frontend and Worker release status still require
+the manual Vercel authorization and admin configuration steps above.
 
 ## What Changed In v2
 
