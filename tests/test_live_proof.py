@@ -24,11 +24,13 @@ def test_live_proof_normalizes_rpc_source_line_endings():
 
 def test_finality_inspector_supports_current_studionet_receipt_shape():
     source = Path("scripts/finalized_tx.mjs").read_text(encoding="utf-8")
-    assert "status_name" in source
-    assert "consensus_data?.leader_receipt" in source
+    semantics = Path("scripts/receipt_semantics.mjs").read_text(encoding="utf-8")
+    assert "status_name" in semantics
+    assert "consensus_data?.leader_receipt" in semantics
     assert "rawExecutionResults" in source
-    assert "FINISHED_WITH_ERROR" in source
-    assert "MAJORITY_AGREE" in source
+    assert "FINISHED_WITH_ERROR" in semantics
+    assert "MAJORITY_AGREE" in semantics
+    assert "mode=leader" in semantics
     assert "calldataDecoded" in source
 
 

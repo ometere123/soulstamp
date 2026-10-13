@@ -1,0 +1,65 @@
+{
+  "mixed_finalized_request": {
+    "status": 7,
+    "status_name": "FINALIZED",
+    "result": 6,
+    "result_name": "MAJORITY_AGREE",
+    "consensus_data": {
+      "leader_receipt": [
+        {
+          "mode": "leader",
+          "execution_result": "SUCCESS",
+          "vote": null,
+          "genvm_result": {"stderr": "", "error_code": null}
+        },
+        {
+          "mode": "validator",
+          "execution_result": "ERROR",
+          "vote": "idle",
+          "genvm_result": {
+            "stderr": "Validator execution cancelled after quorum",
+            "error_code": "CONSENSUS_VALIDATOR_QUORUM_REACHED"
+          }
+        }
+      ],
+      "validators": [
+        {"execution_result": "SUCCESS", "vote": "agree"},
+        {"execution_result": "ERROR", "vote": "idle"},
+        {"execution_result": "SUCCESS", "vote": "agree"}
+      ]
+    }
+  },
+  "authoritative_failure": {
+    "statusName": "FINALIZED",
+    "txExecutionResultName": "FINISHED_WITH_ERROR",
+    "rawResultName": "MAJORITY_AGREE",
+    "consensus_data": {
+      "leader_receipt": [
+        {"mode": "leader", "execution_result": "SUCCESS"},
+        {"mode": "validator", "execution_result": "SUCCESS"}
+      ]
+    }
+  },
+  "undetermined": {
+    "statusName": "FINALIZED",
+    "txExecutionResultName": "FINISHED_WITH_RETURN",
+    "resultName": "UNDETERMINED",
+    "consensus_data": {
+      "leader_receipt": [{"mode": "leader", "execution_result": "SUCCESS"}]
+    }
+  },
+  "legacy_uniform_success": {
+    "statusName": "FINALIZED",
+    "rawResultName": "MAJORITY_AGREE",
+    "consensus_data": {
+      "leader_receipt": [
+        {"execution_result": "SUCCESS"},
+        {"execution_result": "SUCCESS"}
+      ]
+    }
+  },
+  "missing_execution": {
+    "statusName": "FINALIZED",
+    "rawResultName": "MAJORITY_AGREE"
+  }
+}

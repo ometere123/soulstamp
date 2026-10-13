@@ -8,8 +8,9 @@
     "lint:contract": "python scripts/contract_gates.py",
     "test:direct": "python -m pytest tests/direct tests/test_soul_stamp.py -q",
     "test:frontend": "vitest run tests/frontend",
+    "test:finality": "node --test tests/scripts/finality.test.mjs",
     "test:worker": "npm --prefix backend test",
-    "test:all": "python -m pytest tests -q && npm run test:frontend && npm run test:worker",
+    "test:all": "python -m pytest tests -q && npm run test:frontend && npm run test:finality && npm run test:worker",
     "test:live": "python -m pytest tests/integration -m live -v -s",
     "ci": "npm run lint:contract && npm run test:all && npm --prefix frontend run build && npm --prefix backend run check"
   },

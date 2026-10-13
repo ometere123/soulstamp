@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import postState from "../fixtures/verification_post_state.json";
 import { hasLinkedAccount } from "../../frontend/src/lib/identity";
 import { evidenceAssuranceLabel } from "../../frontend/src/lib/evidence";
 import type { IdentityRecord } from "../../frontend/src/types";
@@ -20,6 +21,17 @@ function identityWith(platform: "github" | "twitter", username: string): Identit
 describe("identity post-state confirmation", () => {
   it("confirms the exact linked account after a finalized write", () => {
     expect(hasLinkedAccount(identityWith("github", "Alice"), "github", "alice")).toBe(true);
+  });
+
+  it("models pending creation, consumption, and the resulting identity post-state", () => {
+    expect(postState.pending_created.found).toBe(true);
+    expect(postState.pending_created.pending_id).toBeTruthy();
+    expect(postState.pending_consumed.found).toBe(false);
+    expect(hasLinkedAccount(
+      postState.identity_after_completion as IdentityRecord,
+      "twitter",
+      "papito_dele",
+    )).toBe(true);
   });
 
   it("does not treat an unrelated identity or platform as completion", () => {

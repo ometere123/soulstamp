@@ -44,7 +44,7 @@ def test_live_release_cross_component_finality_and_post_state():
     assert finalized["rawResultName"] == "MAJORITY_AGREE"
     assert finalized["txExecutionResultName"] == "FINISHED_WITH_RETURN"
     assert finalized["rawExecutionResults"]
-    assert all(result == "SUCCESS" for result in finalized["rawExecutionResults"])
+    assert finalized["authoritativeExecutionResult"] == "FINISHED_WITH_RETURN"
 
     worker = _get_json(os.environ["SOULSTAMP_DISCORD_WORKER_URL"].rstrip("/") + "/health")
     assert worker["ok"] is True

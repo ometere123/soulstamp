@@ -1,0 +1,32 @@
+{
+  "pending_created": {
+    "found": true,
+    "platform": "twitter",
+    "username": "papito_dele",
+    "profile_url": "https://twitter.com/papito_dele",
+    "verification_code": "SOULSTAMP-VERIFY-TEST",
+    "pending_id": "PENDING-POST-STATE",
+    "request_nonce": 2,
+    "requested_at": 100,
+    "expires_at": 1800
+  },
+  "pending_consumed": {
+    "found": false
+  },
+  "identity_after_completion": {
+    "found": true,
+    "linked_accounts": [
+      {
+        "platform": "twitter",
+        "username": "papito_dele",
+        "profile_url": "https://twitter.com/papito_dele",
+        "verified_at": 101,
+        "confidence_score": 82,
+        "bot_score": 50,
+        "reasoning": "",
+        "proof_status": "ACTIVE",
+        "proof_strength": "MEDIUM"
+      }
+    ]
+  }
+}

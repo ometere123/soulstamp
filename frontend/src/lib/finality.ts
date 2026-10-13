@@ -1,68 +1,147 @@
 export const FINALIZED_STATUS = "FINALIZED";
 export const SUCCESSFUL_EXECUTION = "FINISHED_WITH_RETURN";
+export const FAILED_EXECUTION = "FINISHED_WITH_ERROR";
+export const NOT_VOTED_EXECUTION = "NOT_VOTED";
 
-const MAJORITY_AGREE = "MAJORITY_AGREE";
+const CONSENSUS_RESULT_NAMES: Record<number, string> = {
+  0: "IDLE",
+  1: "AGREE",
+  2: "DISAGREE",
+  3: "TIMEOUT",
+  4: "DETERMINISTIC_VIOLATION",
+  5: "NO_MAJORITY",
+  6: "MAJORITY_AGREE",
+  7: "MAJORITY_DISAGREE",
+};
 
-function consensusResultName(receipt: any): string | number | null {
-  const value = receipt?.rawResultName
-    ?? receipt?.resultName
-    ?? receipt?.result_name
-    ?? receipt?.consensusResultName
-    ?? receipt?.consensus_result_name
-    ?? receipt?.consensus_result
-    ?? receipt?.result
-    ?? receipt?.consensus_data?.result
-    ?? receipt?.consensus_data?.result_name
-    ?? receipt?.consensus_data?.resultName;
+const EXECUTION_RESULT_NAMES: Record<number, string> = {
+  0: NOT_VOTED_EXECUTION,
+  1: SUCCESSFUL_EXECUTION,
+  2: FAILED_EXECUTION,
+};
+
+function numericValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) return Number(value.trim());
+  return null;
+}
+
+function scalarValue(value: unknown): unknown {
   if (value === undefined || value === null || value === "") return null;
   if (typeof value === "object") {
-    return value?.name ?? value?.resultName ?? value?.result_name ?? value?.value ?? value?.result ?? null;
+    const object = value as Record<string, unknown>;
+    return scalarValue(object.name ?? object.resultName ?? object.result_name ?? object.value ?? object.result);
   }
   return value;
 }
 
-/**
- * A leader can execute successfully while validator consensus rejects the
- * transaction. Treat an explicitly reported consensus result as authoritative
- * and never let Undetermined/Disagree/No-majority reach the UI as success.
- */
-function hasMajorityAgreement(receipt: any): boolean {
-  const result = consensusResultName(receipt);
-  // A finalized receipt without an explicit majority result is not enough to
-  // prove that validators agreed. Fail closed instead of treating missing
-  // consensus metadata as success.
-  if (result === null) return false;
-  return result === MAJORITY_AGREE || result === 6 || result === "6";
+function firstValue(receipt: any, fields: string[]): unknown {
+  for (const field of fields) {
+    const value = scalarValue(receipt?.[field]);
+    if (value !== null) return value;
+  }
+  return null;
 }
 
-function currentLeaderExecutionResults(receipt: any): string[] {
-  const leaders = receipt?.consensus_data?.leader_receipt
+export function normalizedStatusName(receipt: any): string | number | null {
+  const value = firstValue(receipt, ["statusName", "status_name", "status"]);
+  const numeric = numericValue(value);
+  if (numeric !== null && numeric === 7) return FINALIZED_STATUS;
+  return typeof value === "string" ? value.toUpperCase() : (value as string | number | null);
+}
+
+export function consensusResultName(receipt: any): string | number | null {
+  const value = firstValue(receipt, [
+    "rawResultName",
+    "resultName",
+    "result_name",
+    "consensusResultName",
+    "consensus_result_name",
+    "consensus_result",
+    "result",
+  ]);
+  const numeric = numericValue(value);
+  if (numeric !== null && CONSENSUS_RESULT_NAMES[numeric]) return CONSENSUS_RESULT_NAMES[numeric];
+  return typeof value === "string" ? value.toUpperCase() : (value as string | number | null);
+}
+
+function normalizeExecutionValue(value: unknown): string | null {
+  const scalar = scalarValue(value);
+  if (scalar === null) return null;
+  const numeric = numericValue(scalar);
+  if (numeric !== null && EXECUTION_RESULT_NAMES[numeric]) return EXECUTION_RESULT_NAMES[numeric];
+  const normalized = String(scalar).trim().toUpperCase();
+  if (["SUCCESS", "RETURN", "RETURNED", SUCCESSFUL_EXECUTION].includes(normalized)) return SUCCESSFUL_EXECUTION;
+  if (["ERROR", "FAILED", "FAILURE", "CONTRACT_ERROR", FAILED_EXECUTION].includes(normalized)) return FAILED_EXECUTION;
+  if (["IDLE", NOT_VOTED_EXECUTION].includes(normalized)) return NOT_VOTED_EXECUTION;
+  return null;
+}
+
+function directExecutionValue(receipt: any): unknown {
+  return firstValue(receipt, [
+    "txExecutionResultName",
+    "tx_execution_result_name",
+    "txExecutionResult",
+    "tx_execution_result",
+  ]);
+}
+
+export function leaderReceiptEntries(receipt: any): any[] {
+  const entries = receipt?.consensus_data?.leader_receipt
     ?? receipt?.consensusData?.leaderReceipt
     ?? [];
-  if (!Array.isArray(leaders)) return [];
-  return leaders
-    .map((entry: any) => entry?.execution_result ?? entry?.executionResult)
-    .filter((value: unknown): value is string => typeof value === "string");
+  return Array.isArray(entries) ? entries : [];
+}
+
+export function rawLeaderExecutionResults(receipt: any): string[] {
+  return leaderReceiptEntries(receipt)
+    .map(entry => entry?.execution_result ?? entry?.executionResult)
+    .filter((value): value is string | number => value !== undefined && value !== null)
+    .map(value => String(value));
+}
+
+/**
+ * The SDK's top-level execution result is authoritative when present. Current
+ * Studionet receipts can omit it and expose a leader plus secondary validator
+ * entries. In that shape, only mode=leader determines contract execution;
+ * validator entries cancelled after quorum must not turn a successful write
+ * into a client-side failure.
+ */
+export function authoritativeExecutionResult(receipt: any): string | null {
+  const direct = normalizeExecutionValue(directExecutionValue(receipt));
+  if (direct !== null) return direct;
+
+  const entries = leaderReceiptEntries(receipt);
+  const leader = entries.find(entry => String(entry?.mode ?? "").toLowerCase() === "leader");
+  if (leader) return normalizeExecutionValue(leader.execution_result ?? leader.executionResult);
+
+  if (entries.length > 0 && entries.every(entry => entry?.mode === undefined || entry?.mode === null)) {
+    const results = entries.map(entry => normalizeExecutionValue(entry?.execution_result ?? entry?.executionResult));
+    if (results.length > 0 && results.every(result => result === SUCCESSFUL_EXECUTION)) return SUCCESSFUL_EXECUTION;
+    if (results.some(result => result === FAILED_EXECUTION)) return FAILED_EXECUTION;
+  }
+  return null;
 }
 
 export function isFinalizedSuccessfulReceipt(receipt: any): boolean {
-  const status = receipt?.statusName ?? receipt?.status_name ?? receipt?.status;
-  const execution = receipt?.txExecutionResultName ?? receipt?.tx_execution_result_name;
-  if (status !== FINALIZED_STATUS && status !== "FINALIZED") return false;
-  if (!hasMajorityAgreement(receipt)) return false;
-  if (execution === SUCCESSFUL_EXECUTION || execution === "FINISHED_WITH_RETURN") return true;
-
-  // Current Studionet receipts expose execution success per leader instead of
-  // the legacy top-level txExecutionResultName field. Every leader must have
-  // completed successfully before the UI can report a finalized write.
-  const leaderResults = currentLeaderExecutionResults(receipt);
-  return leaderResults.length > 0 && leaderResults.every(result => result === "SUCCESS");
+  return normalizedStatusName(receipt) === FINALIZED_STATUS
+    && consensusResultName(receipt) === "MAJORITY_AGREE"
+    && authoritativeExecutionResult(receipt) === SUCCESSFUL_EXECUTION;
 }
 
 export function executionFailureDescription(receipt: any): string {
-  const execution = receipt?.txExecutionResultName ?? receipt?.tx_execution_result_name;
-  if (execution) return String(execution);
-  const leaderResults = currentLeaderExecutionResults(receipt);
-  if (leaderResults.length > 0) return `leader execution results: ${leaderResults.join(", ")}`;
+  const direct = directExecutionValue(receipt);
+  if (direct !== null) return String(direct);
+
+  const entries = leaderReceiptEntries(receipt);
+  const leader = entries.find(entry => String(entry?.mode ?? "").toLowerCase() === "leader");
+  if (leader) {
+    const value = leader.execution_result ?? leader.executionResult;
+    if (value !== undefined && value !== null) return `authoritative leader execution result: ${String(value)}`;
+  }
+
+  const results = rawLeaderExecutionResults(receipt);
+  if (results.length > 0) return `leader execution results: ${results.join(", ")}`;
   return "execution result was not FINISHED_WITH_RETURN";
 }

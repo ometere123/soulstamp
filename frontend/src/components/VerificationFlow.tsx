@@ -69,6 +69,35 @@ export function VerificationFlow() {
   const [discordDisplay, setDiscordDisplay] = useState<string | null>(null);
   const [lastTxHash, setLastTxHash] = useState<string | null>(null);
 
+  function adoptPendingVerification(next: PendingVerification) {
+    setPending(next);
+    setPlatform(next.platform as Platform);
+    setUsername(next.username);
+    setStep("pending");
+  }
+
+  async function recoverPendingVerification(failClosedOnReadError = false): Promise<PendingVerification | null> {
+    if (!address) return null;
+    let lastReadError: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const next = await getPendingVerification(address, 60_000);
+        if (next.found) {
+          adoptPendingVerification(next);
+          return next;
+        }
+      } catch (readError) {
+        lastReadError = readError;
+        // A temporary read/indexer failure must not create a second request.
+      }
+      if (attempt < 2) await sleep(1_000);
+    }
+    if (lastReadError && failClosedOnReadError) {
+      throw new Error("Could not read the current pending verification. Refresh your wallet state before submitting another request.");
+    }
+    return null;
+  }
+
   useEffect(() => {
     const oauthError = discordOAuthError(window.location.search);
     const oauth = parseDiscordOAuthResult(window.location.search);
@@ -86,20 +115,12 @@ export function VerificationFlow() {
     clearDiscordOAuthParams();
   }, []);
 
-  // On mount (or address change), check if there's already a pending verification
+  // On mount (or address change), recover an existing request before showing the
+  // request form. This also prevents a refresh/indexer race from creating a
+  // second request for the same wallet.
   useEffect(() => {
     if (!address) return;
-    (async () => {
-      try {
-        const p = await getPendingVerification(address);
-        if (p.found) {
-          setPending(p);
-          setPlatform(p.platform as Platform);
-          setUsername(p.username);
-          setStep("pending");
-        }
-      } catch { /* ignore */ }
-    })();
+    void recoverPendingVerification();
   }, [address]);
 
   function copyCode() {
@@ -148,6 +169,22 @@ export function VerificationFlow() {
       setError("Connect your wallet before requesting a verification proof.");
       return;
     }
+
+    // The request may have finalized while the initial recovery read was still
+    // in flight. Re-read first so the user continues with the existing code
+    // instead of submitting another request.
+    try {
+      const existingPending = await recoverPendingVerification(true);
+      if (existingPending) {
+        setError(null);
+        return;
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "Could not read the current pending verification. Refresh before submitting another request.");
+      setStep("idle");
+      return;
+    }
+
     if (platform === "discord" && !discordSession) {
       startDiscordOAuth();
       return;
@@ -170,12 +207,21 @@ export function VerificationFlow() {
       const result = await requestVerification(platform, username.trim(), url);
       setLastTxHash(result.hash);
 
-      const p = await getPendingVerification(address!);
-      if (p.found) {
-        setPending(p);
-        setStep("pending");
+      // A finalized request is only useful to the user if the on-chain
+      // pending record is readable. Confirm that post-state before advancing
+      // to the code-posting step, with a short retry for RPC/indexer lag.
+      const confirmedPending = await recoverPendingVerification();
+      if (!confirmedPending) {
+        throw new Error("The request finalized, but its pending verification was not readable yet. Refresh before submitting another request.");
       }
     } catch (e: any) {
+      // If the receipt path or a post-state read raced with the RPC, recover a
+      // real pending record before showing a failure or inviting resubmission.
+      const recoveredPending = await recoverPendingVerification();
+      if (recoveredPending) {
+        setError(null);
+        return;
+      }
       setError(e?.message ?? "Failed to request verification");
       setStep("idle");
     }
