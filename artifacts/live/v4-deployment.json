@@ -2,6 +2,7 @@
   "milestone": "SoulStamp V4 TrustPass & Sybil Gate",
   "status": "LIVE_DEPLOYMENT_VERIFIED_LIFECYCLE_PENDING",
   "source_commit": "4696ad4",
+  "frontend_release_commit": "c49b4c1",
   "network": {
     "genlayer": { "name": "Studionet", "chain_id": 61999, "rpc": "https://studio.genlayer.com/api" },
     "arc": { "name": "Arc Testnet", "chain_id": 5042002, "rpc": "https://rpc.testnet.arc.io", "usdc": "0x3600000000000000000000000000000000000000", "usdc_decimals": 6 },
@@ -40,14 +41,14 @@
     },
     "worker": {
       "url": "https://soulstamp-discord.delealufejoel.workers.dev",
-      "version_id": "4df2b184-6b1c-4bb1-8acd-bfaaa9d60343",
+      "version_id": "7a4d5975-57bd-4c7d-8ee0-426f326d5b45",
       "health_status": "CONFIRMED_HEALTHY",
       "health": { "ok": true, "frontend_origin": "https://soulstamp-gen.vercel.app", "discord_configured": true, "google_configured": true, "google_redirect_uri": "https://soulstamp-discord.delealufejoel.workers.dev/api/google/callback", "storage": "stateless-signed-attestations" },
       "google_live_identity_status": "CONFIGURED_NOT_ACCOUNT_VERIFIED"
     },
     "vercel": {
-      "production": { "deployment_id": "dpl_FdroVijWYAuXcdQUVCSMFYDsgieo", "url": "https://soulstamp-gdcp9xgrh-delealufejoel-4184s-projects.vercel.app", "alias": "https://soulstamp-gen.vercel.app", "status": "READY", "bundle": { "script": "/assets/index-z5MwpvCw.js", "contains_current_v4": true, "contains_current_arc_escrow": true, "contains_worker_url": true, "contains_superseded_v4": false, "contains_superseded_arc_escrow": false } },
-      "preview": { "deployment_id": "dpl_7ES4pP6ZwzjUjWs89YgoqQjyA7SR", "url": "https://soulstamp-rkjj38usg-delealufejoel-4184s-projects.vercel.app", "status": "READY", "bundle": { "script": "/assets/index-z5MwpvCw.js", "contains_current_v4": true, "contains_current_arc_escrow": true, "contains_worker_url": true, "contains_superseded_v4": false, "contains_superseded_arc_escrow": false } }
+      "production": { "deployment_id": "dpl_H2r1eNtf1g6i4CSf8qXxQzbTQtsU", "url": "https://soulstamp-h80txidb0-delealufejoel-4184s-projects.vercel.app", "alias": "https://soulstamp-gen.vercel.app", "status": "READY", "bundle": { "script": "/assets/index-DK4lfddf.js", "contains_current_v4": true, "contains_current_arc_escrow": true, "contains_worker_url": true, "contains_google_callback_handoff": true, "contains_legacy_cloud_function": false, "contains_superseded_v4": false, "contains_superseded_arc_escrow": false } },
+      "preview": { "deployment_id": "dpl_5HGg2qznpThXrjSVGFNyor4xvPxn", "url": "https://soulstamp-j0iuon5oa-delealufejoel-4184s-projects.vercel.app", "status": "READY", "bundle": { "script": "/assets/index-DK4lfddf.js", "contains_current_v4": true, "contains_current_arc_escrow": true, "contains_worker_url": true, "contains_google_callback_handoff": true, "contains_legacy_cloud_function": false, "contains_superseded_v4": false, "contains_superseded_arc_escrow": false } }
     }
   },
   "human_passport": {
@@ -65,6 +66,19 @@
     "worker_health": "CONFIGURED",
     "oauth_account_link": "UNEXECUTED_USER_CONTROLLED_ACTION",
     "reason": "Worker configuration is live, but no consenting Google browser login and wallet-bound link transaction has been performed."
+  },
+  "oauth_configuration_audit": {
+    "audit_date": "2026-10-19",
+    "active_discord_backend": "https://soulstamp-discord.delealufejoel.workers.dev",
+    "active_google_backend": "https://soulstamp-discord.delealufejoel.workers.dev",
+    "worker_health": "HTTP_200_BOTH_CONFIGURED",
+    "google_callback": "https://soulstamp-discord.delealufejoel.workers.dev/api/google/callback",
+    "discord_callback": "https://soulstamp-discord.delealufejoel.workers.dev/api/discord/callback",
+    "legacy_cloud_function_health_and_oauth_routes": "HTTP_404_READ_ONLY_CHECK",
+    "vercel_targets": "Production and Preview both use the active Worker URLs",
+    "provider_authorization_request": "Google returned HTTP 302 and Discord HTTP 200 for the Worker-generated redirect URIs; no user login or provider-console mutation was performed",
+    "callback_navigation_fix": "c49b4c1",
+    "live_google_identity": "UNEXECUTED_USER_CONTROLLED_ACTION"
   },
   "payment_lifecycle": {
     "status": "UNTESTED_NO_REQUESTS",

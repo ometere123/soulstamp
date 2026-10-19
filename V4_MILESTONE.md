@@ -112,6 +112,29 @@ audience, JWKS signature, time and verified-email checks. A consenting user
 must complete the browser login and wallet-bound link action before Google is
 marked live evidence.
 
+## OAuth configuration audit — 2026-10-19
+
+Production and Preview Vercel variables were independently pulled from the
+existing `soulstamp` project and both point `VITE_GOOGLE_WORKER_URL` and
+`VITE_DISCORD_BACKEND_URL` at the current Cloudflare Worker. The Worker
+returned HTTP 200 from `/health` with Discord and Google configured. Its
+read-only OAuth start routes emit the exact Discord callback
+`/api/discord/callback` and Google callback `/api/google/callback` on that
+Worker.
+
+The legacy Google Cloud Function returned HTTP 404 for its health, Discord
+start, Google start, and callback routes. It is therefore recorded as an
+inactive legacy backend, not replaced by assumption. No Discord provider
+credentials were changed. The current Worker’s latest live version after
+secret-record cleanup is `7a4d5975-57bd-4c7d-8ee0-426f326d5b45`.
+
+The frontend callback correction is in commit `c49b4c1`. A Google success is
+captured before the URL is scrubbed, routes to TrustPass, restores only the
+matching `google_pending_id`, waits for the bound wallet, and exposes
+**Complete Google linking**. It only reports Linked after a finalized V4 write
+and a post-state read containing the Google commitment. Discord’s existing
+Verify Identity callback path remains unchanged.
+
 ## Human Passport live audit
 
 V4 uses Optimism Sepolia chain `11155420`, decoder
@@ -136,8 +159,8 @@ addresses. V3 and Worker configuration were preserved.
 
 | Environment | Deployment | Status | Bundle verification |
 |---|---|---|---|
-| Production | [`dpl_FdroVijWYAuXcdQUVCSMFYDsgieo`](https://vercel.com/delealufejoel-4184s-projects/soulstamp/FdroVijWYAuXcdQUVCSMFYDsgieo) | READY; [soulstamp-gen.vercel.app](https://soulstamp-gen.vercel.app) | served `index-z5MwpvCw.js` contains current V4, current Arc escrow and Worker URL; superseded V4/Arc literals absent |
-| Preview | [`dpl_7ES4pP6ZwzjUjWs89YgoqQjyA7SR`](https://vercel.com/delealufejoel-4184s-projects/soulstamp/7ES4pP6ZwzjUjWs89YgoqQjyA7SR) | READY; [preview](https://soulstamp-rkjj38usg-delealufejoel-4184s-projects.vercel.app) | same authenticated bundle checks |
+| Production | [`dpl_H2r1eNtf1g6i4CSf8qXxQzbTQtsU`](https://vercel.com/delealufejoel-4184s-projects/soulstamp/H2r1eNtf1g6i4CSf8qXxQzbTQtsU) | READY; [soulstamp-gen.vercel.app](https://soulstamp-gen.vercel.app) | served `index-DK4lfddf.js` contains current V4, current Arc escrow, Worker URL and callback code; legacy Cloud Function URL absent |
+| Preview | [`dpl_5HGg2qznpThXrjSVGFNyor4xvPxn`](https://vercel.com/delealufejoel-4184s-projects/soulstamp/5HGg2qznpThXrjSVGFNyor4xvPxn) | READY; [preview](https://soulstamp-j0iuon5oa-delealufejoel-4184s-projects.vercel.app) | same authenticated bundle checks |
 
 ## Live lifecycle evidence
 

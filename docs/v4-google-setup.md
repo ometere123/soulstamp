@@ -35,3 +35,27 @@ callback URL. The live identity status remains
 `CONFIGURED_NOT_ACCOUNT_VERIFIED` until a consenting user completes the real
 OAuth callback and wallet-bound `link_google_attestation` transaction; local
 signed-token tests do not count as live Google verification.
+
+## Frontend callback handoff
+
+The Vercel Production and Preview builds use the Worker URL for both Google
+and Discord. On a successful Google callback the frontend captures the
+short-lived signed evidence in browser session storage, removes
+`google_attestation_url` and related callback parameters from browser history,
+and routes to the TrustPass tab. It restores only the request named by
+`google_pending_id` and requires the bound wallet to reconnect. The user then
+selects **Complete Google linking**. The UI reports Linked only after the V4
+write is finalized successfully and a fresh `get_request` read contains the
+Google commitment. Expired evidence, a missing request, or a different wallet
+is rejected and can be retried through a new OAuth flow.
+
+Discord callback parameters continue to route to Verify Identity and use the
+existing Worker lifecycle. The legacy Cloud Function endpoint was checked
+read-only and returned HTTP 404 for its health and OAuth routes; it is not the
+active frontend backend.
+
+A read-only authorization-start smoke check reached Google’s authorization
+endpoint with HTTP 302 and Discord’s endpoint with HTTP 200 using the exact
+Worker-generated callback values. This confirms the live start requests are
+well formed; it is not a substitute for a consenting user login or an
+on-chain Google-link transaction.

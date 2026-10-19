@@ -11,7 +11,7 @@ The v3 contribution is a lifecycle state machine, not a UI-only refresh: a consu
 | Service | URL |
 |---|---|
 | Frontend | https://soulstamp-gen.vercel.app |
-| Preview deployment | https://soulstamp-o5v36e0zx-delealufejoel-4184s-projects.vercel.app |
+| Preview deployment | https://soulstamp-j0iuon5oa-delealufejoel-4184s-projects.vercel.app |
 | Discord Worker | https://soulstamp-discord.delealufejoel.workers.dev |
 | Repository | https://github.com/ometere123/soulstamp |
 
@@ -28,14 +28,15 @@ Initial state: verifier `soulstamp-v3.0-continuity`, admin
 `0x4e44636494650386b89c64011c10f48d4b344c4f`, legacy contract
 `0x3108daffcbc24e261137056c56afcae17677bdfb`, and zero verifications,
 identities, challenges, and recoveries.
-Vercel: Production `dpl_9BmKKfCrc2bkvMNGjyMHtHJtA7YS` READY at
-`https://soulstamp-c39rar3qx-delealufejoel-4184s-projects.vercel.app`
+Vercel: Production `dpl_H2r1eNtf1g6i4CSf8qXxQzbTQtsU` READY at
+`https://soulstamp-h80txidb0-delealufejoel-4184s-projects.vercel.app`
 (`https://soulstamp-gen.vercel.app`); Preview
-`dpl_4tgYuyT7XEFPXgjhyaEA8Q7b3cbH` READY at
-`https://soulstamp-dfezzbrgd-delealufejoel-4184s-projects.vercel.app`.
-The production, preview, and public alias bundles contain the new contract
-address and none of the checked superseded v3 addresses. The current
-production and preview deployments are linked to release commit `c09941e`.
+`dpl_5HGg2qznpThXrjSVGFNyor4xvPxn` READY at
+`https://soulstamp-j0iuon5oa-delealufejoel-4184s-projects.vercel.app`.
+The production, preview, and public alias bundles contain the current V3/V4,
+Arc escrow and Worker configuration and no legacy Cloud Function URL. These
+deployments include the Google callback-routing correction from release commit
+`c49b4c1`.
 Lifecycle evidence: a read-only audit confirms one real GitHub challenge through
 `INCONCLUSIVE` resolution and Wallet A restoration. It does not claim full
 recovery, unanswered-expiry, cancellation, revocation, or challenger-win proof.
@@ -57,6 +58,25 @@ set_discord_attestation_base_url("https://soulstamp-discord.delealufejoel.worker
 
 The older transaction [0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3](https://explorer-studio.genlayer.com/tx/0x5362ebd8b941955cf5ce5cca6e01ae61a1a56be9e1f18498e727e24771308ee3)
 remains preserved as history for a superseded deployment.
+
+### OAuth configuration audit — 2026-10-19
+
+The deployed frontend’s Production and Preview public configuration both use
+the Cloudflare Worker for Discord and Google:
+`https://soulstamp-discord.delealufejoel.workers.dev`. The Worker returned
+HTTP 200 from `/health` with both providers configured and the exact Google
+callback `https://soulstamp-discord.delealufejoel.workers.dev/api/google/callback`.
+Read-only checks of the legacy Google Cloud Function returned HTTP 404 for
+the health, Discord start, Google start, and callback routes, so it was not
+silently selected as the active backend. Discord remains on the verified
+Worker; no provider credentials were changed.
+
+Google callbacks now route to TrustPass, preserve the signed evidence only in
+session storage after removing callback parameters from browser history, and
+restore the exact `google_pending_id` request. The UI rejects a wrong wallet or
+expired evidence and shows Linked only after finalized V4 execution and a
+non-empty on-chain Google commitment readback. Discord callback routing to
+Verify Identity remains unchanged.
 
 The deployment and source-parity record is in
 [artifacts/live/studionet-v3-release-2026-10-13.json](./artifacts/live/studionet-v3-release-2026-10-13.json).

@@ -38,11 +38,18 @@ Current release facts:
   login/link is still not claimed; local OIDC tests do not count as live
   verification.
 - Vercel Production is READY at deployment
-  `dpl_FdroVijWYAuXcdQUVCSMFYDsgieo` and Preview is READY at
-  `dpl_7ES4pP6ZwzjUjWs89YgoqQjyA7SR`. The public Production alias and Preview
-  bundle were fetched through the authenticated Vercel CLI and contain the
-  current V3 address, current V4 address, current Arc escrow address, and
-  Worker URL; the superseded V4/Arc literals are absent.
+  `dpl_H2r1eNtf1g6i4CSf8qXxQzbTQtsU` and Preview is READY at
+  `dpl_5HGg2qznpThXrjSVGFNyor4xvPxn`. The public Production alias and
+  authenticated Preview bundle were fetched through the Vercel CLI and
+  contain the current V3 address, current V4 address, current Arc escrow
+  address, Worker URL, and Google callback handoff code; the legacy Cloud
+  Function URL is absent.
+- Both Vercel targets currently set `VITE_GOOGLE_WORKER_URL` and
+  `VITE_DISCORD_BACKEND_URL` to
+  `https://soulstamp-discord.delealufejoel.workers.dev`. The Worker health
+  response confirms both providers are configured. Its exact Google callback
+  is `/api/google/callback`; its Discord callback remains
+  `/api/discord/callback`.
 
 The live ledger must mark missing user-controlled Google, Passport, social,
 wallet-signature, payment and settlement actions as blocked or untested. A
