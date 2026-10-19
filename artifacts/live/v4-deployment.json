@@ -1,7 +1,7 @@
 {
   "milestone": "SoulStamp V4 TrustPass & Sybil Gate",
   "status": "DEPLOYED_ENGINEERING_RELEASE",
-  "source_commit": "PENDING_FINAL_RELEASE_COMMIT",
+  "source_commit": "6610ef0",
   "network": {
     "genlayer": { "name": "Studionet", "chain_id": 61999, "rpc": "https://studio.genlayer.com/api" },
     "arc": { "name": "Arc Testnet", "chain_id": 5042002, "rpc": "https://rpc.testnet.arc.io", "usdc": "0x3600000000000000000000000000000000000000", "usdc_decimals": 6 },
