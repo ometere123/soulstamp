@@ -46,8 +46,8 @@
       "google_live_identity_status": "CONFIGURED_NOT_ACCOUNT_VERIFIED"
     },
     "vercel": {
-      "production": { "deployment_id": "dpl_mXHauuumqEupRGucuMpsXAvx1vUT", "url": "https://soulstamp-2foepddkm-delealufejoel-4184s-projects.vercel.app", "alias": "https://soulstamp-gen.vercel.app", "status": "READY", "bundle": { "script": "/assets/index-z5MwpvCw.js", "contains_current_v4": true, "contains_current_arc_escrow": true, "contains_worker_url": true, "contains_superseded_v4": false, "contains_superseded_arc_escrow": false } },
-      "preview": { "deployment_id": "dpl_HpGhLgCLduR64HyayuemaFYo6JYZ", "url": "https://soulstamp-hcnjqvfgk-delealufejoel-4184s-projects.vercel.app", "status": "READY", "bundle": { "script": "/assets/index-z5MwpvCw.js", "contains_current_v4": true, "contains_current_arc_escrow": true, "contains_worker_url": true, "contains_superseded_v4": false, "contains_superseded_arc_escrow": false } }
+      "production": { "deployment_id": "dpl_FdroVijWYAuXcdQUVCSMFYDsgieo", "url": "https://soulstamp-gdcp9xgrh-delealufejoel-4184s-projects.vercel.app", "alias": "https://soulstamp-gen.vercel.app", "status": "READY", "bundle": { "script": "/assets/index-z5MwpvCw.js", "contains_current_v4": true, "contains_current_arc_escrow": true, "contains_worker_url": true, "contains_superseded_v4": false, "contains_superseded_arc_escrow": false } },
+      "preview": { "deployment_id": "dpl_7ES4pP6ZwzjUjWs89YgoqQjyA7SR", "url": "https://soulstamp-rkjj38usg-delealufejoel-4184s-projects.vercel.app", "status": "READY", "bundle": { "script": "/assets/index-z5MwpvCw.js", "contains_current_v4": true, "contains_current_arc_escrow": true, "contains_worker_url": true, "contains_superseded_v4": false, "contains_superseded_arc_escrow": false } }
     }
   },
   "human_passport": {

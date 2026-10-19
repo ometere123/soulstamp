@@ -151,8 +151,8 @@ Arc Testnet escrow is `0xe2a0118847cbf424dbd6f5761987624ea7aae72e` on chain
 and [Arc binding](https://explorer.testnet.arc.io/tx/0x130bce4836aba2f3ca70f390983d48320e03fe5448a9d059a9df9ff982b493e6).
 
 The existing Worker is healthy and Discord remains configured. Vercel
-Production is READY at deployment `dpl_mXHauuumqEupRGucuMpsXAvx1vUT` and
-Preview is READY at `dpl_HpGhLgCLduR64HyayuemaFYo6JYZ`; the served bundles
+Production is READY at deployment `dpl_FdroVijWYAuXcdQUVCSMFYDsgieo` and
+Preview is READY at `dpl_7ES4pP6ZwzjUjWs89YgoqQjyA7SR`; the served bundles
 contain the current V4 address, current Arc escrow and Worker URL, with the
 superseded V4/Arc literals absent. Google live linking, a positive Human
 Passport subject, and a paid Arc assessment/settlement/refund lifecycle remain

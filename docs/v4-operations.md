@@ -38,8 +38,8 @@ Current release facts:
   login/link is still not claimed; local OIDC tests do not count as live
   verification.
 - Vercel Production is READY at deployment
-  `dpl_mXHauuumqEupRGucuMpsXAvx1vUT` and Preview is READY at
-  `dpl_HpGhLgCLduR64HyayuemaFYo6JYZ`. The public Production alias and Preview
+  `dpl_FdroVijWYAuXcdQUVCSMFYDsgieo` and Preview is READY at
+  `dpl_7ES4pP6ZwzjUjWs89YgoqQjyA7SR`. The public Production alias and Preview
   bundle were fetched through the authenticated Vercel CLI and contain the
   current V3 address, current V4 address, current Arc escrow address, and
   Worker URL; the superseded V4/Arc literals are absent.
