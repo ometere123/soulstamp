@@ -42,10 +42,12 @@ export type TrustPassRequest = {
   state: string;
   created_at: number;
   payment_intent_expires_at: number;
+  consent_expires_at: number;
   assessment_deadline: number;
+  funded_at?: number;
+  refund_available_at?: number;
   payment_nonce: number;
   consent_nonce: string;
-  consent_expires_at: number;
   google_commitment: string;
   humanity_snapshot_ref: string;
   arc_tx_hash: string;
@@ -71,6 +73,9 @@ export type TrustPassRecord = TrustPassRequest & {
   expires_at: number;
   reason_code: string;
   arc_payment_tx_hash: string;
+  arc_log_index?: number;
+  arc_refund_log_index?: number;
+  arc_deposit_block_number?: number;
   humanity_snapshot: string;
   google_commitment: string;
 };
@@ -181,6 +186,10 @@ export async function refreshHumanityEvidence(requestId: string, blockNumber: nu
 
 export async function confirmArcPayment(requestId: string, txHash: string, logIndex: number) {
   return write("confirm_arc_payment", [requestId, txHash, logIndex]);
+}
+
+export async function confirmArcRefund(requestId: string, txHash: string, logIndex: number) {
+  return write("confirm_arc_refund", [requestId, txHash, logIndex]);
 }
 
 export async function evaluateAssessment(requestId: string) {

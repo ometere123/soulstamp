@@ -30,6 +30,7 @@ function jsonSafe(value) {
 }
 
 const client = createClient({ chain: studionet, endpoint: "https://studio.genlayer.com/api" });
+const expectedVersion = config("V4_CONTRACT_VERSION", "soulstamp-v4.1-trustpass-security-correction");
 const receipt = await client.waitForTransactionReceipt({
   hash: deploymentTx,
   status: TransactionStatus.FINALIZED,
@@ -52,7 +53,7 @@ if (expectedSourceHash && expectedSourceHash.toLowerCase() !== localHash) throw 
 
 const stats = jsonSafe(await client.readContract({ address: contractAddress, functionName: "get_stats", args: [] }));
 const expectedAdmin = config("V4_ADMIN_ADDRESS", "").toLowerCase();
-if (stats.contract_version !== "soulstamp-v4.0-trustpass-sybil-gate") throw new Error("V4 contract version mismatch");
+if (stats.contract_version !== expectedVersion) throw new Error(`V4 contract version mismatch: expected ${expectedVersion}`);
 if (stats.v3_contract_address?.toLowerCase() !== config("V3_SOULSTAMP_CONTRACT_ADDRESS", "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d").toLowerCase()) throw new Error("V3 linkage mismatch");
 if (expectedAdmin && stats.admin?.toLowerCase() !== expectedAdmin) throw new Error("V4 admin mismatch");
 for (const field of ["total_policies", "total_requests", "total_assessments", "total_passes", "total_settlements", "total_refunds"]) {
@@ -78,4 +79,3 @@ console.log(JSON.stringify({
   },
   initialState: stats,
 }, null, 2));
-

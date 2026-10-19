@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, CreditCard, FileCheck2, RefreshCw } from "lucide-react";
 import { ensureStudionet } from "../lib/client";
-import { payAssessment } from "../lib/arc";
+import { findArcDepositReference, payAssessment, readArcPayment, refundArcPayment, type ArcDepositReference, type ArcPaymentRecord } from "../lib/arc";
 import { GoogleVerification } from "./GoogleVerification";
 import { HumanPassportPanel } from "./HumanPassportPanel";
 import { PaymentLifecycle } from "./PaymentLifecycle";
+import { classifyPaymentRecovery } from "../lib/paymentRecovery";
 import {
   confirmArcPayment,
   cancelAssessmentRequest,
   consentAssessment,
+  confirmArcRefund,
   createAssessmentRequest,
   createPolicy,
   evaluateAssessment,
@@ -42,6 +44,8 @@ export function TrustPassPurchase({ wallet }: { wallet: string }) {
   const [sybil, setSybil] = useState(false);
   const [policy, setPolicy] = useState<TrustPassPolicy | null>(null);
   const [request, setRequest] = useState<TrustPassRequest | null>(null);
+  const [arcPayment, setArcPayment] = useState<ArcPaymentRecord | null>(null);
+  const [depositReference, setDepositReference] = useState<ArcDepositReference | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -51,14 +55,45 @@ export function TrustPassPurchase({ wallet }: { wallet: string }) {
   const canPay = request?.state === "AWAITING_PAYMENT" && Boolean(request.consent_nonce);
   const canEvaluate = request?.state === "FUNDED";
 
+  async function inspectArcPayment(current: TrustPassRequest): Promise<{ payment: ArcPaymentRecord; reference: ArcDepositReference | null } | null> {
+    if (current.state !== "AWAITING_PAYMENT" && current.payment_state !== "ESCROWED") {
+      setArcPayment(null);
+      setDepositReference(null);
+      return null;
+    }
+    try {
+      const intent = await getPaymentIntent(current.request_id);
+      const payment = await readArcPayment(String(intent.request_key) as `0x${string}`);
+      setArcPayment(payment);
+      if (payment.status !== 1) {
+        setDepositReference(null);
+        return { payment, reference: null };
+      }
+      const reference = await findArcDepositReference(String(intent.request_key) as `0x${string}`);
+      setDepositReference(reference);
+      return { payment, reference };
+    } catch (cause) {
+      // A public RPC/log-indexing failure must not make a confirmed V4
+      // request look unpaid; keep the chain request visible and let Resume
+      // retry the Arc read explicitly.
+      setArcPayment(null);
+      setDepositReference(null);
+      setNotice(cause instanceof Error ? `Arc recovery read unavailable: ${cause.message}` : "Arc recovery read unavailable.");
+      return null;
+    }
+  }
+
   async function refresh() {
     try {
       const found = await getRequests(wallet, 0, 50);
       const latest = [...found].sort((left, right) => Number(right.created_at || 0) - Number(left.created_at || 0))[0] || null;
       setRequest(latest);
+      setArcPayment(null);
+      setDepositReference(null);
       if (latest) {
         const selected = await getPolicy(latest.policy_id);
         if (selected.found !== false) setPolicy(selected);
+        await inspectArcPayment(latest);
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -108,6 +143,12 @@ export function TrustPassPurchase({ wallet }: { wallet: string }) {
     if (!request) return;
     setBusy(true); setError(""); setNotice("");
     try {
+      const observed = await inspectArcPayment(request);
+      if (observed?.payment.status === 1) {
+        const recovery = classifyPaymentRecovery({ requestState: request.state, paymentStatus: observed.payment.status, paymentPayer: observed.payment.payer, connectedWallet: wallet, depositedAt: Number(observed.payment.depositedAt) });
+        setNotice(recovery === "WRONG_WALLET" ? "An Arc deposit exists, but only the original payer can confirm it on GenLayer." : "An Arc deposit already exists for this request. Resume will bind that existing deposit; no second payment is permitted.");
+        return;
+      }
       const intent = await getPaymentIntent(request.request_id);
       const result = await payAssessment(
         wallet,
@@ -117,11 +158,50 @@ export function TrustPassPurchase({ wallet }: { wallet: string }) {
         BigInt(String(intent.payment_nonce)),
         BigInt(String(intent.intent_expires_at)),
       );
-      await ensureStudionet();
-      await confirmArcPayment(request.request_id, result.depositHash, result.logIndex);
+      setDepositReference({ transactionHash: result.depositHash, logIndex: result.logIndex, blockNumber: result.receipt.blockNumber });
+      try {
+        await ensureStudionet();
+        await confirmArcPayment(request.request_id, result.depositHash, result.logIndex);
+      } catch (cause) {
+        await inspectArcPayment(request);
+        throw cause;
+      }
       await refresh();
       setNotice("Arc deposit is final and bound to this request. The browser did not mark it paid; GenLayer accepted the receipt and post-state.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(false); }
+  }
+
+  async function resumePayment() {
+    if (!request) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const observed = await inspectArcPayment(request);
+      if (!observed || observed.payment.status !== 1 || !observed.reference) throw new Error("No recoverable escrow deposit was found for this request.");
+      if (observed.payment.payer.toLowerCase() !== wallet.toLowerCase()) throw new Error("Connect the original payer wallet to confirm this existing Arc deposit.");
+      await ensureStudionet();
+      await confirmArcPayment(request.request_id, observed.reference.transactionHash, observed.reference.logIndex);
+      await refresh();
+      setNotice("The existing Arc deposit was recovered and confirmed on GenLayer. No second payment was submitted.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(false); }
+  }
+
+  async function refund() {
+    if (!request) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const observed = await inspectArcPayment(request);
+      if (!observed || observed.payment.status !== 1) throw new Error("No escrowed Arc payment is available for refund.");
+      const availableAt = Number(request.refund_available_at || Number(observed.payment.depositedAt) + 72 * 60 * 60);
+      if (Math.floor(Date.now() / 1000) < availableAt) throw new Error(`Refund becomes available at ${new Date(availableAt * 1000).toLocaleString()}.`);
+      const refundResult = await refundArcPayment(wallet, observed.payment.requestId);
+      await ensureStudionet();
+      await confirmArcRefund(request.request_id, refundResult.refundHash, refundResult.logIndex);
+      await refresh();
+      setNotice("Refund confirmed on Arc and finalized on GenLayer. The original payer received the escrowed USDC.");
+    } catch (cause) {
+      await refresh();
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally { setBusy(false); }
   }
 
   async function evaluate() {
@@ -150,7 +230,7 @@ export function TrustPassPurchase({ wallet }: { wallet: string }) {
     </section>
 
     {request && policy && <>
-      <PaymentLifecycle request={request} />
+      <PaymentLifecycle request={request} arcPayment={arcPayment} onResume={resumePayment} onRefund={refund} busy={busy} />
       <section className="rounded-xl border border-gray-800 bg-gray-900/60 p-4 space-y-3"><h3 className="font-semibold text-white">Consent and evidence</h3><p className="text-xs text-gray-400">Request <code>{request.request_id}</code> · policy hash <code>{request.policy_hash}</code></p><div className="flex flex-wrap gap-2">{request.state === "AWAITING_CONSENT" && <button className="btn-primary" onClick={consent} disabled={busy}>I consent to this policy and purpose</button>}{canPay && <button className="btn-primary" onClick={pay} disabled={busy}><CreditCard className="w-4 h-4" />Approve and pay 1 USDC on Arc</button>}{canEvaluate && <button className="btn-primary" onClick={evaluate} disabled={busy}>Run independent assessment</button>}{(request.state === "AWAITING_CONSENT" || request.state === "AWAITING_PAYMENT") && <button className="btn-secondary" onClick={cancelRequest} disabled={busy}>Cancel unpaid request</button>}</div></section>
       <GoogleVerification wallet={wallet} requestId={request.request_id} linked={linkedGoogle} onChanged={refresh} />
       <HumanPassportPanel subject={wallet} requestId={request.request_id} required={Boolean(policy.external_humanity_required)} onRefreshed={refresh} />

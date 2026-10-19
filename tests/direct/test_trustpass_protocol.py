@@ -43,7 +43,7 @@ def policy(*, humanity=False, credentials=None):
 def test_v4_constructor_binds_v3_arc_and_human_passport_config(direct_vm, direct_deploy):
     contract = deploy(direct_deploy)
     stats = contract.get_stats()
-    assert stats["contract_version"] == "soulstamp-v4.0-trustpass-sybil-gate"
+    assert stats["contract_version"] == "soulstamp-v4.1-trustpass-security-correction"
     assert stats["v3_contract_address"] == V3
     assert stats["arc_escrow_address"] == ESCROW
     assert stats["human_passport_chain_id"] == 11155420
@@ -75,7 +75,9 @@ def test_request_requires_subject_consent_and_nonce_replay_is_rejected(direct_vm
         contract.consent_assessment(request["request_id"], request["purpose"], "nonce-should-not-work", request["created_at"] + 300)
     direct_vm.sender = OWNER
     contract.consent_assessment(request["request_id"], request["purpose"], "nonce-1234567890", request["created_at"] + 300)
-    assert contract.get_request(request["request_id"])["state"] == "AWAITING_PAYMENT"
+    consented = contract.get_request(request["request_id"])
+    assert consented["state"] == "AWAITING_PAYMENT"
+    assert consented["payment_intent_expires_at"] == consented["consent_expires_at"]
     assert contract.used_consent_nonces["nonce-1234567890"] is True
 
 
@@ -91,21 +93,58 @@ def test_unpaid_request_can_be_cancelled_by_subject_without_creating_payment(dir
     assert after["payment_state"] == "NONE"
 
 
-def test_policy_maximum_evidence_age_is_enforced_against_v3_verified_at(direct_vm, direct_deploy):
+def test_v3_event_marker_is_not_treated_as_unix_time_and_dossier_expiry_is_authoritative(direct_vm, direct_deploy):
     contract = deploy(direct_deploy)
     now = 2_000_000_000
     facts = {
         "available": True,
         "accounts": [{
             "platform": "github", "proof_status": "ACTIVE", "proof_strength": "STRONG",
-            "confidence_score": 92, "verified_at": now - 31 * 24 * 60 * 60,
-            "evidence_expires_at": now + 30 * 24 * 60 * 60, "canonical_platform_id": "123",
+            "confidence_score": 92, "is_active": True,
+            # This mirrors the actual V3 get_identity() shape. verified_at is
+            # an event marker; the dossier carries the freshness fields.
+            "verified_at": 1, "canonical_platform_id": "123",
+            "dossier": {
+                "evidence_issued_at": 0,
+                "evidence_expires_at": now + 30 * 24 * 60 * 60,
+                "proof_status": "ACTIVE", "proof_strength": "STRONG",
+            },
         }],
     }
     result = contract._credential_facts(facts, json.loads(policy()), now)
     assert result["github"]["active"] is True
-    assert result["github"]["fresh"] is False
-    assert result["github"]["acceptable"] is False
+    assert result["github"]["fresh"] is True
+    assert result["github"]["acceptable"] is True
+    facts["accounts"][0]["dossier"]["evidence_expires_at"] = now - 1
+    expired = contract._credential_facts(facts, json.loads(policy()), now)
+    assert expired["github"]["fresh"] is False
+    assert expired["github"]["acceptable"] is False
+
+
+def test_consumer_rechecks_every_required_v3_credential(direct_vm, direct_deploy, monkeypatch):
+    contract = deploy(direct_deploy)
+    direct_vm.sender = OWNER
+    contract.create_policy("github-discord-v1", policy(credentials=["github", "discord"]))
+    stored_policy = contract.get_policy("github-discord-v1")
+    now = 2_000_000_000
+    record = {
+        "subject": OWNER, "policy_id": "github-discord-v1", "outcome": "PASS", "state": "ACTIVE",
+        "invalidated": False, "expires_at": now + 3600, "arc_settlement_tx_hash": "0xsettled",
+        "policy_hash": stored_policy["policy_hash"], "assessment_id": "ASSESSMENT-1",
+    }
+    accounts = [
+        {"platform": "github", "proof_status": "ACTIVE", "proof_strength": "STRONG", "confidence_score": 92,
+         "is_active": True, "canonical_platform_id": "gh-1", "evidence_issued_at": 0, "evidence_expires_at": now + 3600},
+        {"platform": "discord", "proof_status": "ACTIVE", "proof_strength": "STRONG", "confidence_score": 94,
+         "is_active": True, "canonical_platform_id": "dc-1", "evidence_issued_at": now - 60, "evidence_expires_at": now + 3600},
+    ]
+    monkeypatch.setattr(contract, "_now", lambda: now)
+    monkeypatch.setattr(contract, "_read_v3", lambda _subject: {"available": True, "eligible": True, "identity_state": "ACTIVE", "is_flagged": False, "accounts": accounts})
+    assert contract._pass_eligibility(record, "github-discord-v1", OWNER)["eligible"] is True
+    accounts[1]["proof_status"] = "REVOKED"
+    result = contract._pass_eligibility(record, "github-discord-v1", OWNER)
+    assert result["eligible"] is False
+    assert result["reason"] == "REQUIRED_CREDENTIAL_DISCORD_INVALID"
 
 
 def test_human_passport_scaling_199999_fails_and_200000_passes(direct_vm, direct_deploy):
@@ -222,6 +261,7 @@ def test_arc_payment_receipt_requires_exact_event_and_moves_request_to_funded(di
     contract.create_assessment_request("arc-v1", OWNER, "access_decision", False)
     request = contract.get_requests(OWNER, 0, 10)[0]
     contract.consent_assessment(request["request_id"], request["purpose"], "arc-consent-123456", request["created_at"] + 300)
+    request = contract.get_request(request["request_id"])
     intent = contract.get_payment_intent(request["request_id"])
     request["request_key"] = intent["request_key"]
     tx_hash, payload = _arc_receipt(request)

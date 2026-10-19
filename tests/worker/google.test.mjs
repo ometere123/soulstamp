@@ -38,17 +38,18 @@ function googleStartUrl() {
   return new URL("https://worker.example/api/google/start?wallet=" + WALLET + "&pending_id=AAAAAAAAAAAAAAAAAAAAAAAA&v4_contract=" + V4 + "&return_to=https%3A%2F%2Ffrontend.example%2F&chain_id=61999");
 }
 
-function makeFetch({ audience = BASE.GOOGLE_CLIENT_ID, nonce, signatureKey = privateKey } = {}) {
+function makeFetch({ audience = BASE.GOOGLE_CLIENT_ID, nonce, signatureKey = privateKey, expiresIn = 600, issuedAt } = {}) {
   const original = globalThis.fetch;
   const now = Math.floor(Date.now() / 1000);
+  const iat = issuedAt ?? now;
   const idToken = (() => {
     const header = b64(JSON.stringify({ alg: "RS256", typ: "JWT", kid: jwk.kid }));
     const body = b64(JSON.stringify({
       iss: "https://accounts.google.com",
       aud: audience,
       azp: BASE.GOOGLE_CLIENT_ID,
-      exp: now + 600,
-      iat: now,
+      exp: iat + expiresIn,
+      iat,
       nonce,
       sub: "1234567890",
       email: "private@example.com",
@@ -130,5 +131,33 @@ test("Google callback fails closed on wrong audience and forged signature", asyn
     const response = await worker.fetch(new Request(callback), BASE);
     assert.equal(response.status, 302);
     assert.match(new URL(response.headers.get("location")).searchParams.get("google_error"), /audience/);
+  } finally { cleanup(); }
+});
+
+test("Google callback accepts a normal approximately one-hour ID token", async () => {
+  const start = await worker.fetch(new Request(googleStartUrl()), BASE);
+  const authorize = new URL(start.headers.get("location"));
+  const cleanup = makeFetch({ nonce: authorize.searchParams.get("nonce"), expiresIn: 3600 });
+  try {
+    const callback = new URL("https://worker.example/api/google/callback");
+    callback.searchParams.set("state", authorize.searchParams.get("state"));
+    callback.searchParams.set("code", "one-hour-code");
+    const response = await worker.fetch(new Request(callback), BASE);
+    assert.equal(response.status, 302);
+    assert.equal(new URL(response.headers.get("location")).searchParams.get("google_status"), "ready");
+  } finally { cleanup(); }
+});
+
+test("Google callback rejects an excessively long-lived ID token", async () => {
+  const start = await worker.fetch(new Request(googleStartUrl()), BASE);
+  const authorize = new URL(start.headers.get("location"));
+  const cleanup = makeFetch({ nonce: authorize.searchParams.get("nonce"), expiresIn: 60 * 60 + 6 * 60 });
+  try {
+    const callback = new URL("https://worker.example/api/google/callback");
+    callback.searchParams.set("state", authorize.searchParams.get("state"));
+    callback.searchParams.set("code", "too-long-code");
+    const response = await worker.fetch(new Request(callback), BASE);
+    assert.equal(response.status, 302);
+    assert.match(new URL(response.headers.get("location")).searchParams.get("google_error"), /too long-lived|lifetime/);
   } finally { cleanup(); }
 });

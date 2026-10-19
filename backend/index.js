@@ -9,6 +9,10 @@ const GOOGLE_CHAIN_ID = "61999";
 const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const GOOGLE_DISCOVERY_ENDPOINT = "https://accounts.google.com/.well-known/openid-configuration";
 const GOOGLE_SCOPE = "openid email profile";
+// Google ID tokens normally live for about one hour.  Keep a bounded upper
+// limit with a small operational margin; do not accept arbitrary long-lived
+// bearer tokens.
+const GOOGLE_ID_TOKEN_MAX_LIFETIME_SECONDS = 60 * 60 + 5 * 60;
 
 function publicBaseUrl(env) {
   return (env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
@@ -299,8 +303,9 @@ async function validateGoogleIdToken(idToken, state, env) {
   if (!audiences.includes(env.GOOGLE_CLIENT_ID)) throw new Error("Google ID token audience is invalid");
   if (claims.azp && claims.azp !== env.GOOGLE_CLIENT_ID) throw new Error("Google ID token authorized party is invalid");
   const now = nowSeconds();
-  if (!Number.isInteger(claims.exp) || claims.exp <= now || claims.exp > now + 15 * 60) throw new Error("Google ID token is expired or too long-lived");
+  if (!Number.isInteger(claims.exp) || claims.exp <= now || claims.exp > now + GOOGLE_ID_TOKEN_MAX_LIFETIME_SECONDS) throw new Error("Google ID token is expired or too long-lived");
   if (!Number.isInteger(claims.iat) || claims.iat > now + 60 || claims.iat < now - 15 * 60) throw new Error("Google ID token issued-at time is invalid");
+  if (claims.exp - claims.iat > GOOGLE_ID_TOKEN_MAX_LIFETIME_SECONDS) throw new Error("Google ID token lifetime is too long");
   if (claims.nonce !== state.nonce) throw new Error("Google ID token nonce mismatch");
   if (claims.email_verified !== true) throw new Error("Google account email is not verified");
   if (!/^[0-9]+$/.test(String(claims.sub || ""))) throw new Error("Google stable subject is missing");

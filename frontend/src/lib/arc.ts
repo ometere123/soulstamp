@@ -5,6 +5,8 @@ import {
   defineChain,
   http,
   parseAbi,
+  parseAbiItem,
+  toEventSelector,
   type Address,
   type Hash,
   type TransactionReceipt,
@@ -36,12 +38,36 @@ export const usdcAbi = parseAbi([
 export const escrowAbi = parseAbi([
   "function deposit(bytes32 requestId,address subject,bytes32 policyHash,uint256 nonce,uint256 intentExpiry) returns (bytes32)",
   "function getPayment(bytes32 requestId) view returns (bytes32 requestId,address payer,address subject,bytes32 policyHash,uint256 amount,uint256 nonce,uint256 intentExpiry,uint256 depositedAt,uint8 status)",
+  "function refund(bytes32 requestId)",
   "function price() view returns (uint256)",
   "function liabilitiesSolvent() view returns (bool)",
   "event PaymentDeposited(bytes32 indexed requestId,address indexed payer,address indexed subject,bytes32 policyHash,uint256 amount,uint256 intentExpiry,uint256 nonce)",
   "event PaymentSettled(bytes32 indexed requestId,bytes32 indexed assessmentId,address indexed subject,bytes32 policyHash,uint8 outcome,bytes32 resultCommitment)",
   "event PaymentRefunded(bytes32 indexed requestId,address indexed payer,address indexed subject,uint256 amount)",
 ]);
+
+const paymentDepositedEvent = parseAbiItem("event PaymentDeposited(bytes32 indexed requestId,address indexed payer,address indexed subject,bytes32 policyHash,uint256 amount,uint256 intentExpiry,uint256 nonce)");
+const paymentRefundedEvent = parseAbiItem("event PaymentRefunded(bytes32 indexed requestId,address indexed payer,address indexed subject,uint256 amount)");
+const paymentDepositedSelector = toEventSelector(paymentDepositedEvent);
+const paymentRefundedSelector = toEventSelector(paymentRefundedEvent);
+
+export type ArcPaymentRecord = {
+  requestId: `0x${string}`;
+  payer: Address;
+  subject: Address;
+  policyHash: `0x${string}`;
+  amount: bigint;
+  nonce: bigint;
+  intentExpiry: bigint;
+  depositedAt: bigint;
+  status: number;
+};
+
+export type ArcDepositReference = {
+  transactionHash: Hash;
+  logIndex: number;
+  blockNumber: bigint;
+};
 
 type Eip1193 = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -96,12 +122,42 @@ function getArcWalletClient(addressValue: Address) {
 }
 
 export async function readArcPayment(requestKey: `0x${string}`) {
-  return getArcPublicClient().readContract({
+  const raw = await getArcPublicClient().readContract({
     address: escrowAddress(),
     abi: escrowAbi,
     functionName: "getPayment",
     args: [requestKey],
   });
+  if (Array.isArray(raw)) {
+    return {
+      requestId: raw[0] as `0x${string}`,
+      payer: raw[1] as Address,
+      subject: raw[2] as Address,
+      policyHash: raw[3] as `0x${string}`,
+      amount: BigInt(raw[4] as bigint),
+      nonce: BigInt(raw[5] as bigint),
+      intentExpiry: BigInt(raw[6] as bigint),
+      depositedAt: BigInt(raw[7] as bigint),
+      status: Number(raw[8]),
+    } satisfies ArcPaymentRecord;
+  }
+  return raw as unknown as ArcPaymentRecord;
+}
+
+/** Recover a deposit after a browser interruption from the escrow record and
+ * its authenticated PaymentDeposited log. No second payment is submitted. */
+export async function findArcDepositReference(requestKey: `0x${string}`): Promise<ArcDepositReference> {
+  const logs = await getArcPublicClient().getLogs({
+    address: escrowAddress(),
+    event: paymentDepositedEvent,
+    args: { requestId: requestKey },
+    fromBlock: 0n,
+  });
+  const log = logs[logs.length - 1];
+  if (!log?.transactionHash || log.logIndex === undefined || log.blockNumber === undefined) {
+    throw new Error("Arc escrow contains a deposit but its PaymentDeposited log could not be recovered.");
+  }
+  return { transactionHash: log.transactionHash, logIndex: Number(log.logIndex), blockNumber: log.blockNumber };
 }
 
 export async function readArcBalance(wallet: string): Promise<bigint> {
@@ -158,9 +214,22 @@ export async function payAssessment(
   const receipt = await waitForArcReceipt(depositHash);
   const event = receipt.logs
     .map((log, index) => ({ log, index }))
-    .find(({ log }) => log.address.toLowerCase() === escrow.toLowerCase() && log.topics[0]?.toLowerCase() === "0x4b8e0046bd7b248856bb764d99ba272dceb03c623ba895214e1f531dc8919e3d");
+    .find(({ log }) => log.address.toLowerCase() === escrow.toLowerCase() && log.topics[0]?.toLowerCase() === paymentDepositedSelector.toLowerCase());
   if (!event) throw new Error("Successful Arc receipt did not contain PaymentDeposited.");
   return { approvalHash, depositHash, receipt, logIndex: Number(event.log.logIndex ?? event.index), requestKey };
+}
+
+export async function refundArcPayment(wallet: string, requestKey: `0x${string}`): Promise<{ refundHash: Hash; receipt: TransactionReceipt; logIndex: number }> {
+  await ensureArcNetwork();
+  const walletClient = getArcWalletClient(address(wallet, "Refund wallet"));
+  const escrow = escrowAddress();
+  const refundHash = await walletClient.writeContract({ address: escrow, abi: escrowAbi, functionName: "refund", args: [requestKey] });
+  const receipt = await waitForArcReceipt(refundHash);
+  const event = receipt.logs
+    .map((log, index) => ({ log, index }))
+    .find(({ log }) => log.address.toLowerCase() === escrow.toLowerCase() && log.topics[0]?.toLowerCase() === paymentRefundedSelector.toLowerCase());
+  if (!event) throw new Error("Successful Arc refund did not contain PaymentRefunded.");
+  return { refundHash, receipt, logIndex: Number(event.log.logIndex ?? event.index) };
 }
 
 export function formatUsdc(raw: bigint): string {

@@ -18,8 +18,8 @@ import re
 from urllib.parse import urlparse
 
 
-CONTRACT_VERSION = "soulstamp-v4.0-trustpass-sybil-gate"
-VERIFIER_VERSION = "soulstamp-v4.0-independent-assessment"
+CONTRACT_VERSION = "soulstamp-v4.1-trustpass-security-correction"
+VERIFIER_VERSION = "soulstamp-v4.1-independent-assessment"
 V3_CONTRACT_VERSION = "soulstamp-v3.0-continuity"
 GENLAYER_CHAIN_ID = 61999
 ARC_CHAIN_ID = 5042002
@@ -318,6 +318,9 @@ class SoulStampTrustPass(gl.Contract):
                 for account in accounts:
                     if not isinstance(account, dict):
                         continue
+                    dossier = account.get("dossier", {})
+                    if not isinstance(dossier, dict):
+                        dossier = {}
                     normalized_accounts.append({
                         "platform": str(account.get("platform", "")).lower(),
                         "username": str(account.get("username", "")),
@@ -325,8 +328,13 @@ class SoulStampTrustPass(gl.Contract):
                         "proof_status": str(account.get("proof_status", "")),
                         "proof_strength": str(account.get("proof_strength", "")),
                         "confidence_score": int(account.get("confidence_score", 0) or 0),
-                        "verified_at": int(account.get("verified_at", 0) or 0),
-                        "evidence_expires_at": int((account.get("dossier", {}) or {}).get("evidence_expires_at", 0) or 0),
+                        "is_active": bool(account.get("is_active", False)),
+                        # V3's verified_at is an append-only event marker, not
+                        # wall-clock time.  Keep it for audit/debugging only;
+                        # freshness below is derived from the V3 dossier.
+                        "verified_at_marker": int(account.get("verified_at", 0) or 0),
+                        "evidence_issued_at": int(dossier.get("evidence_issued_at", 0) or 0),
+                        "evidence_expires_at": int(dossier.get("evidence_expires_at", 0) or 0),
                     })
             return {
                 "available": True,
@@ -345,15 +353,35 @@ class SoulStampTrustPass(gl.Contract):
         accounts = v3.get("accounts", []) if isinstance(v3, dict) else []
         results = {}
         for credential in required:
+            credential = "twitter" if str(credential).lower() == "x" else str(credential).lower()
             matches = [account for account in accounts if account.get("platform") == credential]
-            active = [account for account in matches if account.get("proof_status") == "ACTIVE" and account.get("confidence_score", 0) > 0]
-            max_age = int(policy.get("maximum_evidence_age_seconds", MAX_POLICY_EVIDENCE_AGE_SECONDS) or 0)
-            fresh = [
-                account for account in active
-                if int(account.get("evidence_expires_at", 0) or 0) >= now
-                and int(account.get("verified_at", 0) or 0) > 0
-                and now - int(account.get("verified_at", 0)) <= max_age
+            active = [
+                account for account in matches
+                if account.get("proof_status") == "ACTIVE"
+                and bool(account.get("is_active", True))
+                and account.get("confidence_score", 0) > 0
             ]
+            max_age = int(policy.get("maximum_evidence_age_seconds", MAX_POLICY_EVIDENCE_AGE_SECONDS) or 0)
+            fresh = []
+            for account in active:
+                # These are the authentic V3 proof-health fields.  V3's
+                # `verified_at` is a monotonic audit marker and must never be
+                # subtracted from Unix time.
+                dossier = account.get("dossier", {})
+                if not isinstance(dossier, dict):
+                    dossier = {}
+                expires_at = int(account.get("evidence_expires_at", dossier.get("evidence_expires_at", 0)) or 0)
+                issued_at = int(account.get("evidence_issued_at", dossier.get("evidence_issued_at", 0)) or 0)
+                if expires_at <= 0 or expires_at < now:
+                    continue
+                # GitHub/X V3 evidence intentionally has no provider-issued
+                # Unix timestamp (evidence_issued_at == 0).  In that case V3's
+                # ACTIVE + dossier expiry is the complete freshness source.
+                # Only apply an age bound when V3 actually supplied an issued
+                # timestamp; never substitute the event marker.
+                if issued_at > 0 and (issued_at > now or now - issued_at > max_age):
+                    continue
+                fresh.append(account)
             strength_order = {"WEAK": 1, "MEDIUM": 2, "STRONG": 3}
             acceptable = [account for account in fresh if strength_order.get(str(account.get("proof_strength", "WEAK")), 0) >= strength_order.get(str(policy.get("minimum_proof_strength", "MEDIUM")), 2)]
             results[credential] = {
@@ -361,6 +389,7 @@ class SoulStampTrustPass(gl.Contract):
                 "active": bool(active),
                 "fresh": bool(fresh),
                 "acceptable": bool(acceptable),
+                "freshness_source": "V3_DOSSIER_EXPIRY",
                 "canonical_ids": sorted([str(account.get("canonical_platform_id", "")) for account in acceptable if account.get("canonical_platform_id")]),
             }
         return results
@@ -372,7 +401,7 @@ class SoulStampTrustPass(gl.Contract):
         record = self._load(self.google_commitments.get(commitment, ""), {})
         valid = bool(record.get("active")) and str(record.get("wallet", "")).lower() == str(request.get("subject", "")).lower()
         expires = int(record.get("expires_at", 0) or 0)
-        if expires and expires < now:
+        if expires <= now:
             valid = False
         return {
             "present": True,
@@ -432,8 +461,9 @@ class SoulStampTrustPass(gl.Contract):
         if not v3.get("available"):
             unavailable.append("V3_READ_UNAVAILABLE")
         for credential in policy.get("required_credentials", []):
-            if credential != "google" and not credentials.get(credential, {}).get("acceptable"):
-                unavailable.append("MISSING_OR_STALE_" + str(credential).upper())
+            normalized_credential = "twitter" if str(credential).lower() == "x" else str(credential).lower()
+            if normalized_credential != "google" and not credentials.get(normalized_credential, {}).get("acceptable"):
+                unavailable.append("MISSING_OR_STALE_" + normalized_credential.upper())
         if "google" in policy.get("required_credentials", []) and not google.get("valid"):
             unavailable.append(str(google.get("reason", "GOOGLE_EVIDENCE_INVALID")))
         if humanity.get("required") and not humanity.get("valid"):
@@ -673,6 +703,11 @@ class SoulStampTrustPass(gl.Contract):
         request["state"] = "AWAITING_PAYMENT"
         request["consent_nonce"] = nonce
         request["consent_expires_at"] = exp
+        # Bind the Arc intent window to the exact consent window.  The Arc
+        # escrow rejects a deposit whose intent expiry has passed, so a later
+        # GenLayer confirmation can safely accept a deposit that was actually
+        # made on time without treating stale consent as authorization.
+        request["payment_intent_expires_at"] = exp
         request["consented_at"] = now
         self.requests[str(request_id)] = self._dump(request)
 
@@ -702,6 +737,7 @@ class SoulStampTrustPass(gl.Contract):
             "amount_usdc_base_units": ASSESSMENT_PRICE_USDC,
             "payment_nonce": int(request["payment_nonce"]),
             "intent_expires_at": int(request["payment_intent_expires_at"]),
+            "consent_expires_at": int(request.get("consent_expires_at", 0) or 0),
             "state": request["state"],
         }
 
@@ -928,6 +964,8 @@ class SoulStampTrustPass(gl.Contract):
         request = self._request(str(request_id))
         self._require(request["state"] == "AWAITING_PAYMENT", "Request is not awaiting payment")
         self._require(self._sender() == request["payer"], "Only the payer can bind an Arc payment")
+        self._require(bool(request.get("consent_nonce")) and int(request.get("consent_expires_at", 0) or 0) > 0, "Valid subject consent is required before payment")
+        self._require(int(request.get("payment_intent_expires_at", 0) or 0) == int(request.get("consent_expires_at", 0) or 0), "Payment intent is not bound to consent")
         tx_hash = self._normalize_tx_hash(arc_tx_hash)
         key = str(ARC_CHAIN_ID) + ":" + tx_hash + ":" + str(int(arc_log_index))
         self._require(self.consumed_arc_payments.get(key) is None, "Arc payment receipt has already been consumed")
@@ -935,6 +973,7 @@ class SoulStampTrustPass(gl.Contract):
         self.consumed_arc_payments[key] = True
         request["arc_tx_hash"] = tx_hash
         request["arc_log_index"] = int(arc_log_index)
+        request["arc_deposit_block_number"] = int(payment.get("block_number", 0) or 0)
         request["payment_state"] = "ESCROWED"
         request["state"] = "FUNDED"
         request["funded_at"] = int(self._now())
@@ -943,6 +982,7 @@ class SoulStampTrustPass(gl.Contract):
         # recovery window bounded to the deposit itself and avoids a late
         # payment losing part of the promised 72-hour delivery period.
         request["assessment_deadline"] = int(request["funded_at"]) + ASSESSMENT_DEADLINE_SECONDS
+        request["refund_available_at"] = int(request["funded_at"]) + ASSESSMENT_DEADLINE_SECONDS
         self.requests[str(request_id)] = self._dump(request)
 
     @gl.public.write
@@ -1123,15 +1163,38 @@ Explain the result without exposing private Google identifiers, tokens, or raw p
             return {"eligible": False, "reason": "V3_READ_UNAVAILABLE"}
         if not v3.get("eligible") or v3.get("identity_state") != "ACTIVE" or v3.get("is_flagged"):
             return {"eligible": False, "reason": "V3_IDENTITY_NOT_ELIGIBLE"}
+        # A general V3 eligibility result is not sufficient: a policy may
+        # require only a subset of credentials, and every one of those
+        # credentials must still be ACTIVE, fresh under V3's dossier expiry,
+        # and strong enough for this policy at the moment of consumption.
+        social_required = [
+            ("twitter" if str(credential).lower() == "x" else str(credential).lower())
+            for credential in policy.get("required_credentials", [])
+            if str(credential).lower() != "google"
+        ]
+        credential_facts = self._credential_facts(v3, {**policy, "required_credentials": social_required}, now)
+        for credential in social_required:
+            if not credential_facts.get(credential, {}).get("acceptable"):
+                return {"eligible": False, "reason": "REQUIRED_CREDENTIAL_" + credential.upper() + "_INVALID"}
         if "google" in policy.get("required_credentials", []):
             google = self._google_facts({"subject": self._addr(subject), "google_commitment": record.get("google_commitment", "")}, now)
             if not google.get("valid"):
                 return {"eligible": False, "reason": google.get("reason", "GOOGLE_EVIDENCE_INVALID")}
         if bool(policy.get("external_humanity_required")):
             snap = self._load(record.get("humanity_snapshot", ""), {})
-            if not snap or int(snap.get("raw_score", -1) or -1) < int(policy.get("minimum_humanity_score", HUMAN_PASSPORT_THRESHOLD_RAW)):
+            if not snap:
                 return {"eligible": False, "reason": "HUMANITY_EVIDENCE_INVALID"}
-            if now - int(snap.get("observed_at", 0) or 0) > MAX_HUMANITY_SNAPSHOT_AGE_SECONDS:
+            if (
+                str(snap.get("wallet", "")).lower() != self._addr(subject)
+                or int(snap.get("chain_id", 0) or 0) != HUMAN_PASSPORT_CHAIN_ID
+                or str(snap.get("decoder", "")).lower() != self.human_passport_decoder_address
+                or int(snap.get("raw_score", -1) or -1) < int(policy.get("minimum_humanity_score", HUMAN_PASSPORT_THRESHOLD_RAW))
+                or int(snap.get("observed_at", 0) or 0) <= 0
+                or now - int(snap.get("observed_at", 0) or 0) > MAX_HUMANITY_SNAPSHOT_AGE_SECONDS
+                or int(snap.get("block_timestamp", 0) or 0) <= 0
+                or int(snap.get("block_timestamp", 0) or 0) > now
+                or now - int(snap.get("block_timestamp", 0) or 0) > MAX_HUMANITY_SNAPSHOT_AGE_SECONDS
+            ):
                 return {"eligible": False, "reason": "HUMANITY_EVIDENCE_STALE"}
         return {"eligible": True, "reason": "TRUSTPASS_ACTIVE", "assessment_id": record.get("assessment_id", ""), "checked_at": now}
 
@@ -1199,7 +1262,13 @@ Explain the result without exposing private Google identifiers, tokens, or raw p
         return {
             "request_id": request["request_id"], "state": request["state"], "payment_state": request["payment_state"],
             "arc_tx_hash": request.get("arc_tx_hash", ""), "arc_settlement_tx_hash": request.get("arc_settlement_tx_hash", ""),
-            "arc_refund_tx_hash": request.get("arc_refund_tx_hash", ""), "amount_usdc_base_units": ASSESSMENT_PRICE_USDC,
+            "arc_refund_tx_hash": request.get("arc_refund_tx_hash", ""),
+            "arc_log_index": int(request.get("arc_log_index", -1)),
+            "arc_refund_log_index": int(request.get("arc_refund_log_index", -1)),
+            "original_payer": request.get("payer", ""),
+            "consent_expires_at": int(request.get("consent_expires_at", 0) or 0),
+            "refund_available_at": int(request.get("refund_available_at", 0) or 0),
+            "amount_usdc_base_units": ASSESSMENT_PRICE_USDC,
         }
 
     @gl.public.view

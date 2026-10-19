@@ -31,7 +31,7 @@ validAddress(admin, "V4_ADMIN_ADDRESS");
 validAddress(operator, "ARC_SETTLEMENT_OPERATOR_ADDRESS");
 if (!fs.existsSync(sourcePath)) throw new Error(`Contract source not found: ${sourcePath}`);
 const code = fs.readFileSync(sourcePath, "utf8");
-if (!code.includes("soulstamp-v4.0-trustpass-sybil-gate")) throw new Error("Source does not identify SoulStamp V4");
+if (!code.includes("soulstamp-v4.1-trustpass-security-correction")) throw new Error("Source does not identify SoulStamp V4.1");
 
 const client = createClient({ chain: studionet, endpoint: RPC, account });
 const hash = await client.deployContract({
@@ -55,4 +55,3 @@ console.log(JSON.stringify({
     admin,
   },
 }, null, 2));
-
