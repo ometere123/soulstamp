@@ -6,6 +6,7 @@ import { GoogleVerification } from "./GoogleVerification";
 import { HumanPassportPanel } from "./HumanPassportPanel";
 import { PaymentLifecycle } from "./PaymentLifecycle";
 import { classifyPaymentRecovery } from "../lib/paymentRecovery";
+import { selectGoogleRequest, type GoogleCallback } from "../lib/google";
 import {
   confirmArcPayment,
   cancelAssessmentRequest,
@@ -40,7 +41,7 @@ function policyDraft(sybil: boolean) {
   };
 }
 
-export function TrustPassPurchase({ wallet }: { wallet: string }) {
+export function TrustPassPurchase({ wallet, googleCallback }: { wallet: string; googleCallback?: GoogleCallback }) {
   const [sybil, setSybil] = useState(false);
   const [policy, setPolicy] = useState<TrustPassPolicy | null>(null);
   const [request, setRequest] = useState<TrustPassRequest | null>(null);
@@ -84,17 +85,37 @@ export function TrustPassPurchase({ wallet }: { wallet: string }) {
   }
 
   async function refresh() {
+    setRequest(null);
+    setPolicy(null);
+    setArcPayment(null);
+    setDepositReference(null);
+    setError("");
     try {
       const found = await getRequests(wallet, 0, 50);
-      const latest = [...found].sort((left, right) => Number(right.created_at || 0) - Number(left.created_at || 0))[0] || null;
+      let latest: TrustPassRequest | null;
+      if (googleCallback?.status === "ready" && googleCallback.pendingId) {
+        latest = selectGoogleRequest(found, googleCallback, wallet);
+        if (!latest) {
+          try {
+            const exact = await getRequest(googleCallback.pendingId);
+            if (exact.subject.toLowerCase() !== wallet.toLowerCase()) throw new Error("The connected wallet does not own the Google-link request.");
+            latest = exact;
+          } catch (cause) {
+            throw new Error(cause instanceof Error ? cause.message : "The Google callback's TrustPass request was not found.");
+          }
+        }
+      } else {
+        latest = [...found].sort((left, right) => Number(right.created_at || 0) - Number(left.created_at || 0))[0] || null;
+      }
       setRequest(latest);
-      setArcPayment(null);
-      setDepositReference(null);
       if (latest) {
         const selected = await getPolicy(latest.policy_id);
-        if (selected.found !== false) setPolicy(selected);
+        if (selected.found !== false) {
+          setPolicy(selected);
+          setSybil(latest.policy_id === SYBIL_POLICY_ID);
+        }
         await inspectArcPayment(latest);
-      }
+      } else setPolicy(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     }
@@ -218,21 +239,35 @@ export function TrustPassPurchase({ wallet }: { wallet: string }) {
     finally { setBusy(false); }
   }
 
+  function startNewRequest() {
+    setRequest(null);
+    setPolicy(null);
+    setArcPayment(null);
+    setDepositReference(null);
+    setError("");
+    setNotice("Choose a tier and pin its policy before creating another request.");
+  }
+
+  const displayedPolicyId = request?.policy_id || policy?.policy_id || policyId;
+  const displayedSybil = request ? request.policy_id === SYBIL_POLICY_ID : sybil;
+  const displayedRequirements = policy?.external_humanity_required || displayedSybil ? "GitHub + Discord + Passport ≥ 20" : "GitHub + current V3 eligibility";
+
   return <div className="space-y-4">
     <section className="rounded-xl border border-gray-800 bg-gray-900/60 p-5 space-y-4">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div><p className="text-xs uppercase tracking-widest text-brand-400">Paid assessment</p><h2 className="text-xl font-bold text-white mt-1">Create a TrustPass</h2><p className="text-sm text-gray-400 mt-2 max-w-2xl">Payment purchases an independent assessment, never a PASS. Unsettled, stale or unavailable evidence cannot become consumable eligibility.</p></div>
-        <label className="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" checked={sybil} onChange={(event) => { setSybil(event.target.checked); setPolicy(null); }} /> Sybil-resistant tier</label>
+        <label className="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" checked={sybil} disabled={busy || Boolean(request)} onChange={(event) => { setSybil(event.target.checked); setPolicy(null); }} /> Sybil-resistant tier</label>
       </div>
-      <div className="grid sm:grid-cols-3 gap-3 text-xs text-gray-400"><div className="rounded-lg border border-gray-800 p-3">Policy<br /><strong className="text-gray-200">{policyId}</strong></div><div className="rounded-lg border border-gray-800 p-3">Requirements<br /><strong className="text-gray-200">{sybil ? "GitHub + Discord + Passport ≥ 20" : "GitHub + current V3 eligibility"}</strong></div><div className="rounded-lg border border-gray-800 p-3">Price<br /><strong className="text-gray-200">1 USDC · 6 decimals</strong></div></div>
-      <div className="flex flex-wrap gap-2"><button className="btn-secondary" onClick={preparePolicy} disabled={busy}><FileCheck2 className="w-4 h-4" />{busy ? "Working…" : "Pin policy"}</button><button className="btn-primary" onClick={createRequest} disabled={busy}><CheckCircle2 className="w-4 h-4" />Create self-paid request</button><button className="btn-secondary" onClick={() => void refresh()} disabled={busy}><RefreshCw className="w-4 h-4" />Resume</button></div>
+      <div className="grid sm:grid-cols-3 gap-3 text-xs text-gray-400"><div className="rounded-lg border border-gray-800 p-3">Policy<br /><strong className="text-gray-200">{displayedPolicyId}</strong></div><div className="rounded-lg border border-gray-800 p-3">Requirements<br /><strong className="text-gray-200">{displayedRequirements}</strong></div><div className="rounded-lg border border-gray-800 p-3">Price<br /><strong className="text-gray-200">1 USDC · 6 decimals</strong></div></div>
+      <div className="flex flex-wrap gap-2"><button className="btn-secondary" onClick={preparePolicy} disabled={busy || Boolean(request)}><FileCheck2 className="w-4 h-4" />{busy ? "Working…" : "Pin policy"}</button><button className="btn-primary" onClick={createRequest} disabled={busy}><CheckCircle2 className="w-4 h-4" />Create self-paid request</button><button className="btn-secondary" onClick={() => void refresh()} disabled={busy}><RefreshCw className="w-4 h-4" />Resume</button>{request && <button className="btn-secondary" onClick={startNewRequest} disabled={busy}>Choose another tier</button>}</div>
+      {googleCallback?.status === "ready" && !request && <p className="text-sm text-yellow-300">Google authenticated, but the matching TrustPass request is unavailable for this wallet. Reconnect the wallet that started the request or create a new request.</p>}
       {notice && <p className="text-sm text-emerald-300">{notice}</p>}{error && <p className="text-sm text-red-300">{error}</p>}
     </section>
 
     {request && policy && <>
       <PaymentLifecycle request={request} arcPayment={arcPayment} onResume={resumePayment} onRefund={refund} busy={busy} />
       <section className="rounded-xl border border-gray-800 bg-gray-900/60 p-4 space-y-3"><h3 className="font-semibold text-white">Consent and evidence</h3><p className="text-xs text-gray-400">Request <code>{request.request_id}</code> · policy hash <code>{request.policy_hash}</code></p><div className="flex flex-wrap gap-2">{request.state === "AWAITING_CONSENT" && <button className="btn-primary" onClick={consent} disabled={busy}>I consent to this policy and purpose</button>}{canPay && <button className="btn-primary" onClick={pay} disabled={busy}><CreditCard className="w-4 h-4" />Approve and pay 1 USDC on Arc</button>}{canEvaluate && <button className="btn-primary" onClick={evaluate} disabled={busy}>Run independent assessment</button>}{(request.state === "AWAITING_CONSENT" || request.state === "AWAITING_PAYMENT") && <button className="btn-secondary" onClick={cancelRequest} disabled={busy}>Cancel unpaid request</button>}</div></section>
-      <GoogleVerification wallet={wallet} requestId={request.request_id} linked={linkedGoogle} onChanged={refresh} />
+      <GoogleVerification wallet={wallet} requestId={request.request_id} linked={linkedGoogle} callback={googleCallback} onChanged={refresh} />
       <HumanPassportPanel subject={wallet} requestId={request.request_id} required={Boolean(policy.external_humanity_required)} onRefreshed={refresh} />
       <div className="rounded-xl border border-gray-800 bg-gray-900/60 p-4"><p className="text-xs text-gray-500">{request.state === "EVALUATED_PENDING_SETTLEMENT" ? "Assessment complete, but no TrustPass is active until the settlement operator submits and the Arc settlement event is independently consumed." : "Refresh the page at any point; the request, payment, and evidence references are read from chain state."}</p></div>
     </>}
