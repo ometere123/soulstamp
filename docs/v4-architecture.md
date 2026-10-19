@@ -38,3 +38,21 @@ assessment from settling under its stored policy hash and version.
 The Arc escrow state is `NONE → ESCROWED → SETTLED | REFUNDED`. Settlement and
 refund are mutually exclusive and the payer is stored on-chain as the only
 refund recipient.
+
+## V4.1 security-correction rules
+
+V3 `verified_at` is an opaque event marker, not a timestamp. V4 uses the V3
+proof dossier's authenticated issue/expiry fields and current status; when an
+old proof has no real issue timestamp, the V3 dossier expiry remains the
+freshness boundary rather than inventing an age from the marker. Eligibility
+then re-reads every credential required by the selected policy. A single
+required credential becoming revoked, stale, weak, conflicted or otherwise
+ineligible invalidates the consumer result.
+
+Consent expiry is part of the request/payment-intent binding. A deposit made
+within the consent window can complete its normal confirmation path, but an
+expired consent cannot create or authorize a new sponsored payment. The
+frontend derives interrupted-payment state from the Arc escrow record and
+`PaymentDeposited` event, keyed by the original payer and request, so reloads
+cannot cause a second deposit. Refund success is displayed only after the Arc
+refund and the GenLayer refund confirmation both finalize successfully.

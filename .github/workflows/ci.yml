@@ -47,7 +47,12 @@ jobs:
         run: npm --prefix frontend run build
       - name: Discord Worker syntax check
         run: npm --prefix backend run check
-      - name: Dependency audit (pinned CLI toolchain advisories are reported, not hidden)
+      - name: Runtime dependency audits
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --prefix frontend --omit=dev --audit-level=high
+          npm audit --prefix backend --omit=dev --audit-level=high
+      - name: Development toolchain advisory report
         continue-on-error: true
         run: npm audit --audit-level=high
 

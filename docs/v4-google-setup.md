@@ -11,6 +11,11 @@ party, RS256 signature from Google's current JWKS, `nonce`, `iat`, `exp` and
 `email_verified`. It uses the stable numeric `sub`, never the email address,
 as input to a separate Worker-held HMAC commitment key.
 
+The Worker accepts Google's normal approximately one-hour ID-token lifetime
+with a bounded clock-skew allowance, while still rejecting expired tokens,
+future-issued tokens and tokens whose lifetime exceeds the configured maximum.
+Issuer, audience, signature, nonce and verified-email checks remain mandatory.
+
 Set these Worker values without putting them in Vercel or the repository:
 
 ```text
@@ -25,7 +30,8 @@ as the Discord signing/session secret. A key rotation needs a versioned
 commitment migration policy; changing the secret does not silently make the
 same Google account available to another wallet.
 
-Until a real Google Cloud client and a real OAuth callback succeed, the live
-status is `BLOCKED_EXTERNAL_CREDENTIALS`; local signed-token tests do not count
-as a live Google verification.
-
+The current Worker health endpoint reports Google configured and the exact
+callback URL. The live identity status remains
+`CONFIGURED_NOT_ACCOUNT_VERIFIED` until a consenting user completes the real
+OAuth callback and wallet-bound `link_google_attestation` transaction; local
+signed-token tests do not count as live Google verification.

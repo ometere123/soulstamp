@@ -1,63 +1,13 @@
 {
   "protocol": "SoulStamp V4 TrustPass & Sybil Gate",
   "auditMode": "read_only_rpc",
-  "network": {
-    "name": "GenLayer Studionet",
-    "chainId": 61999,
-    "rpc": "https://studio.genlayer.com/api"
-  },
-  "contractAddress": "0xcdec5d1bE08456dF05BBCe4c0A34A6AB5c71dCF2",
-  "stats": {
-    "admin": "0x231ef01e282385ec2e22394469f1c8c6c28fd6b1",
-    "arc_escrow_address": "0x847269d045a0e0c6fad1fedb155d3a1dfc6936df",
-    "assessment_price_usdc": 1000000,
-    "contract_address": "0xcdec5d1be08456df05bbce4c0a34a6ab5c71dcf2",
-    "contract_version": "soulstamp-v4.0-trustpass-sybil-gate",
-    "google_attestation_base_url": "https://soulstamp-discord.delealufejoel.workers.dev",
-    "human_passport_chain_id": 11155420,
-    "human_passport_decoder_address": "0xe53c60f8069c2f0c3a84f9b3db5cf56f3100ba56",
-    "human_passport_rpc_url": "https://sepolia.optimism.io",
-    "human_passport_score_decimals": 4,
-    "human_passport_threshold_raw": 200000,
-    "outcomes": [
-      "PASS",
-      "FAIL",
-      "INCONCLUSIVE"
-    ],
-    "request_states": [
-      "CREATED",
-      "AWAITING_CONSENT",
-      "CONSENTED",
-      "AWAITING_PAYMENT",
-      "FUNDED",
-      "EVALUATING",
-      "EVALUATED_PENDING_SETTLEMENT",
-      "ACTIVE",
-      "COMPLETED_FAIL",
-      "COMPLETED_INCONCLUSIVE",
-      "EXPIRED",
-      "CANCELLED",
-      "REFUNDED",
-      "UNDELIVERABLE"
-    ],
-    "settlement_operator": "0x231ef01e282385ec2e22394469f1c8c6c28fd6b1",
-    "total_assessments": 0,
-    "total_passes": 0,
-    "total_policies": 0,
-    "total_refunds": 0,
-    "total_requests": 0,
-    "total_settlements": 0,
-    "usdc_decimals": 6,
-    "v3_contract_address": "0x4ed8af93e64f6411826deeaa6d2af68dd67c9c3d",
-    "v3_contract_version": "soulstamp-v3.0-continuity",
-    "verifier_version": "soulstamp-v4.0-independent-assessment"
-  },
+  "verifiedAt": "2026-10-19T13:48:10.4097738Z",
+  "network": { "name": "GenLayer Studionet", "chainId": 61999, "rpc": "https://studio.genlayer.com/api" },
+  "contractAddress": "0x886582aB1a45452880685b6a50c748cAb7c954ce",
+  "source": { "deployedSourceCommit": "4696ad4", "normalizedLfSha256": "c4e30170872e629aa0cdda2693f971d3f476919a19f873936a0a1b4972e61c7d", "deploymentTransaction": "0xe7ecb0b579ac2906b08dbd0fd30a5e5f0c0efe8b1cf610f09a97e182393a0ae4", "parity": "exact after line-ending normalization" },
+  "stats": { "admin": "0x231ef01e282385ec2e22394469f1c8c6c28fd6b1", "arc_escrow_address": "0xe2a0118847cbf424dbd6f5761987624ea7aae72e", "assessment_price_usdc": 1000000, "contract_address": "0x886582ab1a45452880685b6a50c748cab7c954ce", "contract_version": "soulstamp-v4.1-trustpass-security-correction", "google_attestation_base_url": "https://soulstamp-discord.delealufejoel.workers.dev", "human_passport_chain_id": 11155420, "human_passport_decoder_address": "0xe53c60f8069c2f0c3a84f9b3db5cf56f3100ba56", "human_passport_rpc_url": "https://sepolia.optimism.io", "human_passport_score_decimals": 4, "human_passport_threshold_raw": 200000, "outcomes": ["PASS", "FAIL", "INCONCLUSIVE"], "total_assessments": 0, "total_passes": 0, "total_policies": 0, "total_refunds": 0, "total_requests": 0, "total_settlements": 0, "usdc_decimals": 6, "v3_contract_address": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d", "v3_contract_version": "soulstamp-v3.0-continuity", "verifier_version": "soulstamp-v4.1-independent-assessment" },
   "requests": [],
-  "missingProofScenarios": [
-    "No transaction hash is recorded unless supplied by a finalized receipt or contract request state.",
-    "Google positive OAuth requires external Worker credentials and a real consenting account.",
-    "Human Passport positive evidence requires a subject wallet with authentic on-chain evidence.",
-    "Arc payment, settlement and refund records require actual Arc transactions."
-  ],
-  "generatedAt": "2026-10-19T11:22:23.510Z"
+  "humanPassportAudit": { "chainId": 11155420, "decoder": "0xe53C60F8069C2f0c3a84F9B3DB5cf56f3100ba56", "selector": "0xd47875d0", "block": 50307497, "blockHash": "0x33d845abf8cf74181cd38fd5d0c56f0533386c95a9f047f02dbd03070386c5ab", "decoderBytecodePresent": true, "result": "No positive score confirmed: every checked wallet call reverted with 0x120a2e77", "subjectWallet": null, "status": "BLOCKED_SUBJECT_WALLET_NOT_IDENTIFIED" },
+  "missingProofScenarios": [ "User-controlled Google OAuth login, wallet-bound link and duplicate-account test", "User Passport wallet public address, authentic getScore result and refresh_humanity_evidence transaction", "Real V3 subject consent, Arc payment and V4 assessment", "PASS, FAIL and INCONCLUSIVE final receipts and post-state", "Settlement consumption, duplicate receipt rejection, interrupted-payment resume and 72-hour refund" ],
+  "historicalContracts": [ { "contractAddress": "0xcdec5d1bE08456dF05BBCe4c0A34A6AB5c71dCF2", "deploymentTransaction": "0xb16bbf2cc1bed529577c3232cd48c260da7c5065b6fd7524b868f721288c0b05", "sourceHash": "7103dc6aa43b196ebe78aaa32eb0e12881ff0d24388652bd20a29766efbf18e3" } ]
 }

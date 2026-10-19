@@ -131,31 +131,34 @@ it does not invent a score or issuance timestamp.
 Google uses the existing Worker with server-side authorization-code flow,
 state, PKCE, nonce, issuer/audience/signature/time/email checks and a separate
 Worker-held HMAC commitment of Google `sub`. Raw Google personal data and
-OAuth tokens never enter GenLayer storage. Live Google linking remains blocked
-until genuine Google Cloud/Worker credentials are configured. The detailed
-release record is [V4_MILESTONE.md](./V4_MILESTONE.md), with architecture and
-operations in [docs/](./docs/) and the no-fabrication live ledger at
-[artifacts/live/v4-deployment.json](./artifacts/live/v4-deployment.json).
+OAuth tokens never enter GenLayer storage. The Worker is now configured and
+`/health` reports both Google and Discord configured, but live Google linking
+still requires a consenting user to complete OAuth and a wallet-bound link
+transaction. The detailed release record is [V4_MILESTONE.md](./V4_MILESTONE.md),
+with architecture and operations in [docs/](./docs/) and the no-fabrication
+live ledger at [artifacts/live/v4-deployment.json](./artifacts/live/v4-deployment.json).
 
 ### V4 live release
 
 The V4 TrustPass contract is deployed at
-`0xcdec5d1bE08456dF05BBCe4c0A34A6AB5c71dCF2` on Studionet `61999` with
+`0x886582aB1a45452880685b6a50c748cAb7c954ce` on Studionet `61999` with
 `FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN / SUCCESS` deployment
-execution and exact LF-normalized source parity. The Arc Testnet escrow is
-`0x847269d045a0e0c6fad1fedb155d3a1dfc6936df` on chain `5042002`, configured
-to that V4 address. See the [GenLayer deployment](https://explorer-studio.genlayer.com/tx/0xb16bbf2cc1bed529577c3232cd48c260da7c5065b6fd7524b868f721288c0b05),
-[Arc escrow deployment](https://explorer.testnet.arc.io/tx/0x86ba6ad19cb591cf8d876207bbb138dace8f9b713ef0e02f80db85becab9b819),
-and [Arc binding](https://explorer.testnet.arc.io/tx/0xd0dafa54ce01a6af3a25c87ad2cbdd3e5058494167ccbb37f65c314a18dd9242).
+execution and exact LF-normalized source parity. The source hash is
+`c4e30170872e629aa0cdda2693f971d3f476919a19f873936a0a1b4972e61c7d`. The
+Arc Testnet escrow is `0xe2a0118847cbf424dbd6f5761987624ea7aae72e` on chain
+`5042002`, configured to that V4 address. See the [GenLayer deployment](https://explorer-studio.genlayer.com/tx/0xe7ecb0b579ac2906b08dbd0fd30a5e5f0c0efe8b1cf610f09a97e182393a0ae4),
+[Arc escrow deployment](https://explorer.testnet.arc.io/tx/0xeafe5a97d114d6fd120ca1ec05ea9cb38c3e6fecd95b92c57d6402ebe7a5eb6e),
+and [Arc binding](https://explorer.testnet.arc.io/tx/0x130bce4836aba2f3ca70f390983d48320e03fe5448a9d059a9df9ff982b493e6).
 
 The existing Worker is healthy and Discord remains configured. Vercel
-Production is READY at deployment `dpl_2oNQ9ByHEPNhnWhBrKDPYvWb9BKo` and
-Preview is READY at `dpl_GWb2EW3SQMBvs2HLTCEXPG5PLWhw`; the served bundles
-were inspected for the V3, V4, Arc escrow, and Worker values. Google live
-linking, a positive Human Passport subject, and a paid Arc assessment/
-settlement/refund lifecycle remain unclaimed until the corresponding
-user-controlled credentials, evidence, subject consent, and time-dependent
-transactions exist.
+Production is READY at deployment `dpl_mXHauuumqEupRGucuMpsXAvx1vUT` and
+Preview is READY at `dpl_HpGhLgCLduR64HyayuemaFYo6JYZ`; the served bundles
+contain the current V4 address, current Arc escrow and Worker URL, with the
+superseded V4/Arc literals absent. Google live linking, a positive Human
+Passport subject, and a paid Arc assessment/settlement/refund lifecycle remain
+unclaimed until the corresponding user-controlled credentials, evidence,
+subject consent, and time-dependent transactions exist. Previous V4/Arc
+deployments remain in the milestone ledger as historical records.
 
 ## What Changed In v2
 

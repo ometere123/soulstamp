@@ -17,7 +17,7 @@ export const ARC_CHAIN_HEX = `0x${ARC_CHAIN_ID.toString(16)}`;
 export const ARC_RPC_URL = (import.meta.env.VITE_ARC_RPC_URL || "https://rpc.testnet.arc.io").trim();
 export const ARC_EXPLORER_URL = (import.meta.env.VITE_ARC_EXPLORER_URL || "https://explorer.testnet.arc.io").trim();
 export const ARC_USDC_ADDRESS = (import.meta.env.VITE_ARC_USDC_ADDRESS || "0x3600000000000000000000000000000000000000") as Address;
-export const ARC_ESCROW_ADDRESS = (import.meta.env.VITE_ARC_ESCROW_ADDRESS || "0x847269d045a0e0c6fad1fedb155d3a1dfc6936df") as Address;
+export const ARC_ESCROW_ADDRESS = (import.meta.env.VITE_ARC_ESCROW_ADDRESS || "0xe2a0118847cbf424dbd6f5761987624ea7aae72e") as Address;
 export const USDC_DECIMALS = 6;
 export const ASSESSMENT_PRICE_USDC = 1_000_000n;
 

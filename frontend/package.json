@@ -16,6 +16,10 @@
     "react-dom": "^18.3.1",
     "viem": "^2.57.7"
   },
+  "overrides": {
+    "brace-expansion": "^1.1.21",
+    "js-yaml": "^4.3.2"
+  },
   "devDependencies": {
     "@types/node": "^25.9.3",
     "@types/react": "^18.3.5",
