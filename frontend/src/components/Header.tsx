@@ -11,6 +11,8 @@ interface HeaderProps {
 
 const TABS = [
   { id: "dashboard", label: "Dashboard" },
+  { id: "trustpass", label: "TrustPass" },
+  { id: "organisation", label: "Organisation" },
   { id: "verify",    label: "Verify Identity" },
   { id: "challenges", label: "Challenges & Recovery" },
   { id: "lookup",    label: "Public Lookup" },

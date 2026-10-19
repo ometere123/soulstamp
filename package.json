@@ -1,6 +1,6 @@
 {
   "name": "soulstamp-protocol",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "private": true,
   "description": "SoulStamp identity continuity protocol tooling",
   "scripts": {
@@ -10,12 +10,18 @@
     "test:frontend": "vitest run tests/frontend",
     "test:finality": "node --test tests/scripts/finality.test.mjs",
     "test:worker": "npm --prefix backend test",
-    "test:all": "python -m pytest tests -q && npm run test:frontend && npm run test:finality && npm run test:worker",
+    "test:foundry": "forge fmt --check && forge build && forge test",
+    "test:all": "python -m pytest tests -q && npm run test:frontend && npm run test:finality && npm run test:worker && npm run test:foundry",
     "test:live": "python -m pytest tests/integration -m live -v -s",
+    "verify:v4": "node scripts/verify-v4-deployment.mjs",
+    "audit:v4": "node scripts/audit-v4-lifecycle.mjs",
+    "deploy:arc:v4": "forge build && node scripts/deploy-arc-v4.mjs",
+    "deploy:genlayer:v4": "node scripts/deploy-trustpass-v4.mjs",
     "ci": "npm run lint:contract && npm run test:all && npm --prefix frontend run build && npm --prefix backend run check"
   },
   "devDependencies": {
     "genlayer": "0.39.1",
-    "genlayer-js": "1.1.8"
+    "genlayer-js": "1.1.8",
+    "viem": "^2.57.7"
   }
 }

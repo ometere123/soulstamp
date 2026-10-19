@@ -106,6 +106,57 @@ The latest security-pass contract source has normalized LF SHA-256
 This is the exact normalized source hash independently matched to the deployed
 contract source.
 
+## V4 — TrustPass & Sybil Gate
+
+V4 is an extension of the accepted V3 authority, not a replacement. It adds
+versioned paid assessments with `PASS`, `FAIL`, and `INCONCLUSIVE` outcomes,
+explicit subject consent, organisation sponsorship, optional Google OIDC
+account commitments, and a required real Human Passport adapter for the
+Sybil-resistant tier. Payment never buys a PASS.
+
+The GenLayer V4 contract reads V3 eligibility and stores policy-bound evidence;
+the Arc Testnet escrow holds exactly `1_000_000` six-decimal USDC per request.
+V4 consumes an independently verified Arc settlement event before a result is
+eligible for consumers. If settlement does not arrive by the 72-hour escrow
+deadline, the original payer can recover the funds and the assessment remains
+unusable. The settlement operator is a documented cross-chain trust
+assumption, not a permissionless bridge.
+
+The Human Passport source is Optimism Sepolia chain `11155420`, decoder
+`0xe53C60F8069C2f0c3a84F9B3DB5cf56f3100ba56`, selector `0xd47875d0`. Its raw
+score is scaled by 10,000: threshold 20 is raw `200000`. V4 reads the same
+subject wallet at a pinned block and uses a seven-day snapshot/lifetime policy;
+it does not invent a score or issuance timestamp.
+
+Google uses the existing Worker with server-side authorization-code flow,
+state, PKCE, nonce, issuer/audience/signature/time/email checks and a separate
+Worker-held HMAC commitment of Google `sub`. Raw Google personal data and
+OAuth tokens never enter GenLayer storage. Live Google linking remains blocked
+until genuine Google Cloud/Worker credentials are configured. The detailed
+release record is [V4_MILESTONE.md](./V4_MILESTONE.md), with architecture and
+operations in [docs/](./docs/) and the no-fabrication live ledger at
+[artifacts/live/v4-deployment.json](./artifacts/live/v4-deployment.json).
+
+### V4 live release
+
+The V4 TrustPass contract is deployed at
+`0xcdec5d1bE08456dF05BBCe4c0A34A6AB5c71dCF2` on Studionet `61999` with
+`FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN / SUCCESS` deployment
+execution and exact LF-normalized source parity. The Arc Testnet escrow is
+`0x847269d045a0e0c6fad1fedb155d3a1dfc6936df` on chain `5042002`, configured
+to that V4 address. See the [GenLayer deployment](https://explorer-studio.genlayer.com/tx/0xb16bbf2cc1bed529577c3232cd48c260da7c5065b6fd7524b868f721288c0b05),
+[Arc escrow deployment](https://explorer.testnet.arc.io/tx/0x86ba6ad19cb591cf8d876207bbb138dace8f9b713ef0e02f80db85becab9b819),
+and [Arc binding](https://explorer.testnet.arc.io/tx/0xd0dafa54ce01a6af3a25c87ad2cbdd3e5058494167ccbb37f65c314a18dd9242).
+
+The existing Worker is healthy and Discord remains configured. Vercel
+Production is READY at deployment `dpl_2oNQ9ByHEPNhnWhBrKDPYvWb9BKo` and
+Preview is READY at `dpl_GWb2EW3SQMBvs2HLTCEXPG5PLWhw`; the served bundles
+were inspected for the V3, V4, Arc escrow, and Worker values. Google live
+linking, a positive Human Passport subject, and a paid Arc assessment/
+settlement/refund lifecycle remain unclaimed until the corresponding
+user-controlled credentials, evidence, subject consent, and time-dependent
+transactions exist.
+
 ## What Changed In v2
 
 | Area | v2 improvement |

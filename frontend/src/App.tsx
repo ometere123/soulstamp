@@ -10,6 +10,8 @@ import { AdminPanel } from "./components/AdminPanel";
 import { ChallengePanel } from "./components/ChallengePanel";
 import { Footer } from "./components/Footer";
 import { LandingPage } from "./components/LandingPage";
+import { TrustPassDashboard } from "./components/TrustPassDashboard";
+import { OrganisationPortal } from "./components/OrganisationPortal";
 import { getStats } from "./lib/contract";
 
 function AppInner() {
@@ -45,6 +47,8 @@ function AppInner() {
         ) : (
           <>
             {tab === "dashboard" && <Dashboard onStartVerify={() => setTab("verify")} />}
+            {tab === "trustpass" && address && <TrustPassDashboard wallet={address} />}
+            {tab === "organisation" && address && <OrganisationPortal wallet={address} />}
             {tab === "verify" && <VerificationFlow />}
             {tab === "challenges" && address && <ChallengePanel />}
             {tab === "lookup" && <PublicLookup />}

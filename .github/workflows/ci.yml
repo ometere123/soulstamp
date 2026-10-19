@@ -31,10 +31,14 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
       - name: Install repository-local GenLayer CLI 0.39.1
         run: npm ci
+      - name: Install Foundry toolchain
+        uses: foundry-rs/foundry-toolchain@v1
       - name: Install frontend dependencies
         run: npm ci --prefix frontend
       - name: Install Worker dependencies
         run: npm ci --prefix backend
+      - name: Cache the pinned GenVM runner used by semantic validation
+        run: python -m genvm_linter.cli download -v v0.2.16
       - name: GenVM lint and semantic validation
         run: python scripts/contract_gates.py
       - name: Direct Mode and regression tests
@@ -43,6 +47,9 @@ jobs:
         run: npm --prefix frontend run build
       - name: Discord Worker syntax check
         run: npm --prefix backend run check
+      - name: Dependency audit (pinned CLI toolchain advisories are reported, not hidden)
+        continue-on-error: true
+        run: npm audit --audit-level=high
 
   live-studionet:
     if: ${{ vars.RUN_STUDIONET_LIVE == 'true' || (github.event_name == 'workflow_dispatch' && inputs.run_live == true) }}

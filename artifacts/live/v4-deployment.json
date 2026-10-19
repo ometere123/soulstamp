@@ -1,0 +1,135 @@
+{
+  "milestone": "SoulStamp V4 TrustPass & Sybil Gate",
+  "status": "DEPLOYED_ENGINEERING_RELEASE",
+  "source_commit": "PENDING_FINAL_RELEASE_COMMIT",
+  "network": {
+    "genlayer": { "name": "Studionet", "chain_id": 61999, "rpc": "https://studio.genlayer.com/api" },
+    "arc": { "name": "Arc Testnet", "chain_id": 5042002, "rpc": "https://rpc.testnet.arc.io", "usdc": "0x3600000000000000000000000000000000000000", "usdc_decimals": 6 },
+    "human_passport": { "chain_id": 11155420, "decoder": "0xe53C60F8069C2f0c3a84F9B3DB5cf56f3100ba56", "score_selector": "0xd47875d0", "threshold_raw": 200000 }
+  },
+  "source": {
+    "genlayer_contract": "contracts/soulstamp_trustpass.py",
+    "normalized_lf_sha256": "7103dc6aa43b196ebe78aaa32eb0e12881ff0d24388652bd20a29766efbf18e3",
+    "arc_escrow_contract": "evm/SoulStampPaymentEscrow.sol",
+    "arc_local_normalized_lf_sha256": "4ae5673fc4a0788a7d5d356e5043dae87e82120642b1c1d92a00a00c3f1589d6"
+  },
+  "v3": {
+    "contract_address": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d",
+    "preserved": true,
+    "migration": "V3 remains authoritative; V4 reads V3 and never writes V3 state"
+  },
+  "arc_escrow": {
+    "contract_address": "0x847269d045a0e0c6fad1fedb155d3a1dfc6936df",
+    "deployment_transaction": "0x86ba6ad19cb591cf8d876207bbb138dace8f9b713ef0e02f80db85becab9b819",
+    "configuration_transaction": "0xd0dafa54ce01a6af3a25c87ad2cbdd3e5058494167ccbb37f65c314a18dd9242",
+    "deployment_explorer": "https://explorer.testnet.arc.io/tx/0x86ba6ad19cb591cf8d876207bbb138dace8f9b713ef0e02f80db85becab9b819",
+    "configuration_explorer": "https://explorer.testnet.arc.io/tx/0xd0dafa54ce01a6af3a25c87ad2cbdd3e5058494167ccbb37f65c314a18dd9242",
+    "status": "CONFIRMED_SUCCESS",
+    "post_state": { "genlayer_v4": "0xcdec5d1bE08456dF05BBCe4c0A34A6AB5c71dCF2", "price_base_units": 1000000, "escrowed_liabilities": 0, "earned_revenue": 0, "liabilities_solvent": true }
+  },
+  "genlayer_v4": {
+    "contract_address": "0xcdec5d1bE08456dF05BBCe4c0A34A6AB5c71dCF2",
+    "deployment_transaction": "0xb16bbf2cc1bed529577c3232cd48c260da7c5065b6fd7524b868f721288c0b05",
+    "deployment_explorer": "https://explorer-studio.genlayer.com/tx/0xb16bbf2cc1bed529577c3232cd48c260da7c5065b6fd7524b868f721288c0b05",
+    "status": "FINALIZED_MAJORITY_AGREE_SUCCESS",
+    "finality": { "status": "FINALIZED", "consensus": "MAJORITY_AGREE", "execution": "FINISHED_WITH_RETURN", "raw_execution_results": ["SUCCESS", "SUCCESS"] },
+    "signer": "0x231EF01E282385eC2E22394469f1C8c6C28Fd6b1",
+    "initial_state": { "contract_version": "soulstamp-v4.0-trustpass-sybil-gate", "v3_contract_address": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d", "admin": "0x231ef01e282385ec2e22394469f1c8c6c28fd6b1", "total_policies": 0, "total_requests": 0, "total_assessments": 0, "total_passes": 0, "total_settlements": 0, "total_refunds": 0 }
+  },
+  "google": {
+    "worker_url": "https://soulstamp-discord.delealufejoel.workers.dev",
+    "status": "BLOCKED_EXTERNAL_CREDENTIALS",
+    "reason": "A real Google Cloud OAuth client and Worker secrets are user-controlled and are not present in the repository. Local mocked OIDC tests pass; no live Google account proof is claimed."
+  },
+  "human_passport": {
+    "adapter": "IMPLEMENTED_LOCAL_ONLY",
+    "live_positive_subject": "UNTESTED_EXTERNAL_EVIDENCE",
+    "reason": "The adapter and negative/scaling tests are present; no user-controlled wallet with a suitable real Optimism Sepolia Passport score was used."
+  },
+  "vercel": {
+    "status": "CONFIRMED_READY",
+    "production": {
+      "deployment_id": "dpl_2oNQ9ByHEPNhnWhBrKDPYvWb9BKo",
+      "url": "https://soulstamp-qzqpqpznl-delealufejoel-4184s-projects.vercel.app",
+      "alias": "https://soulstamp-gen.vercel.app",
+      "ready": true,
+      "bundle": { "script": "/assets/index-qHQLyw1L.js", "contains_v3": true, "contains_v4": true, "contains_arc_escrow": true, "contains_worker_url": true }
+    },
+    "preview": {
+      "deployment_id": "dpl_GWb2EW3SQMBvs2HLTCEXPG5PLWhw",
+      "url": "https://soulstamp-4pje1m5ll-delealufejoel-4184s-projects.vercel.app",
+      "ready": true,
+      "bundle": { "script": "/assets/index-qHQLyw1L.js", "contains_v3": true, "contains_v4": true, "contains_arc_escrow": true, "contains_worker_url": true }
+    },
+    "public_environment": { "v4_contract": "0xcdec5d1bE08456dF05BBCe4c0A34A6AB5c71dCF2", "arc_escrow": "0x847269d045a0e0c6fad1fedb155d3a1dfc6936df", "v3_contract_preserved": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d" }
+  },
+  "worker": { "url": "https://soulstamp-discord.delealufejoel.workers.dev", "version_id": "63b9d022-f0b2-4fc3-a8f2-b74fd1b27335", "discord_health": "CONFIRMED_HEALTHY", "discord_configured": true, "google_status": "BLOCKED_EXTERNAL_CREDENTIALS", "health_observed": { "ok": true, "frontend_origin": "https://soulstamp-gen.vercel.app", "storage": "stateless-signed-attestations", "google_redirect_uri": "https://soulstamp-discord.delealufejoel.workers.dev/api/google/callback" } },
+  "payment_lifecycle": {
+    "status": "UNTESTED",
+    "deposit": null,
+    "assessment": null,
+    "settlement": null,
+    "refund": null,
+    "note": "Foundry and Direct Mode coverage is local-only until a consenting subject funds a real Arc request. Refund requires the full 72-hour timeout and is not fabricated."
+  },
+  "local_gates": {
+    "contract_gates": "PASS",
+    "direct_mode": "PASS",
+    "frontend_tests": "PASS",
+    "worker_tests": "PASS",
+    "foundry_tests": "PASS",
+    "production_build": "PASS"
+  },
+  "live_evidence": [
+    {
+      "network": "Arc Testnet",
+      "chain_id": 5042002,
+      "action": "deploy_escrow",
+      "method": "constructor",
+      "transaction_hash": "0x86ba6ad19cb591cf8d876207bbb138dace8f9b713ef0e02f80db85becab9b819",
+      "receipt_outcome": "confirmed_success",
+      "finality": "confirmed_by_receipt",
+      "post_state": "0x847269d045a0e0c6fad1fedb155d3a1dfc6936df; USDC and role configuration verified"
+    },
+    {
+      "network": "Arc Testnet",
+      "chain_id": 5042002,
+      "action": "bind_genlayer_v4",
+      "method": "configureGenLayerV4",
+      "transaction_hash": "0xd0dafa54ce01a6af3a25c87ad2cbdd3e5058494167ccbb37f65c314a18dd9242",
+      "receipt_outcome": "confirmed_success",
+      "finality": "confirmed_by_receipt",
+      "post_state": "genLayerV4=0xcdec5d1bE08456dF05BBCe4c0A34A6AB5c71dCF2"
+    },
+    {
+      "network": "GenLayer Studionet",
+      "chain_id": 61999,
+      "action": "deploy_v4_contract",
+      "method": "constructor",
+      "transaction_hash": "0xb16bbf2cc1bed529577c3232cd48c260da7c5065b6fd7524b868f721288c0b05",
+      "receipt_outcome": "confirmed_success",
+      "finality": "FINALIZED",
+      "consensus": "MAJORITY_AGREE",
+      "execution": "FINISHED_WITH_RETURN",
+      "post_state": "V3 link, Arc escrow, admin, HP decoder and zero counters verified",
+      "source_parity": "exact LF-normalized match"
+    },
+    {
+      "network": "Cloudflare Workers",
+      "action": "health_check",
+      "method": "GET /health",
+      "transaction_hash": null,
+      "receipt_outcome": "confirmed_success",
+      "post_state": "Discord configured; Google intentionally disabled pending external credentials"
+    }
+  ],
+  "missing_scenarios": [
+    "real Google OAuth/account commitment",
+    "real positive Human Passport subject",
+    "real Arc deposit, V4 payment consumption, assessment and settlement",
+    "real completed FAIL or INCONCLUSIVE assessment",
+    "real timeout refund after the full 72-hour escrow delay",
+    "live Vercel Production/Preview release using the deployed V4 addresses",
+    "live Worker Google configuration if Google is enabled"
+  ]
+}

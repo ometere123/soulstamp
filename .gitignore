@@ -32,6 +32,10 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 
+# Local Foundry and GenVM build/cache output
+out/
+cache/
+
 # OS/editor noise
 .DS_Store
 Thumbs.db

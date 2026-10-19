@@ -1,0 +1,170 @@
+import {
+  createPublicClient,
+  createWalletClient,
+  custom,
+  defineChain,
+  http,
+  parseAbi,
+  type Address,
+  type Hash,
+  type TransactionReceipt,
+} from "viem";
+
+export const ARC_CHAIN_ID = 5_042_002;
+export const ARC_CHAIN_HEX = `0x${ARC_CHAIN_ID.toString(16)}`;
+export const ARC_RPC_URL = (import.meta.env.VITE_ARC_RPC_URL || "https://rpc.testnet.arc.io").trim();
+export const ARC_EXPLORER_URL = (import.meta.env.VITE_ARC_EXPLORER_URL || "https://explorer.testnet.arc.io").trim();
+export const ARC_USDC_ADDRESS = (import.meta.env.VITE_ARC_USDC_ADDRESS || "0x3600000000000000000000000000000000000000") as Address;
+export const ARC_ESCROW_ADDRESS = (import.meta.env.VITE_ARC_ESCROW_ADDRESS || "0x847269d045a0e0c6fad1fedb155d3a1dfc6936df") as Address;
+export const USDC_DECIMALS = 6;
+export const ASSESSMENT_PRICE_USDC = 1_000_000n;
+
+export const arcTestnet = defineChain({
+  id: ARC_CHAIN_ID,
+  name: "Arc Testnet",
+  nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+  rpcUrls: { default: { http: [ARC_RPC_URL] } },
+  blockExplorers: { default: { name: "Arc Explorer", url: ARC_EXPLORER_URL } },
+});
+
+export const usdcAbi = parseAbi([
+  "function allowance(address owner,address spender) view returns (uint256)",
+  "function approve(address spender,uint256 amount) returns (bool)",
+  "function balanceOf(address owner) view returns (uint256)",
+]);
+
+export const escrowAbi = parseAbi([
+  "function deposit(bytes32 requestId,address subject,bytes32 policyHash,uint256 nonce,uint256 intentExpiry) returns (bytes32)",
+  "function getPayment(bytes32 requestId) view returns (bytes32 requestId,address payer,address subject,bytes32 policyHash,uint256 amount,uint256 nonce,uint256 intentExpiry,uint256 depositedAt,uint8 status)",
+  "function price() view returns (uint256)",
+  "function liabilitiesSolvent() view returns (bool)",
+  "event PaymentDeposited(bytes32 indexed requestId,address indexed payer,address indexed subject,bytes32 policyHash,uint256 amount,uint256 intentExpiry,uint256 nonce)",
+  "event PaymentSettled(bytes32 indexed requestId,bytes32 indexed assessmentId,address indexed subject,bytes32 policyHash,uint8 outcome,bytes32 resultCommitment)",
+  "event PaymentRefunded(bytes32 indexed requestId,address indexed payer,address indexed subject,uint256 amount)",
+]);
+
+type Eip1193 = {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+};
+
+function provider(): Eip1193 {
+  if (typeof window === "undefined" || !window.ethereum) throw new Error("No injected EVM wallet detected.");
+  return window.ethereum as Eip1193;
+}
+
+function address(value: string, label: string): Address {
+  const clean = value.trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(clean)) throw new Error(`${label} is not configured.`);
+  return clean as Address;
+}
+
+export function arcExplorerTx(hash: string): string {
+  return `${ARC_EXPLORER_URL.replace(/\/$/, "")}/tx/${hash}`;
+}
+
+export async function ensureArcNetwork(): Promise<void> {
+  const wallet = provider();
+  try {
+    await wallet.request({ method: "wallet_switchEthereumChain", params: [{ chainId: ARC_CHAIN_HEX }] });
+  } catch (error) {
+    if ((error as { code?: number })?.code !== 4902) throw error;
+    await wallet.request({
+      method: "wallet_addEthereumChain",
+      params: [{
+        chainId: ARC_CHAIN_HEX,
+        chainName: "Arc Testnet",
+        nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+        rpcUrls: [ARC_RPC_URL],
+        blockExplorerUrls: [ARC_EXPLORER_URL],
+      }],
+    });
+  }
+  const chainId = String(await wallet.request({ method: "eth_chainId" })).toLowerCase();
+  if (chainId !== ARC_CHAIN_HEX.toLowerCase()) throw new Error("Arc Testnet 5042002 is required for payment.");
+}
+
+function escrowAddress(): Address {
+  return address(ARC_ESCROW_ADDRESS, "Arc escrow address");
+}
+
+export function getArcPublicClient() {
+  return createPublicClient({ chain: arcTestnet, transport: http(ARC_RPC_URL) });
+}
+
+function getArcWalletClient(addressValue: Address) {
+  return createWalletClient({ account: addressValue, chain: arcTestnet, transport: custom(provider()) });
+}
+
+export async function readArcPayment(requestKey: `0x${string}`) {
+  return getArcPublicClient().readContract({
+    address: escrowAddress(),
+    abi: escrowAbi,
+    functionName: "getPayment",
+    args: [requestKey],
+  });
+}
+
+export async function readArcBalance(wallet: string): Promise<bigint> {
+  return getArcPublicClient().readContract({
+    address: address(ARC_USDC_ADDRESS, "Arc USDC"),
+    abi: usdcAbi,
+    functionName: "balanceOf",
+    args: [address(wallet, "Wallet")],
+  });
+}
+
+async function waitForArcReceipt(hash: Hash): Promise<TransactionReceipt> {
+  const receipt = await getArcPublicClient().waitForTransactionReceipt({ hash, confirmations: 1 });
+  if (receipt.status !== "success") throw new Error(`Arc transaction ${hash} reverted.`);
+  return receipt;
+}
+
+export type ArcDepositResult = {
+  approvalHash?: Hash;
+  depositHash: Hash;
+  receipt: TransactionReceipt;
+  logIndex: number;
+  requestKey: `0x${string}`;
+};
+
+export async function payAssessment(
+  wallet: string,
+  requestKey: `0x${string}`,
+  subject: string,
+  policyHash: `0x${string}`,
+  nonce: bigint,
+  intentExpiry: bigint,
+): Promise<ArcDepositResult> {
+  await ensureArcNetwork();
+  const payer = address(wallet, "Payer");
+  const subjectAddress = address(subject, "Subject");
+  const escrow = escrowAddress();
+  const usdc = address(ARC_USDC_ADDRESS, "Arc USDC");
+  const walletClient = getArcWalletClient(payer);
+  const publicClient = getArcPublicClient();
+  const allowance = await publicClient.readContract({ address: usdc, abi: usdcAbi, functionName: "allowance", args: [payer, escrow] });
+  let approvalHash: Hash | undefined;
+  if (allowance < ASSESSMENT_PRICE_USDC) {
+    const approval = await walletClient.writeContract({ address: usdc, abi: usdcAbi, functionName: "approve", args: [escrow, ASSESSMENT_PRICE_USDC] });
+    approvalHash = approval;
+    await waitForArcReceipt(approval);
+  }
+  const depositHash = await walletClient.writeContract({
+    address: escrow,
+    abi: escrowAbi,
+    functionName: "deposit",
+    args: [requestKey, subjectAddress, policyHash, nonce, intentExpiry],
+  });
+  const receipt = await waitForArcReceipt(depositHash);
+  const event = receipt.logs
+    .map((log, index) => ({ log, index }))
+    .find(({ log }) => log.address.toLowerCase() === escrow.toLowerCase() && log.topics[0]?.toLowerCase() === "0x4b8e0046bd7b248856bb764d99ba272dceb03c623ba895214e1f531dc8919e3d");
+  if (!event) throw new Error("Successful Arc receipt did not contain PaymentDeposited.");
+  return { approvalHash, depositHash, receipt, logIndex: Number(event.log.logIndex ?? event.index), requestKey };
+}
+
+export function formatUsdc(raw: bigint): string {
+  const whole = raw / 1_000_000n;
+  const fraction = (raw % 1_000_000n).toString().padStart(6, "0").replace(/0+$/, "");
+  return fraction ? `${whole}.${fraction}` : whole.toString();
+}

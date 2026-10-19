@@ -5,6 +5,10 @@ const DISCORD_EPOCH_MS = 1420070400000n;
 const SESSION_TTL_SECONDS = 10 * 60;
 const ATTESTATION_TTL_SECONDS = 5 * 60;
 const SIGNED_TOKEN_MAX_LENGTH = 4096;
+const GOOGLE_CHAIN_ID = "61999";
+const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
+const GOOGLE_DISCOVERY_ENDPOINT = "https://accounts.google.com/.well-known/openid-configuration";
+const GOOGLE_SCOPE = "openid email profile";
 
 function publicBaseUrl(env) {
   return (env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
@@ -16,6 +20,10 @@ function frontendOrigin(env) {
 
 function discordRedirectUri(env) {
   return env.DISCORD_REDIRECT_URI || `${publicBaseUrl(env)}/api/discord/callback`;
+}
+
+function googleRedirectUri(env) {
+  return env.GOOGLE_REDIRECT_URI || `${publicBaseUrl(env)}/api/google/callback`;
 }
 
 function nowSeconds() {
@@ -37,6 +45,25 @@ function base64urlDecode(input) {
   return bytes;
 }
 
+function utf8(value) {
+  return new TextEncoder().encode(String(value));
+}
+
+function hexEncode(bytes) {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function pkceChallenge(verifier) {
+  const digest = await crypto.subtle.digest("SHA-256", utf8(verifier));
+  return base64urlEncode(new Uint8Array(digest));
+}
+
+function randomToken(bytes = 32) {
+  const value = new Uint8Array(bytes);
+  crypto.getRandomValues(value);
+  return base64urlEncode(value);
+}
+
 async function hmacKey(secret) {
   if (typeof secret !== "string" || secret.length < 32) {
     throw new Error("BACKEND_SESSION_SECRET must be configured with at least 32 characters");
@@ -48,6 +75,26 @@ async function hmacKey(secret) {
     false,
     ["sign"],
   );
+}
+
+async function commitmentKey(secret) {
+  if (typeof secret !== "string" || secret.length < 32) {
+    throw new Error("GOOGLE_ACCOUNT_COMMITMENT_SECRET must be configured with at least 32 characters");
+  }
+  return crypto.subtle.importKey(
+    "raw",
+    utf8(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+}
+
+async function googleCommitment(subject, env) {
+  const key = await commitmentKey(env.GOOGLE_ACCOUNT_COMMITMENT_SECRET);
+  const material = `v1|google-sub|${subject}`;
+  const digest = await crypto.subtle.sign("HMAC", key, utf8(material));
+  return `v1:${hexEncode(new Uint8Array(digest))}`;
 }
 
 async function sign(value, env) {
@@ -176,6 +223,100 @@ function requireConfig(env) {
   if (!publicBaseUrl(env).startsWith("https://") && !publicBaseUrl(env).startsWith("http://localhost")) {
     throw new Error("PUBLIC_BASE_URL must be public HTTPS for GenLayer validators");
   }
+}
+
+function requireGoogleConfig(env) {
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !googleRedirectUri(env)) {
+    throw new Error("Google OAuth is not configured");
+  }
+  if (typeof env.BACKEND_SESSION_SECRET !== "string" || env.BACKEND_SESSION_SECRET.length < 32) {
+    throw new Error("BACKEND_SESSION_SECRET must be configured with at least 32 characters");
+  }
+  if (typeof env.GOOGLE_ACCOUNT_COMMITMENT_SECRET !== "string" || env.GOOGLE_ACCOUNT_COMMITMENT_SECRET.length < 32) {
+    throw new Error("GOOGLE_ACCOUNT_COMMITMENT_SECRET must be configured with at least 32 characters");
+  }
+  if (!publicBaseUrl(env).startsWith("https://") && !publicBaseUrl(env).startsWith("http://localhost")) {
+    throw new Error("PUBLIC_BASE_URL must be public HTTPS for Google validators");
+  }
+}
+
+function requireWallet(value, label = "wallet") {
+  const wallet = String(value || "").toLowerCase();
+  if (!/^0x[a-f0-9]{40}$/.test(wallet)) throw new Error(`Invalid ${label} address`);
+  return wallet;
+}
+
+function requireV4Address(value) {
+  const address = String(value || "").toLowerCase();
+  if (!/^0x[a-f0-9]{40}$/.test(address)) throw new Error("Invalid V4 contract address");
+  return address;
+}
+
+function requirePendingId(value) {
+  const pending = String(value || "").trim().toUpperCase();
+  if (!/^[A-F0-9]{24,64}$/.test(pending)) throw new Error("Invalid Google pending request ID");
+  return pending;
+}
+
+function parseJwt(token) {
+  const parts = String(token || "").split(".");
+  if (parts.length !== 3 || parts.some((part) => !/^[A-Za-z0-9_-]+$/.test(part))) {
+    throw new Error("Malformed Google ID token");
+  }
+  try {
+    return {
+      header: JSON.parse(new TextDecoder().decode(base64urlDecode(parts[0]))),
+      claims: JSON.parse(new TextDecoder().decode(base64urlDecode(parts[1]))),
+      signingInput: `${parts[0]}.${parts[1]}`,
+      signature: base64urlDecode(parts[2]),
+    };
+  } catch {
+    throw new Error("Malformed Google ID token");
+  }
+}
+
+async function googleJwks(env) {
+  const discoveryResponse = await fetch(GOOGLE_DISCOVERY_ENDPOINT, { headers: { accept: "application/json" } });
+  if (!discoveryResponse.ok) throw new Error("Google OIDC discovery is unavailable");
+  const discovery = await discoveryResponse.json();
+  const jwksUri = String(discovery.jwks_uri || "");
+  if (!/^https:\/\/(www\.)?googleapis\.com\//.test(jwksUri)) throw new Error("Google JWKS origin is not trusted");
+  const response = await fetch(jwksUri, { headers: { accept: "application/json" } });
+  if (!response.ok) throw new Error("Google signing keys are unavailable");
+  const body = await response.json();
+  if (!Array.isArray(body.keys) || body.keys.length > 20) throw new Error("Google signing keys are malformed");
+  return body.keys;
+}
+
+async function validateGoogleIdToken(idToken, state, env) {
+  const parsed = parseJwt(idToken);
+  const header = parsed.header || {};
+  const claims = parsed.claims || {};
+  if (header.alg !== "RS256" || typeof header.kid !== "string") throw new Error("Google ID token algorithm or key ID is invalid");
+  const issuer = String(claims.iss || "");
+  if (issuer !== "https://accounts.google.com" && issuer !== "accounts.google.com") throw new Error("Google ID token issuer is invalid");
+  const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+  if (!audiences.includes(env.GOOGLE_CLIENT_ID)) throw new Error("Google ID token audience is invalid");
+  if (claims.azp && claims.azp !== env.GOOGLE_CLIENT_ID) throw new Error("Google ID token authorized party is invalid");
+  const now = nowSeconds();
+  if (!Number.isInteger(claims.exp) || claims.exp <= now || claims.exp > now + 15 * 60) throw new Error("Google ID token is expired or too long-lived");
+  if (!Number.isInteger(claims.iat) || claims.iat > now + 60 || claims.iat < now - 15 * 60) throw new Error("Google ID token issued-at time is invalid");
+  if (claims.nonce !== state.nonce) throw new Error("Google ID token nonce mismatch");
+  if (claims.email_verified !== true) throw new Error("Google account email is not verified");
+  if (!/^[0-9]+$/.test(String(claims.sub || ""))) throw new Error("Google stable subject is missing");
+  const keys = await googleJwks(env);
+  const jwk = keys.find((key) => key && key.kid === header.kid && key.kty === "RSA");
+  if (!jwk) throw new Error("Google signing key was not found");
+  const cryptoKey = await crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["verify"],
+  );
+  const valid = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", cryptoKey, parsed.signature, utf8(parsed.signingInput));
+  if (!valid) throw new Error("Google ID token signature is invalid");
+  return claims;
 }
 
 async function handleStart(url, env) {
@@ -347,6 +488,110 @@ async function handleGetAttestation(pathname, env) {
   return json(payload.attestation, 200, env);
 }
 
+async function handleGoogleStart(url, env) {
+  requireGoogleConfig(env);
+  const returnTo = url.searchParams.get("return_to") || frontendOrigin(env);
+  if (!isAllowedReturnTo(returnTo, env)) throw new Error("Invalid return_to URL");
+  const wallet = requireWallet(url.searchParams.get("wallet"));
+  const v4Contract = requireV4Address(url.searchParams.get("v4_contract"));
+  const pendingId = requirePendingId(url.searchParams.get("pending_id"));
+  const purpose = String(url.searchParams.get("purpose") || "google_link");
+  if (purpose !== "google_link") throw new Error("Invalid Google OAuth purpose");
+  if (String(url.searchParams.get("chain_id") || GOOGLE_CHAIN_ID) !== GOOGLE_CHAIN_ID) throw new Error("Google flow is bound to Studionet 61999");
+  const verifier = randomToken(32);
+  const nonce = randomToken(24);
+  const state = await makeToken({
+    purpose: "google_oauth_state",
+    nonce,
+    wallet,
+    pending_id: pendingId,
+    v4_contract: v4Contract,
+    chain_id: GOOGLE_CHAIN_ID,
+    return_to: returnTo,
+    code_verifier: verifier,
+    exp: nowSeconds() + SESSION_TTL_SECONDS,
+  }, env);
+  const authorize = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  authorize.searchParams.set("client_id", env.GOOGLE_CLIENT_ID);
+  authorize.searchParams.set("redirect_uri", googleRedirectUri(env));
+  authorize.searchParams.set("response_type", "code");
+  authorize.searchParams.set("scope", GOOGLE_SCOPE);
+  authorize.searchParams.set("state", state);
+  authorize.searchParams.set("nonce", nonce);
+  authorize.searchParams.set("code_challenge", await pkceChallenge(verifier));
+  authorize.searchParams.set("code_challenge_method", "S256");
+  authorize.searchParams.set("access_type", "online");
+  authorize.searchParams.set("prompt", "consent");
+  return redirect(authorize.toString());
+}
+
+async function handleGoogleCallback(url, env) {
+  let state;
+  try {
+    requireGoogleConfig(env);
+    state = await verifyToken(url.searchParams.get("state"), "google_oauth_state", env);
+    const code = String(url.searchParams.get("code") || "");
+    if (!code) throw new Error("Missing Google OAuth code");
+    const tokenResponse = await fetch(GOOGLE_TOKEN_ENDPOINT, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+      body: new URLSearchParams({
+        client_id: env.GOOGLE_CLIENT_ID,
+        client_secret: env.GOOGLE_CLIENT_SECRET,
+        code,
+        code_verifier: state.code_verifier,
+        grant_type: "authorization_code",
+        redirect_uri: googleRedirectUri(env),
+      }),
+    });
+    if (!tokenResponse.ok) throw new Error("Google OAuth code exchange failed");
+    const tokenBody = await tokenResponse.json();
+    if (!tokenBody.id_token) throw new Error("Google OAuth response did not contain an ID token");
+    // Access tokens are deliberately never persisted or returned. The
+    // provider may return one for OIDC, but it is not needed by SoulStamp.
+    const claims = await validateGoogleIdToken(tokenBody.id_token, state, env);
+    const commitment = await googleCommitment(claims.sub, env);
+    const now = nowSeconds();
+    const attestation = {
+      platform: "google",
+      method: "google_oidc_authorization_code",
+      issuer: publicBaseUrl(env),
+      wallet: state.wallet,
+      chain_id: Number(state.chain_id),
+      v4_contract: state.v4_contract,
+      pending_id: state.pending_id,
+      purpose: "google_link",
+      nonce: randomToken(24),
+      attestation_id: crypto.randomUUID(),
+      account_commitment: commitment,
+      commitment_version: "v1",
+      issued_at: now,
+      expires_at: now + ATTESTATION_TTL_SECONDS,
+    };
+    const evidenceToken = await makeToken({
+      purpose: "google_attestation",
+      attestation,
+      exp: attestation.expires_at,
+    }, env);
+    return redirect(appendParams(state.return_to, {
+      google_status: "ready",
+      google_attestation_url: `${publicBaseUrl(env)}/api/google/attestations/${evidenceToken}`,
+      google_pending_id: state.pending_id,
+    }));
+  } catch (error) {
+    const fallback = state?.return_to && isAllowedReturnTo(state.return_to, env) ? state.return_to : frontendOrigin(env);
+    return redirect(appendParams(fallback, { google_error: error.message || "Google OAuth failed" }));
+  }
+}
+
+async function handleGoogleAttestation(pathname, env) {
+  requireGoogleConfig(env);
+  const token = pathname.split("/").pop();
+  const payload = await verifyToken(token, "google_attestation", env);
+  if (!payload.attestation || payload.attestation.expires_at <= nowSeconds()) throw new Error("Google attestation expired");
+  return json(payload.attestation, 200, env);
+}
+
 async function router(request, env) {
   if (request.method === "OPTIONS") return json({}, 204, env);
 
@@ -360,6 +605,8 @@ async function router(request, env) {
         public_base_url: publicBaseUrl(env),
         frontend_origin: frontendOrigin(env),
         discord_configured: Boolean(env.DISCORD_CLIENT_ID && env.DISCORD_CLIENT_SECRET),
+        google_configured: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_ACCOUNT_COMMITMENT_SECRET),
+        google_redirect_uri: googleRedirectUri(env),
         storage: "stateless-signed-attestations",
       }, 200, env);
     }
@@ -369,6 +616,9 @@ async function router(request, env) {
     if (request.method === "GET" && path.startsWith("/api/discord/attestations/")) {
       return await handleGetAttestation(path, env);
     }
+    if (request.method === "GET" && path === "/api/google/start") return await handleGoogleStart(url, env);
+    if (request.method === "GET" && path === "/api/google/callback") return await handleGoogleCallback(url, env);
+    if (request.method === "GET" && path.startsWith("/api/google/attestations/")) return await handleGoogleAttestation(path, env);
     return json({ error: "Not found" }, 404, env);
   } catch (error) {
     console.error("[soulstamp-discord]", error);
