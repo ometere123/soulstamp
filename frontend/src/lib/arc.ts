@@ -109,6 +109,17 @@ export async function ensureArcNetwork(): Promise<void> {
   if (chainId !== ARC_CHAIN_HEX.toLowerCase()) throw new Error("Arc Testnet 5042002 is required for payment.");
 }
 
+async function assertArcWallet(expectedAddress: Address): Promise<void> {
+  const wallet = provider();
+  const chainId = String(await wallet.request({ method: "eth_chainId" })).toLowerCase();
+  if (chainId !== ARC_CHAIN_HEX.toLowerCase()) throw new Error("Wallet is not on Arc Testnet 5042002.");
+  const accounts = await wallet.request({ method: "eth_accounts" }) as string[];
+  const active = Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : "";
+  if (!active || active.toLowerCase() !== expectedAddress.toLowerCase()) {
+    throw new Error("The connected wallet account changed. Reconnect the original payer before continuing.");
+  }
+}
+
 function escrowAddress(): Address {
   return address(ARC_ESCROW_ADDRESS, "Arc escrow address");
 }
@@ -191,9 +202,10 @@ export async function payAssessment(
   nonce: bigint,
   intentExpiry: bigint,
 ): Promise<ArcDepositResult> {
-  await ensureArcNetwork();
   const payer = address(wallet, "Payer");
   const subjectAddress = address(subject, "Subject");
+  await ensureArcNetwork();
+  await assertArcWallet(payer);
   const escrow = escrowAddress();
   const usdc = address(ARC_USDC_ADDRESS, "Arc USDC");
   const walletClient = getArcWalletClient(payer);
@@ -201,10 +213,12 @@ export async function payAssessment(
   const allowance = await publicClient.readContract({ address: usdc, abi: usdcAbi, functionName: "allowance", args: [payer, escrow] });
   let approvalHash: Hash | undefined;
   if (allowance < ASSESSMENT_PRICE_USDC) {
+    await assertArcWallet(payer);
     const approval = await walletClient.writeContract({ address: usdc, abi: usdcAbi, functionName: "approve", args: [escrow, ASSESSMENT_PRICE_USDC] });
     approvalHash = approval;
     await waitForArcReceipt(approval);
   }
+  await assertArcWallet(payer);
   const depositHash = await walletClient.writeContract({
     address: escrow,
     abi: escrowAbi,
@@ -220,9 +234,12 @@ export async function payAssessment(
 }
 
 export async function refundArcPayment(wallet: string, requestKey: `0x${string}`): Promise<{ refundHash: Hash; receipt: TransactionReceipt; logIndex: number }> {
+  const payer = address(wallet, "Refund wallet");
   await ensureArcNetwork();
-  const walletClient = getArcWalletClient(address(wallet, "Refund wallet"));
+  await assertArcWallet(payer);
+  const walletClient = getArcWalletClient(payer);
   const escrow = escrowAddress();
+  await assertArcWallet(payer);
   const refundHash = await walletClient.writeContract({ address: escrow, abi: escrowAbi, functionName: "refund", args: [requestKey] });
   const receipt = await waitForArcReceipt(refundHash);
   const event = receipt.logs

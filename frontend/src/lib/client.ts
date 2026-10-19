@@ -4,7 +4,7 @@ import { studionet } from "genlayer-js/chains";
 export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS as `0x${string}` | undefined;
 
 // ── Studionet chain params ────────────────────────────────────────────────────
-const STUDIONET_CHAIN_ID     = "0xF22F"; // 61999
+export const STUDIONET_CHAIN_ID = "0xF22F"; // 61999
 const STUDIONET_CHAIN_PARAMS = {
   chainId:           STUDIONET_CHAIN_ID,
   chainName:         "GenLayer Studionet",
@@ -40,6 +40,45 @@ export async function ensureStudionet(): Promise<void> {
   if (chainId !== STUDIONET_CHAIN_ID.toLowerCase()) {
     throw new Error(`Wrong network selected (${chainId}). SoulStamp only accepts Studionet 61999.`);
   }
+}
+
+/** Read the currently authorised injected account without changing networks. */
+export async function getInjectedWalletAddress(): Promise<string | null> {
+  if (typeof window === "undefined" || !window.ethereum) return null;
+  const accounts = await window.ethereum.request({ method: "eth_accounts" }) as string[];
+  return Array.isArray(accounts) && typeof accounts[0] === "string" ? accounts[0] : null;
+}
+
+/** Verify the wallet immediately before a chain-specific transaction. */
+export async function assertInjectedWallet(
+  expectedChainId: string,
+  expectedAddress?: string,
+): Promise<string> {
+  if (typeof window === "undefined" || !window.ethereum) {
+    throw new Error("No injected wallet found.");
+  }
+  const chainId = String(await window.ethereum.request({ method: "eth_chainId" })).toLowerCase();
+  if (chainId !== expectedChainId.toLowerCase()) {
+    throw new Error(`Wallet is on ${chainId}; expected ${expectedChainId}.`);
+  }
+  const active = await getInjectedWalletAddress();
+  if (!active) throw new Error("No wallet account is connected.");
+  if (expectedAddress && active.toLowerCase() !== expectedAddress.toLowerCase()) {
+    throw new Error("The connected wallet account changed. Reconnect the original account before continuing.");
+  }
+  return active;
+}
+
+/** Prepare a GenLayer write without allowing a stale event handler to switch
+ * the wallet back during an Arc operation. Restoration is account-only; this
+ * is the sole helper used by V3/V4 write paths to select Studionet. */
+export async function prepareStudionetWrite(): Promise<string> {
+  const requested = await getInjectedWalletAddress();
+  if (!requested) throw new Error("Connect a wallet before submitting a GenLayer transaction.");
+  await ensureStudionet();
+  const active = await assertInjectedWallet(STUDIONET_CHAIN_ID, requested);
+  buildWriteClient(active as `0x${string}`);
+  return active;
 }
 
 // ── Read-only client (no wallet needed) ──────────────────────────────────────
@@ -80,21 +119,23 @@ export function getWriteClient(): ReturnType<typeof createClient> {
 }
 
 export async function restoreWalletConnection(): Promise<string | null> {
-  if (!window.ethereum) return null;
+  if (typeof window === "undefined" || !window.ethereum) return null;
   const remembered = getConnectedAddress();
-  if (!remembered) return null;
 
   const accounts = await window.ethereum.request({
     method: "eth_accounts",
   }) as string[];
 
-  const address = accounts.find(a => a.toLowerCase() === remembered.toLowerCase()) ?? accounts[0];
+  const address = (remembered && accounts.find(a => a.toLowerCase() === remembered.toLowerCase())) ?? accounts[0];
   if (!address) {
     disconnectWallet();
     return null;
   }
 
-  await ensureStudionet();
+  // Restoration is deliberately account-only.  A chainChanged event can be
+  // emitted while an Arc approval/deposit is being prepared; switching here
+  // would race that transaction back to Studionet. Network selection belongs
+  // to the specific write path (prepareStudionetWrite/ensureArcNetwork).
   buildWriteClient(address as `0x${string}`);
   return address;
 }

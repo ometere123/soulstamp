@@ -9,6 +9,16 @@ export type PaymentRecoveryInput = {
   now?: number;
 };
 
+/** A refund date is meaningful only for a live Arc escrow record. Never
+ * derive one from a request-only timestamp or from zero, which renders as
+ * January 1970 in browsers. */
+export function refundAvailableAtFromEscrow(paymentStatus: number, depositedAt?: number): number | null {
+  if (Number(paymentStatus) !== 1) return null;
+  const deposited = Number(depositedAt || 0);
+  if (!Number.isFinite(deposited) || deposited <= 0) return null;
+  return deposited + 72 * 60 * 60;
+}
+
 /**
  * Classify a request from chain-read facts only.  This is deliberately pure
  * so reload, disconnected-wallet and duplicate-payment behavior can be tested
@@ -27,7 +37,7 @@ export function classifyPaymentRecovery(input: PaymentRecoveryInput): "NO_PAYMEN
     if (!connected || !payer || connected !== payer) return "WRONG_WALLET";
     return "RESUME";
   }
-  const refundAt = Number(input.depositedAt || 0) + 72 * 60 * 60;
+  const refundAt = refundAvailableAtFromEscrow(status, input.depositedAt) || 0;
   if (refundAt > 0 && Number(input.now ?? Math.floor(Date.now() / 1000)) >= refundAt) return "REFUND_AVAILABLE";
   return "REFUND_PENDING";
 }

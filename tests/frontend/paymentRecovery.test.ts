@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyPaymentRecovery } from "../../frontend/src/lib/paymentRecovery";
+import { classifyPaymentRecovery, refundAvailableAtFromEscrow } from "../../frontend/src/lib/paymentRecovery";
 
 const PAYER = "0x1111111111111111111111111111111111111111";
 const OTHER = "0x2222222222222222222222222222222222222222";
@@ -25,5 +25,15 @@ describe("chain-backed payment recovery", () => {
   it("treats settled and refunded escrow as terminal", () => {
     expect(classifyPaymentRecovery({ requestState: "ACTIVE", paymentStatus: 2 })).toBe("SETTLED");
     expect(classifyPaymentRecovery({ requestState: "REFUNDED", paymentStatus: 3 })).toBe("REFUNDED");
+  });
+
+  it("does not render a refund date for an unpaid or non-escrow record", () => {
+    expect(refundAvailableAtFromEscrow(0, 0)).toBeNull();
+    expect(refundAvailableAtFromEscrow(2, 1_000)).toBeNull();
+    expect(refundAvailableAtFromEscrow(1, 0)).toBeNull();
+  });
+
+  it("derives the refund deadline only from a genuine escrow timestamp", () => {
+    expect(refundAvailableAtFromEscrow(1, 1_000)).toBe(1_000 + 72 * 60 * 60);
   });
 });

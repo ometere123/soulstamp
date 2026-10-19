@@ -1,7 +1,7 @@
 import { createClient } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 import { TransactionStatus } from "genlayer-js/types";
-import { CONTRACT_ADDRESS, getWriteClient } from "./client";
+import { assertInjectedWallet, CONTRACT_ADDRESS, getWriteClient, prepareStudionetWrite, STUDIONET_CHAIN_ID } from "./client";
 import { executionFailureDescription, isFinalizedSuccessfulReceipt } from "./finality";
 
 // Public release fallback: Vercel may build from the connected Git provider
@@ -147,6 +147,8 @@ export async function getHumanityEvidence(requestId: string): Promise<Record<str
 }
 
 async function write(functionName: string, args: unknown[]): Promise<{ hash: `0x${string}`; receipt: unknown }> {
+  const signer = await prepareStudionetWrite();
+  await assertInjectedWallet(STUDIONET_CHAIN_ID, signer);
   const client = getWriteClient();
   const hash = await client.writeContract({ address: v4Address(), functionName, args: args as any[], value: 0n }) as unknown as `0x${string}`;
   const receipt = await client.waitForTransactionReceipt({ hash: hash as any, status: TransactionStatus.FINALIZED, interval: 2_500, retries: 120 });

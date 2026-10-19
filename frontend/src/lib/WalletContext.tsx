@@ -21,32 +21,41 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let alive = true;
-    restoreWalletConnection()
-      .then(addr => {
-        if (alive && addr) setAddress(addr);
-      })
-      .catch(() => {
-        if (alive) setAddress(null);
-      });
+    let eventVersion = 0;
+    const refreshAccountOnly = (fallback?: string | null) => {
+      const version = ++eventVersion;
+      void restoreWalletConnection()
+        .then(addr => {
+          if (alive && version === eventVersion) setAddress(addr ?? fallback ?? null);
+        })
+        .catch(() => {
+          if (alive && version === eventVersion) setAddress(fallback ?? null);
+        });
+    };
 
     const handleAccountsChanged = (accounts: unknown) => {
       const next = Array.isArray(accounts) && typeof accounts[0] === "string"
         ? accounts[0]
         : null;
       if (next) {
-        restoreWalletConnection().then(addr => setAddress(addr ?? next));
+        refreshAccountOnly(next);
       } else {
+        eventVersion += 1;
         disconnectWallet();
         setAddress(null);
       }
     };
 
     const handleChainChanged = () => {
-      restoreWalletConnection().then(addr => setAddress(addr));
+      // A chain event is an account-state notification, not permission to
+      // select a network. In particular, Arc payment switches must not be
+      // undone by this handler.
+      refreshAccountOnly();
     };
 
     window.ethereum?.on?.("accountsChanged", handleAccountsChanged);
     window.ethereum?.on?.("chainChanged", handleChainChanged);
+    refreshAccountOnly();
 
     return () => {
       alive = false;

@@ -5,7 +5,7 @@ import { findArcDepositReference, payAssessment, readArcPayment, refundArcPaymen
 import { GoogleVerification } from "./GoogleVerification";
 import { HumanPassportPanel } from "./HumanPassportPanel";
 import { PaymentLifecycle } from "./PaymentLifecycle";
-import { classifyPaymentRecovery } from "../lib/paymentRecovery";
+import { classifyPaymentRecovery, refundAvailableAtFromEscrow } from "../lib/paymentRecovery";
 import { selectGoogleRequest, type GoogleCallback } from "../lib/google";
 import {
   confirmArcPayment,
@@ -212,7 +212,9 @@ export function TrustPassPurchase({ wallet, googleCallback }: { wallet: string; 
     try {
       const observed = await inspectArcPayment(request);
       if (!observed || observed.payment.status !== 1) throw new Error("No escrowed Arc payment is available for refund.");
-      const availableAt = Number(request.refund_available_at || Number(observed.payment.depositedAt) + 72 * 60 * 60);
+      if (observed.payment.payer.toLowerCase() !== wallet.toLowerCase()) throw new Error("Only the original payer wallet can request this refund.");
+      const availableAt = refundAvailableAtFromEscrow(observed.payment.status, Number(observed.payment.depositedAt));
+      if (availableAt === null) throw new Error("No genuine escrow deposit timestamp is available for refund.");
       if (Math.floor(Date.now() / 1000) < availableAt) throw new Error(`Refund becomes available at ${new Date(availableAt * 1000).toLocaleString()}.`);
       const refundResult = await refundArcPayment(wallet, observed.payment.requestId);
       await ensureStudionet();

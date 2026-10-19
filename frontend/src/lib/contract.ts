@@ -1,4 +1,4 @@
-import { readClient, getWriteClient, CONTRACT_ADDRESS } from "./client";
+import { assertInjectedWallet, readClient, getWriteClient, prepareStudionetWrite, STUDIONET_CHAIN_ID, CONTRACT_ADDRESS } from "./client";
 import { TransactionStatus } from "genlayer-js/types";
 import { executionFailureDescription, isFinalizedSuccessfulReceipt } from "./finality";
 import type {
@@ -91,6 +91,8 @@ export async function getAllChallenges(offset = 0, limit = 50, timeoutMs?: numbe
 
 /** Never report a write as successful from ACCEPTED alone. */
 async function writeAndWait(functionName: string, args: unknown[]): Promise<{ hash: `0x${string}`; receipt: any }> {
+  const signer = await prepareStudionetWrite();
+  await assertInjectedWallet(STUDIONET_CHAIN_ID, signer);
   const client = getWriteClient();
   let hash: any;
   try {

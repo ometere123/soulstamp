@@ -1,6 +1,7 @@
 import { ExternalLink, ShieldCheck } from "lucide-react";
 import { arcExplorerTx, formatUsdc, type ArcPaymentRecord } from "../lib/arc";
 import type { TrustPassRequest } from "../lib/trustpass";
+import { refundAvailableAtFromEscrow } from "../lib/paymentRecovery";
 
 export function PaymentLifecycle({
   request,
@@ -16,8 +17,8 @@ export function PaymentLifecycle({
   busy?: boolean;
 }) {
   if (!request) return null;
-  const refundAvailableAt = Number(request.refund_available_at || (arcPayment ? Number(arcPayment.depositedAt) + 72 * 60 * 60 : 0));
-  const refundReady = Boolean(arcPayment && arcPayment.status === 1 && refundAvailableAt > 0 && Math.floor(Date.now() / 1000) >= refundAvailableAt);
+  const refundAvailableAt = refundAvailableAtFromEscrow(arcPayment?.status ?? 0, Number(arcPayment?.depositedAt || 0));
+  const refundReady = Boolean(refundAvailableAt && Math.floor(Date.now() / 1000) >= refundAvailableAt);
   const stages = [
     ["Request", request.state !== ""],
     ["Consent", Boolean(request.consent_nonce)],
@@ -44,7 +45,7 @@ export function PaymentLifecycle({
         <span>Quote: <strong className="text-gray-200">{formatUsdc(1_000_000n)} USDC</strong></span>
         <span>Assessment: <strong className="text-gray-200">{request.proposed_outcome || "pending"}</strong></span>
         <span>Original payer: <strong className="text-gray-200 break-all">{request.payer}</strong></span>
-        {refundAvailableAt > 0 && <span>Refund available: <strong className="text-gray-200">{new Date(refundAvailableAt * 1000).toLocaleString()}</strong></span>}
+        {refundAvailableAt !== null && <span>Refund available: <strong className="text-gray-200">{new Date(refundAvailableAt * 1000).toLocaleString()}</strong></span>}
         {arcPayment && <span>Arc escrow record: <strong className="text-gray-200">{arcPayment.status === 0 ? "NONE" : arcPayment.status === 1 ? "ESCROWED" : arcPayment.status === 2 ? "SETTLED" : "REFUNDED"}</strong></span>}
       </div>
       {onResume && request.state === "AWAITING_PAYMENT" && arcPayment?.status === 1 && <button className="btn-primary" onClick={onResume} disabled={busy}>Resume and confirm existing Arc deposit</button>}
