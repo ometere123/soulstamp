@@ -7,6 +7,8 @@ DISCORD_CLIENT_ID = "1506429798560567386"
 DISCORD_REDIRECT_URI = "https://soulstamp-discord.delealufejoel.workers.dev/api/discord/callback"
 PUBLIC_BASE_URL = "https://soulstamp-discord.delealufejoel.workers.dev"
 FRONTEND_ORIGIN = "https://soulstamp-gen.vercel.app"
+# PASSPORT_SCORER_ID is supplied from the operator environment at deploy time.
+PASSPORT_GRAPHQL_URL = "https://optimism-sepolia.easscan.org/graphql"
 
 [observability]
 enabled = true

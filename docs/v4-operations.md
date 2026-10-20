@@ -130,3 +130,26 @@ The active corrected V4.2 is
 `0x53eeb55fcb5253d6640a5db8c3a7bea9deb9316f`; the existing EAS attestation can
 be reused as evidence for a new request, but the old escrow deposit cannot be
 reused as payment. Refund the old request only after its documented deadline.
+
+## Automatic Passport discovery operations
+
+The existing Worker is also the server-side Human Passport discovery boundary.
+Configure `PASSPORT_API_KEY` and `PASSPORT_SCORER_ID` as Worker secrets; never
+put either value in a Vite variable. `PASSPORT_GRAPHQL_URL` is a fixed
+allowlisted Optimism Sepolia EASSCAN endpoint. Discovery is rate-limited,
+bounded and returns only sanitized API summaries and EAS candidates. A
+candidate is not evidence: the frontend must call the direct EAS validator and
+the user must submit `refresh_humanity_evidence_unified` for the exact funded
+request. After finality, read `get_humanity_evidence` and compare both wallet
+and UID before displaying verified state.
+
+The public route is:
+
+```text
+GET https://soulstamp-discord.delealufejoel.workers.dev/api/passport/discover?wallet=0x...
+```
+
+The current production health check reports Discord and Google configured,
+Passport configured, API scorer `12174`, approved on-chain scorer `335`, and the
+operational indexer endpoint. The known wallet's live indexer candidate and
+independent EAS facts are recorded in the automatic discovery evidence ledger.

@@ -58,11 +58,7 @@ approved scorer ID `335` and this subject wallet; the deployed decoder returned
 the same `0x120a2e77` (`AttestationNotFound`). It therefore cannot be used as a
 compatibility bridge for the unified record.
 
-The deployed V4.2 source includes `refresh_humanity_evidence_unified`, but the
-independent ABI audit found that its first implementation omitted the outer
-dynamic-tuple offset and used the wrong EAS field positions. It cannot be
-treated as a successful live refresh path until a corrected replacement is
-deployed. The corrected implementation now strictly checks the chain, EAS and
+The corrected V4.2 implementation now strictly checks the chain, EAS and
 Registry code, UID, schema, resolver, permitted attester, recipient, timestamps,
 revocation, scorer, numeric precision, threshold, passing flag, bounded stamp
 array, and evidence commitment. Each validator independently retrieves the same
@@ -74,15 +70,35 @@ The deployed pre-correction V4.2 source is
 `c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`. It is
 deployed at `0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2` on Studionet `61999`,
 but that deployment is marked ABI-incompatible for unified evidence. The
-corrected source is not yet deployed. Its fresh Arc escrow is
-`0x686f8ab8ce08512af72ab26c78a98a23ea8b71be`, bound once to the old V4.2
-address. A replacement must use a fresh escrow; no old payment may be reused.
-The deployment receipt remains
+corrected source is deployed at
+`0xF3B64cD356D9c67144f77e167ee0D02B3a760a3c`, bound to fresh Arc escrow
+`0x53eeb55fcb5253d6640a5db8c3a7bea9deb9316f`. The deployment receipt remains
 `FINALIZED`, `MAJORITY_AGREE`,
 `FINISHED_WITH_RETURN`, and successful execution for the old source, but this
 does not prove corrected unified refresh behavior.
 The earlier V4.2 pair with an empty Google issuer was superseded before any
 user state was created and is retained separately in the live ledger.
+
+The frontend no longer treats a globally configured UID as an ordinary identity
+source. On opening a TrustPass request it derives the subject from the connected
+wallet and calls the existing Worker discovery route. That route uses the
+Passport v2 API only for informational score/stamp status and the operational
+Optimism Sepolia EASSCAN GraphQL indexer only to locate candidate UIDs. It
+returns no API key and no raw provider secret. The browser then performs the
+existing direct EAS validation and pins a block. Only after that validation does
+the user see **Attach verified Passport**; after the finalized GenLayer write,
+the frontend reads `get_humanity_evidence(request_id)` and checks the wallet and
+UID before showing **Verified for this request**.
+
+The configured API scorer is `12174`, not approved scorer `335`, so its API score
+is explicitly informational. The deployed Worker returned a live EAS candidate
+for the known wallet but its API upstream was unavailable from the Worker
+runtime; the local configured API request returned HTTP 200. This does not
+weaken the on-chain path. The operational indexer host is
+`https://optimism-sepolia.easscan.org/graphql`; the bedrock hostname listed in
+some EAS documentation did not resolve during the release check. Indexer data
+is never authoritative and older candidates are not silently substituted for a
+newer candidate.
 
 The full read-only record is in
 [`artifacts/live/v4-unified-passport-readiness.json`](../artifacts/live/v4-unified-passport-readiness.json).
@@ -92,12 +108,14 @@ The full read-only record is in
 At the original Optimism Sepolia pinned read, the legacy decoder at
 `0xe53C60F8069C2f0c3a84F9B3DB5cf56f3100ba56` returned `0x120a2e77` for the
 unified UID because it is configured for historical schemas. The EAS record is
-valid and the corrected off-chain adapter reads it, but the deployed V4.2
-adapter has not passed the real-byte ABI gate; no live
-`refresh_humanity_evidence_unified` transaction is claimed.
+valid and the corrected V4.2 adapter is deployed at
+`0xF3B64cD356D9c67144f77e167ee0D02B3a760a3c`; no live
+`refresh_humanity_evidence_unified` transaction is claimed by this integration
+release because the user must approve that write manually.
 
 The earlier read was at Optimism Sepolia block `50307497` (hash
 `0x33d845abf8cf74181cd38fd5d0c56f0533386c95a9f047f02dbd03070386c5ab`), where
 the decoder had bytecode and the RPC reported chain `11155420`. The live V4.2
-refresh still requires the subject wallet to submit the attestation UID and a
-stable block number; a different wallet’s score must never be substituted.
+refresh still requires the subject wallet to approve the request-bound write.
+Automatic discovery supplies the UID and a stable block internally after direct
+validation; a different wallet’s score must never be substituted.

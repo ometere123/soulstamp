@@ -294,3 +294,37 @@ reported separately from functional gate results. The current runtime audits
 are clean; the full development-tool audit still reports six advisories in the
 pinned GenLayer/Vitest toolchain and remains non-blocking for deployed runtime
 code because upgrading it would change the required CLI toolchain.
+
+## Automatic Human Passport discovery integration — 2026-10-20
+
+This release changes only the existing Worker, frontend and documentation; it
+does not redeploy or modify V3, V4.2, the Arc escrow, or any request/payment.
+The frontend derives the subject from the connected wallet, calls the Worker
+discovery endpoint, validates the returned EAS candidate directly against the
+Optimism Sepolia EAS/Schema Registry, and then offers **Attach verified
+Passport**. After the user approves the existing
+`refresh_humanity_evidence_unified` write, the UI reads the request-bound
+`get_humanity_evidence` post-state before displaying verified status. Manual UID
+entry is retained only under Advanced / Manual recovery.
+
+The deployed Worker version for this release is
+`e10a5c05-788f-4a6f-8573-79649a84a8b5` at
+`https://soulstamp-discord.delealufejoel.workers.dev`. Health reports Discord,
+Google and Passport configured, with the configured API scorer `12174` and the
+approved on-chain scorer `335`. Because those scorers differ, the Passport API
+score is informational only. The local configured API request returned HTTP 200
+with score/stamp fields; the Worker runtime could not reach that API upstream
+during the live release check. The operational EASSCAN candidate query did
+return the known wallet's UID
+`0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813`.
+
+Independent pinned Optimism Sepolia RPC decoding at block `50356420` (hash
+`0xc9e2cceb4aaf7f85115806b30b70c4dcd1be9f04d22fabb1ef577b5c672cff10`) still
+confirms recipient wallet `0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09`, unified
+schema, permitted attester, scorer `335`, raw score `446980` (`44.6980`), raw
+threshold `200000`, 15 stamps, expiry `2027-01-17T13:05:57Z`, and no revocation.
+This is read-only evidence; no live GenLayer attachment, assessment or
+settlement is claimed.
+
+The public ledger is
+[`artifacts/live/v4.2-passport-auto-discovery-2026-10-20.json`](./artifacts/live/v4.2-passport-auto-discovery-2026-10-20.json).
