@@ -1,0 +1,112 @@
+{
+  "record_type": "soulstamp_v4_2_automatic_human_passport_discovery",
+  "status": "IMPLEMENTED_WORKER_DEPLOYED_READ_ONLY_EAS_CONFIRMED_MANUAL_ATTACHMENT_REQUIRED",
+  "source_commit_before_release": "939950c82b0879a66f8203314be29b5c6ccb9992",
+  "contract_changes": false,
+  "contract_redeployments": false,
+  "preserved_contracts": {
+    "v3": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d",
+    "v4_2": "0xF3B64cD356D9c67144f77e167ee0D02B3a760a3c",
+    "arc_escrow": "0x53eeb55fcb5253d6640a5db8c3a7bea9deb9316f"
+  },
+  "worker": {
+    "url": "https://soulstamp-discord.delealufejoel.workers.dev",
+    "version_id": "e10a5c05-788f-4a6f-8573-79649a84a8b5",
+    "health": {
+      "discord_configured": true,
+      "google_configured": true,
+      "passport_configured": true,
+      "configured_api_scorer_id": "12174",
+      "approved_onchain_scorer_id": 335,
+      "scorer_matches_approved": false,
+      "api_key_exposed": false
+    },
+    "discovery_endpoint": "https://soulstamp-discord.delealufejoel.workers.dev/api/passport/discover",
+    "indexer_endpoint": "https://optimism-sepolia.easscan.org/graphql",
+    "api_result": {
+      "configured_scorer_id": "12174",
+      "http_status": 200,
+      "wallet": "0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09",
+      "score": "44.69800",
+      "threshold": "20.00000",
+      "passing_score": true,
+      "stamps_count": 1,
+      "last_score_timestamp": "2026-10-20T18:07:59.381038+01:00",
+      "expiration_timestamp": "2027-01-17T14:02:29.246+01:00",
+      "authority": "informational_only",
+      "worker_runtime_request": "UNAVAILABLE_FROM_WORKER_RUNTIME"
+    }
+  },
+  "passport_read_only": {
+    "network": "Optimism Sepolia",
+    "chain_id": 11155420,
+    "rpc": "https://sepolia.optimism.io",
+    "wallet": "0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09",
+    "attestation_uid": "0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813",
+    "eas": "0x4200000000000000000000000000000000000021",
+    "schema_registry": "0x4200000000000000000000000000000000000020",
+    "schema_uid": "0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8",
+    "attester": "0x8B1A76795e3CbadD79C5410d2C4D4827D9C1503a",
+    "resolver": "0xa2c832b63A20C06CCc2Ca31c12b8248452729a4D",
+    "pinned_block": {
+      "number": 50356420,
+      "hash": "0xc9e2cceb4aaf7f85115806b30b70c4dcd1be9f04d22fabb1ef577b5c672cff10",
+      "timestamp": 1792515380
+    },
+    "scorer_id": 335,
+    "raw_score": 446980,
+    "display_score": "44.6980",
+    "raw_threshold": 200000,
+    "passing_score": true,
+    "stamp_count": 15,
+    "expiration": "2027-01-17T13:05:57Z",
+    "revocation_time": 0,
+    "status": "READ_ONLY_CONFIRMED"
+  },
+  "automatic_discovery": {
+    "candidate_uid": "0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813",
+    "candidate_wallet_match": true,
+    "candidate_schema_match": true,
+    "candidate_attester_match": true,
+    "candidate_is_authority": false,
+    "direct_eas_validation_required": true
+  },
+  "vercel": {
+    "project": "delealufejoel-4184s-projects/soulstamp",
+    "production": {
+      "deployment_id": "dpl_65DbVbkcAGZzYewLPv5SrPaUevRc",
+      "url": "https://soulstamp-gen.vercel.app",
+      "status": "READY",
+      "bundle_checks": {
+        "worker_url_present": true,
+        "discovery_route_present": true,
+        "attach_button_present": true,
+        "passport_api_key_name_present": false,
+        "manual_uid_env_present": false
+      }
+    },
+    "preview": {
+      "deployment_id": "dpl_26xRzF7b8J5b8VtNShTQ8pn5YEui",
+      "url": "https://soulstamp-cj91jx03q-delealufejoel-4184s-projects.vercel.app",
+      "status": "READY",
+      "bundle_checks": {
+        "worker_url_present": true,
+        "discovery_route_present": true,
+        "attach_button_present": true,
+        "passport_api_key_name_present": false,
+        "manual_uid_env_present": false
+      }
+    }
+  },
+  "historical_funded_request": {
+    "preserved": true,
+    "writes_executed_by_release": false,
+    "assessment_or_settlement_executed_by_release": false,
+    "historical_v4_1_refund_deadline": "2026-10-22T23:03:49Z"
+  },
+  "manual_user_action": {
+    "required": true,
+    "action": "Open the existing funded Sybil request on V4.2, connect the subject wallet, use Scan / Refresh Passport, review the directly validated evidence, and approve Attach verified Passport. Do not create a new request or payment."
+  },
+  "verification_timestamp": "2026-10-20"
+}
