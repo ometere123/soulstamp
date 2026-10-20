@@ -19,20 +19,19 @@ The Sybil-resistant TrustPass additionally reads Human Passport evidence for
 the exact subject wallet. Neither tier claims that social accounts prove one
 human or prevents all multi-wallet participation.
 
-## Current security-correction release
+## Current V4.2 unified-Passport release
 
-The deployed V4 source is from commit `4696ad4` (the contract source is
-unchanged by the later release-documentation/frontend fallback commit). Its
-LF-normalized source hash is:
+The deployed V4.2 contract source is from commit
+`ae494fe5045b20a00babea3838c26e8989ab5e03`. Its LF-normalized source hash is:
 
-`c4e30170872e629aa0cdda2693f971d3f476919a19f873936a0a1b4972e61c7d`
+`c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`
 
 The current deployment is:
 
 | Network | Component | Address | Evidence |
 |---|---|---|---|
-| GenLayer Studionet `61999` | V4 TrustPass | `0x886582aB1a45452880685b6a50c748cAb7c954ce` | [deployment receipt](https://explorer-studio.genlayer.com/tx/0xe7ecb0b579ac2906b08dbd0fd30a5e5f0c0efe8b1cf610f09a97e182393a0ae4) |
-| Arc Testnet `5042002` | USDC escrow | `0xe2a0118847cbf424dbd6f5761987624ea7aae72e` | [deployment](https://explorer.testnet.arc.io/tx/0xeafe5a97d114d6fd120ca1ec05ea9cb38c3e6fecd95b92c57d6402ebe7a5eb6e), [V4 binding](https://explorer.testnet.arc.io/tx/0x130bce4836aba2f3ca70f390983d48320e03fe5448a9d059a9df9ff982b493e6) |
+| GenLayer Studionet `61999` | V4.2 TrustPass | `0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2` | [deployment receipt](https://explorer-studio.genlayer.com/tx/0xa3475265f2f0cef9c3fdcb7c49d81f9c3d04eb90257da31b5a56a29f0df6ff0d) |
+| Arc Testnet `5042002` | V4.2 USDC escrow | `0x686f8ab8ce08512af72ab26c78a98a23ea8b71be` | [deployment](https://explorer.testnet.arc.io/tx/0xc2bd928fe9010d34a87b3a3ac6f565dbca5c17604ff30024f9a3d59ab2b1af8f), [V4 binding](https://explorer.testnet.arc.io/tx/0x98d2ef4169085e695aa8cfabaedc365bb12b0ea7fd0e2878995e1076dc75a80f) |
 | GenLayer V3 preserved | Identity authority | `0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d` | unchanged |
 
 The GenLayer deployment was independently rechecked after deployment:
@@ -211,13 +210,15 @@ schema UID is
 `44.6980` and the raw `200000` threshold is met. The attestation expires at
 `2027-01-17T13:05:57Z` and was not revoked at the pinned read.
 
-The deployed V4.1 decoder remains legacy-schema-only and returns
-`0x120a2e77` (`AttestationNotFound`) for this unified UID. The prepared V4.2
+The historical V4.1 decoder remains legacy-schema-only and returns
+`0x120a2e77` (`AttestationNotFound`) for this unified UID. The deployed V4.2
 source adds strict EAS `getAttestation` and Schema Registry reads at a pinned
 block, exact schema/resolver/attester/recipient/scorer checks, dynamic ABI
-decoding, evidence commitments, and independent validator re-reads. It is not
-deployed; its candidate LF-normalized source hash is
-`c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`.
+decoding, evidence commitments, and independent validator re-reads. Its exact
+LF-normalized source hash is
+`c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`, matching
+the deployed source. The old V4.1 escrow and its historical funded request
+remain separate; neither payment nor state is silently migrated into V4.2.
 The legacy `getScore(uint256,address)` form was also attempted with scorer
 `335` and returned the same `AttestationNotFound` revert.
 
@@ -231,10 +232,9 @@ should `confirm_arc_refund` be submitted on the current V4. The complete
 procedure and no-write status are recorded in
 [`artifacts/live/v4-unified-passport-readiness.json`](./artifacts/live/v4-unified-passport-readiness.json).
 
-The old escrow is bound to the old V4, so the unified path requires explicit
-approval for a fresh V4 plus compatible Arc escrow after the old request is
-recovered. The old payment cannot be migrated or reused, and V3 remains
-unchanged.
+The old escrow is bound to the old V4, so the unified path uses the fresh V4.2
+pair after the old request is recovered. The old payment cannot be migrated or
+reused, and V3 remains unchanged.
 
 ## Engineering gates
 

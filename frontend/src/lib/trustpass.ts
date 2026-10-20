@@ -7,7 +7,7 @@ import { executionFailureDescription, isFinalizedSuccessfulReceipt } from "./fin
 // Public release fallback: Vercel may build from the connected Git provider
 // before its environment update is available. This is an address, never a
 // secret; an explicit VITE value still takes precedence for future releases.
-export const V4_CONTRACT_ADDRESS = (import.meta.env.VITE_V4_TRUSTPASS_CONTRACT_ADDRESS || "0x886582aB1a45452880685b6a50c748cAb7c954ce") as `0x${string}`;
+export const V4_CONTRACT_ADDRESS = (import.meta.env.VITE_V4_TRUSTPASS_CONTRACT_ADDRESS || "0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2") as `0x${string}`;
 export const V3_CONTRACT_ADDRESS = CONTRACT_ADDRESS;
 export const V4_READ_CLIENT = createClient({ chain: studionet });
 

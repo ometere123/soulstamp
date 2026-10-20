@@ -75,11 +75,11 @@ leader and each validator retrieve these facts independently; a validator does
 not merely repeat a preselected verdict.
 
 The legacy decoder path remains separate and is accepted only when the
-configured decoder actually returns a valid score. The current deployed V4.1
-is legacy-only, so the V4.2 source is prepared but not live. Adding a frontend
-reader cannot alter the on-chain contract. A V4.2 release therefore requires a
-fresh V4 deployment and a fresh Arc escrow bound to that address; the old
-escrow and its existing deposit cannot be migrated into the new pair.
+configured decoder actually returns a valid score. The historical deployed
+V4.1 is legacy-only; V4.2 is now deployed with the direct unified-EAS reader
+and a fresh Arc escrow bound to that address. Adding a frontend reader alone
+could not alter the on-chain contract. The old escrow and its existing deposit
+remain bound to the historical V4.1 pair and cannot be migrated into V4.2.
 
 Unified evidence is an acceptance-time, pinned-block snapshot with explicit
 expiry and revocation facts. It is not a continuously live humanity oracle.

@@ -12,8 +12,8 @@
    escrow once, and independently verify every finalized receipt/post-state.
 6. Configure Vercel public addresses only after both deployed addresses pass
     source/constructor checks. Never send a private key to Vercel. The current
-    public V4 and Arc addresses are `0x886582aB1a45452880685b6a50c748cAb7c954ce`
-    and `0xe2a0118847cbf424dbd6f5761987624ea7aae72e` respectively; record READY
+    public V4 and Arc addresses are `0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2`
+    and `0x686f8ab8ce08512af72ab26c78a98a23ea8b71be` respectively; record READY
     deployment IDs and served-bundle checks only after an authenticated Vercel
    release.
 7. Deploy the Worker only with preserved Discord secrets. Set Google client
@@ -22,17 +22,18 @@
    assessment, settlement, consumer eligibility, a completed negative result,
    and a timeout refund. Keep the transaction hashes in `artifacts/live`.
 
-Current release facts:
+Historical V4.1 release facts are retained in the earlier entries below. The
+current V4.2 release facts are:
 
-- GenLayer V4 deployment:
-  [0xe7ecb0b579ac2906b08dbd0fd30a5e5f0c0efe8b1cf610f09a97e182393a0ae4](https://explorer-studio.genlayer.com/tx/0xe7ecb0b579ac2906b08dbd0fd30a5e5f0c0efe8b1cf610f09a97e182393a0ae4)
+- GenLayer V4.2 deployment:
+  [0xa3475265f2f0cef9c3fdcb7c49d81f9c3d04eb90257da31b5a56a29f0df6ff0d](https://explorer-studio.genlayer.com/tx/0xa3475265f2f0cef9c3fdcb7c49d81f9c3d04eb90257da31b5a56a29f0df6ff0d)
   is finalized with majority agreement, successful authoritative execution,
   exact LF-normalized source parity and source hash
-  `c4e30170872e629aa0cdda2693f971d3f476919a19f873936a0a1b4972e61c7d`.
-- Arc escrow deployment:
-  [0xeafe5a97d114d6fd120ca1ec05ea9cb38c3e6fecd95b92c57d6402ebe7a5eb6e](https://explorer.testnet.arc.io/tx/0xeafe5a97d114d6fd120ca1ec05ea9cb38c3e6fecd95b92c57d6402ebe7a5eb6e).
-- Arc binding:
-  [0x130bce4836aba2f3ca70f390983d48320e03fe5448a9d059a9df9ff982b493e6](https://explorer.testnet.arc.io/tx/0x130bce4836aba2f3ca70f390983d48320e03fe5448a9d059a9df9ff982b493e6).
+  `c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`.
+- Arc V4.2 escrow deployment:
+  [0xc2bd928fe9010d34a87b3a3ac6f565dbca5c17604ff30024f9a3d59ab2b1af8f](https://explorer.testnet.arc.io/tx/0xc2bd928fe9010d34a87b3a3ac6f565dbca5c17604ff30024f9a3d59ab2b1af8f).
+- Arc V4.2 binding:
+  [0x98d2ef4169085e695aa8cfabaedc365bb12b0ea7fd0e2878995e1076dc75a80f](https://explorer.testnet.arc.io/tx/0x98d2ef4169085e695aa8cfabaedc365bb12b0ea7fd0e2878995e1076dc75a80f).
 - Discord Worker health is confirmed at the existing URL, and `/health`
   reports Google configured with the exact callback. A real Google account
   login/link is still not claimed; local OIDC tests do not count as live
@@ -58,7 +59,7 @@ successful proof.
 
 ## Unified Passport compatibility and existing escrow refund
 
-The current V4 deployment remains the historical release at
+The previous V4.1 deployment remains the historical release at
 `0x886582aB1a45452880685b6a50c748cAb7c954ce`, paired with Arc escrow
 `0xe2a0118847cbf424dbd6f5761987624ea7aae72e`. The current subject’s valid
 unified EAS attestation is recorded in
@@ -106,10 +107,10 @@ pruned, the stored V4 transaction/log/block reference is used first; a bounded
 recent log scan is only a fallback. Refund itself uses the transaction receipt
 and does not require a block-zero history query.
 
-Making this request assessable with the unified attestation cannot be done by
-changing the frontend: the current V4 has no unified-EAS write method, and the
-old escrow is bound to the old V4 address. After the old deposit is refunded,
-the minimum compatible path is an explicitly approved new V4 deployment, a
-fresh Arc escrow bound to that new address, a new request, and a new payment.
-The existing EAS attestation can be reused as evidence; the old escrow deposit
-cannot be reused as payment.
+Making this historical request assessable with the unified attestation cannot
+be done by changing the frontend: its old V4 has no unified-EAS write method,
+and its escrow is bound to the old V4 address. V4.2 is now available at
+`0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2` with escrow
+`0x686f8ab8ce08512af72ab26c78a98a23ea8b71be`; the existing EAS attestation can
+be reused as evidence for a new request, but the old escrow deposit cannot be
+reused as payment. Refund the old request only after its documented deadline.

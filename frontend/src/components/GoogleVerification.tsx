@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link2, LogOut } from "lucide-react";
 import { captureGoogleCallback, clearStoredGoogleCallback, googleStartUrl, type GoogleCallback } from "../lib/google";
-import { getRequest, linkGoogleAttestation, revokeGoogleAttestation } from "../lib/trustpass";
+import { getRequest, linkGoogleAttestation, revokeGoogleAttestation, V4_CONTRACT_ADDRESS } from "../lib/trustpass";
 
 export function GoogleVerification({ wallet, requestId, linked, onChanged, callback: callbackProp }: { wallet: string; requestId?: string; linked?: boolean; onChanged?: () => Promise<void> | void; callback?: GoogleCallback }) {
   const [callback, setCallback] = useState<GoogleCallback>(() => callbackProp ?? captureGoogleCallback());
@@ -14,7 +14,7 @@ export function GoogleVerification({ wallet, requestId, linked, onChanged, callb
     if (!requestId) { setError("Create a TrustPass request before connecting Google."); return; }
     setError("");
     try {
-      const v4Address = String(import.meta.env.VITE_V4_TRUSTPASS_CONTRACT_ADDRESS || "");
+      const v4Address = String(import.meta.env.VITE_V4_TRUSTPASS_CONTRACT_ADDRESS || V4_CONTRACT_ADDRESS || "");
       if (!v4Address) throw new Error("V4 Google linking is unavailable until the deployed V4 address is configured.");
       window.location.assign(googleStartUrl(wallet, requestId, v4Address));
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }

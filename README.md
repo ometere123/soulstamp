@@ -160,25 +160,24 @@ live ledger at [artifacts/live/v4-deployment.json](./artifacts/live/v4-deploymen
 
 ### V4 live release
 
-The V4 TrustPass contract is deployed at
-`0x886582aB1a45452880685b6a50c748cAb7c954ce` on Studionet `61999` with
+The current V4.2 TrustPass contract is deployed at
+`0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2` on Studionet `61999` with
 `FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN / SUCCESS` deployment
 execution and exact LF-normalized source parity. The source hash is
-`c4e30170872e629aa0cdda2693f971d3f476919a19f873936a0a1b4972e61c7d`. The
-Arc Testnet escrow is `0xe2a0118847cbf424dbd6f5761987624ea7aae72e` on chain
-`5042002`, configured to that V4 address. See the [GenLayer deployment](https://explorer-studio.genlayer.com/tx/0xe7ecb0b579ac2906b08dbd0fd30a5e5f0c0efe8b1cf610f09a97e182393a0ae4),
-[Arc escrow deployment](https://explorer.testnet.arc.io/tx/0xeafe5a97d114d6fd120ca1ec05ea9cb38c3e6fecd95b92c57d6402ebe7a5eb6e),
-and [Arc binding](https://explorer.testnet.arc.io/tx/0x130bce4836aba2f3ca70f390983d48320e03fe5448a9d059a9df9ff982b493e6).
+`c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`. The
+fresh Arc Testnet escrow is `0x686f8ab8ce08512af72ab26c78a98a23ea8b71be` on
+chain `5042002`, configured to that V4 address. See the [GenLayer deployment](https://explorer-studio.genlayer.com/tx/0xa3475265f2f0cef9c3fdcb7c49d81f9c3d04eb90257da31b5a56a29f0df6ff0d),
+[Arc escrow deployment](https://explorer.testnet.arc.io/tx/0xc2bd928fe9010d34a87b3a3ac6f565dbca5c17604ff30024f9a3d59ab2b1af8f),
+and [Arc binding](https://explorer.testnet.arc.io/tx/0x98d2ef4169085e695aa8cfabaedc365bb12b0ea7fd0e2878995e1076dc75a80f).
 
 The existing Worker is healthy and Discord remains configured. Vercel
-Production is READY at deployment `dpl_FdroVijWYAuXcdQUVCSMFYDsgieo` and
-Preview is READY at `dpl_7ES4pP6ZwzjUjWs89YgoqQjyA7SR`; the served bundles
-contain the current V4 address, current Arc escrow and Worker URL, with the
-superseded V4/Arc literals absent. Google live linking, a positive Human
-Passport subject, and a paid Arc assessment/settlement/refund lifecycle remain
-unclaimed until the corresponding user-controlled credentials, evidence,
-subject consent, and time-dependent transactions exist. Previous V4/Arc
-deployments remain in the milestone ledger as historical records.
+environment values were updated to the current V4 and Arc addresses; READY
+deployment IDs and served-bundle verification are recorded after the release
+deployment. Google live linking, a positive Human Passport refresh, and a paid
+Arc assessment/settlement/refund lifecycle remain unclaimed until the
+corresponding user-controlled credentials, evidence, subject consent, and
+time-dependent transactions exist. The prior V4.1 and superseded V4.2 pair
+remain in the milestone ledger as historical records.
 
 ## What Changed In v2
 
@@ -580,18 +579,20 @@ attestation is independently verified against EAS and the Schema Registry for
 wallet `0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09`; the evidence is not a
 typed frontend score.
 
-The deployed V4 at `0x886582aB1a45452880685b6a50c748cAb7c954ce` still uses the
-legacy decoder, whose `getScore` call returns `0x120a2e77` for this unified
-record. A prepared, not-deployed source correction adds strict direct EAS
+The historical V4.1 deployment at `0x886582aB1a45452880685b6a50c748cAb7c954ce`
+still uses the legacy decoder, whose `getScore` call returns `0x120a2e77` for
+this unified record. The corrected V4.2 source is now deployed at
+`0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2`; it adds strict direct EAS
 verification with independent validator reads and keeps the legacy fallback.
-Its candidate LF-normalized source hash is
+Its exact LF-normalized source hash is
 `c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`.
 
-The funded request is intentionally preserved as `ESCROWED` and has not been
-assessed or settled. Its authoritative 72-hour Arc refund deadline is
+The historical funded request is intentionally preserved as `ESCROWED` on the
+old V4/Arc pair and has not been assessed or settled. Its authoritative
+72-hour Arc refund deadline is
 `2026-10-22T23:03:49Z`; the exact request key, deposit transaction, read-only
 facts, and safe refund sequence are in
 [`artifacts/live/v4-unified-passport-readiness.json`](artifacts/live/v4-unified-passport-readiness.json).
-Do not run the refund before that time. A new V4/Arc pair requires explicit
-approval; the old escrow cannot be migrated or reused.
+Do not run the refund before that time. The new V4.2/Arc pair is bound and has
+zero initial payment state; the old escrow cannot be migrated or reused.
 

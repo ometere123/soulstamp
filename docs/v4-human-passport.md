@@ -27,7 +27,7 @@ test-mode instructions at <https://app.passport.xyz> and the Human Passport
 documentation. Test-mode evidence must be labelled as testnet evidence; V4
 does not synthesize scores.
 
-## Unified EAS compatibility correction — prepared, not deployed
+## Unified EAS compatibility correction — deployed V4.2
 
 The current Human Passport record for the SoulStamp subject wallet is a valid
 unified EAS attestation, not a legacy decoder record. Its independently read
@@ -58,7 +58,7 @@ approved scorer ID `335` and this subject wallet; the deployed decoder returned
 the same `0x120a2e77` (`AttestationNotFound`). It therefore cannot be used as a
 compatibility bridge for the unified record.
 
-The prepared V4 source adds `refresh_humanity_evidence_unified`, which reads the
+The deployed V4.2 source adds `refresh_humanity_evidence_unified`, which reads the
 complete EAS `getAttestation(bytes32)` record and the Schema Registry at one
 pinned block. It strictly checks the chain, EAS and Registry code, UID, schema,
 resolver, permitted attester, recipient, timestamps, revocation, scorer,
@@ -67,25 +67,30 @@ commitment. Each validator independently retrieves the same decision-critical
 facts before a snapshot is accepted. The legacy decoder path remains available
 for records it can genuinely verify.
 
-The prepared source is `soulstamp-v4.2-unified-passport-compatibility` with
+The V4.2 source is `soulstamp-v4.2-unified-passport-compatibility` with
 LF-normalized SHA-256
 `c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`. It is
-not the source of the currently deployed V4 and therefore has no deployed
-parity claim. Because GenLayer contracts are not upgraded in place and the Arc
-escrow is bound to the current V4 address, using this path requires explicit
-approval for a new V4 plus a fresh compatible Arc escrow. The old escrow cannot
-be migrated or reused.
+deployed at `0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2` on Studionet `61999`
+with exact remote/local parity, `FINALIZED`, `MAJORITY_AGREE`,
+`FINISHED_WITH_RETURN`, and successful execution. Its fresh Arc escrow is
+`0x686f8ab8ce08512af72ab26c78a98a23ea8b71be`, bound once to that V4 address.
+The earlier V4.2 pair with an empty Google issuer was superseded before any
+user state was created and is retained separately in the live ledger.
 
 The full read-only record is in
 [`artifacts/live/v4-unified-passport-readiness.json`](../artifacts/live/v4-unified-passport-readiness.json).
 
 ## Current read-only audit
 
-At Optimism Sepolia block `50307497` (hash
-`0x33d845abf8cf74181cd38fd5d0c56f0533386c95a9f047f02dbd03070386c5ab`), the
-decoder had bytecode and the RPC reported chain `11155420`. The exact
-`getScore(address)` call reverted with `0x120a2e77` for the deployer, local
-test wallets and the two known V3 wallet addresses checked from this
-repository. The user’s reported score of 44 is therefore not yet a V4-live
-fact: the matching public subject wallet is still required, and a different
-wallet’s score must never be substituted.
+At the original Optimism Sepolia pinned read, the legacy decoder at
+`0xe53C60F8069C2f0c3a84F9B3DB5cf56f3100ba56` returned `0x120a2e77` for the
+unified UID because it is configured for historical schemas. V4.2 now reads
+the unified EAS record directly. The authenticated subject attestation is
+therefore compatible with the deployed V4.2 adapter, but the subject has not
+yet submitted a live `refresh_humanity_evidence_unified` transaction.
+
+The earlier read was at Optimism Sepolia block `50307497` (hash
+`0x33d845abf8cf74181cd38fd5d0c56f0533386c95a9f047f02dbd03070386c5ab`), where
+the decoder had bytecode and the RPC reported chain `11155420`. The live V4.2
+refresh still requires the subject wallet to submit the attestation UID and a
+stable block number; a different wallet’s score must never be substituted.

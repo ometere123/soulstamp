@@ -1,0 +1,97 @@
+{
+  "release": "SoulStamp V4.2 unified Human Passport compatibility",
+  "status": "DEPLOYED_AND_BOUND",
+  "verifiedAt": "2026-10-20",
+  "source": {
+    "commit": "ae494fe5045b20a00babea3838c26e8989ab5e03",
+    "contractPath": "contracts/soulstamp_trustpass.py",
+    "normalizedLfSha256": "c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4",
+    "version": "soulstamp-v4.2-unified-passport-compatibility"
+  },
+  "genlayer": {
+    "network": "Studionet",
+    "chainId": 61999,
+    "contractAddress": "0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2",
+    "deploymentTransaction": "0xa3475265f2f0cef9c3fdcb7c49d81f9c3d04eb90257da31b5a56a29f0df6ff0d",
+    "explorer": "https://explorer-studio.genlayer.com/tx/0xa3475265f2f0cef9c3fdcb7c49d81f9c3d04eb90257da31b5a56a29f0df6ff0d",
+    "finality": "FINALIZED",
+    "consensus": "MAJORITY_AGREE",
+    "execution": "FINISHED_WITH_RETURN",
+    "executionResults": ["SUCCESS", "SUCCESS"],
+    "sourceParity": {
+      "lineEndingNormalizationOnly": true,
+      "localSha256": "c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4",
+      "remoteSha256": "c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4"
+    },
+    "constructor": {
+      "admin": "0x231EF01E282385eC2E22394469f1C8c6C28Fd6b1",
+      "v3Contract": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d",
+      "arcEscrow": "0x686f8ab8ce08512af72ab26c78a98a23ea8b71be",
+      "humanPassportDecoder": "0xe53C60F8069C2f0c3a84F9B3DB5cf56f3100ba56",
+      "humanPassportRpc": "https://sepolia.optimism.io",
+      "googleAttestationBaseUrl": "https://soulstamp-discord.delealufejoel.workers.dev",
+      "settlementOperator": "0x231EF01E282385eC2E22394469f1C8c6C28Fd6b1"
+    },
+    "initialState": {
+      "totalPolicies": 0,
+      "totalRequests": 0,
+      "totalAssessments": 0,
+      "totalPasses": 0,
+      "totalSettlements": 0,
+      "totalRefunds": 0,
+      "humanPassportEvidenceMode": "EAS_UNIFIED_V1_WITH_LEGACY_FALLBACK",
+      "humanPassportUnifiedSchemaUid": "0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8",
+      "humanPassportUnifiedResolver": "0xa2c832b63a20c06ccc2ca31c12b8248452729a4d",
+      "humanPassportApprovedScorerId": 335
+    }
+  },
+  "arc": {
+    "network": "Arc Testnet",
+    "chainId": 5042002,
+    "escrowAddress": "0x686f8ab8ce08512af72ab26c78a98a23ea8b71be",
+    "deploymentTransaction": "0xc2bd928fe9010d34a87b3a3ac6f565dbca5c17604ff30024f9a3d59ab2b1af8f",
+    "deploymentExplorer": "https://explorer.testnet.arc.io/tx/0xc2bd928fe9010d34a87b3a3ac6f565dbca5c17604ff30024f9a3d59ab2b1af8f",
+    "deploymentReceipt": {
+      "status": "success",
+      "blockNumber": 68163017,
+      "blockHash": "0x663dfc21dcd97c079e20cbd136ebe94cbea37b3b7590e95e9674ea6063ffcf45"
+    },
+    "bindingTransaction": "0x98d2ef4169085e695aa8cfabaedc365bb12b0ea7fd0e2878995e1076dc75a80f",
+    "bindingExplorer": "https://explorer.testnet.arc.io/tx/0x98d2ef4169085e695aa8cfabaedc365bb12b0ea7fd0e2878995e1076dc75a80f",
+    "bindingReceipt": {
+      "status": "success",
+      "blockNumber": 68163143,
+      "blockHash": "0x45785c22868f3db08b4204301faefb96fe63f40ff44333a5f826079155105b3f",
+      "postStateGenlayerV4": "0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2"
+    },
+    "usdc": "0x3600000000000000000000000000000000000000",
+    "usdcDecimals": 6,
+    "priceBaseUnits": "1000000",
+    "admin": "0x231EF01E282385eC2E22394469f1C8c6C28Fd6b1",
+    "treasury": "0x231EF01E282385eC2E22394469f1C8c6C28Fd6b1",
+    "settlementOperator": "0x231EF01E282385eC2E22394469f1C8c6C28Fd6b1",
+    "accounting": {
+      "escrowedLiabilities": "0",
+      "earnedRevenue": "0",
+      "totalDeposited": "0",
+      "totalSettled": 0,
+      "totalRefunded": 0
+    }
+  },
+  "historicalSupersededPair": {
+    "v4Contract": "0xd4f87c10e80d6f5cFaDBf8815D9eB7f1D0E518b7",
+    "v4DeploymentTransaction": "0xaf10ba4314ec27e3b5900a6268abc5c704b31a0919eec346e8df9c3790500735",
+    "arcEscrow": "0xe966dd9e491dea1ba05dc3f78b85d95c94f33a5b",
+    "arcDeploymentTransaction": "0x8988b596393853485f02259d9dda42ca121b256a45e56b268f278e6cb48e63f3",
+    "bindingTransaction": "0x6e08e61cf9d515111b377c784854c35ddcfefb7382799fb83344ac0540e017d3",
+    "reason": "Superseded before release because its constructor had an empty Google attestation issuer; no user payment or lifecycle state was created."
+  },
+  "lifecycle": {
+    "unifiedPassportRefresh": "NOT_EXECUTED",
+    "assessment": "NOT_EXECUTED",
+    "settlement": "NOT_EXECUTED",
+    "newPairPayment": "NOT_EXECUTED",
+    "oldFundedRequest": "PRESERVED_ON_HISTORICAL_V4; NOT_MIGRATED",
+    "oldRequestRefund": "NOT_EXECUTED; original Arc deadline remains 2026-10-22T23:03:49Z"
+  }
+}
