@@ -11,11 +11,11 @@ The v3 contribution is a lifecycle state machine, not a UI-only refresh: a consu
 | Service | URL |
 |---|---|
 | Frontend | https://soulstamp-gen.vercel.app |
-| Preview deployment | https://soulstamp-j0iuon5oa-delealufejoel-4184s-projects.vercel.app |
+| Preview deployment | https://soulstamp-ifbrc26ea-delealufejoel-4184s-projects.vercel.app |
 | Discord Worker | https://soulstamp-discord.delealufejoel.workers.dev |
 | Repository | https://github.com/ometere123/soulstamp |
 
-Current v3 Studionet deployment:
+Accepted V3 Studionet deployment (preserved):
 
 ```text
 Contract: 0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d
@@ -41,6 +41,30 @@ Lifecycle evidence: a read-only audit confirms one real GitHub challenge through
 `INCONCLUSIVE` resolution and Wallet A restoration. It does not claim full
 recovery, unanswered-expiry, cancellation, revocation, or challenger-win proof.
 ```
+
+Current corrected V4.2 deployment:
+
+```text
+GenLayer Studionet 61999: 0xF3B64cD356D9c67144f77e167ee0D02B3a760a3c
+Deployment: https://explorer-studio.genlayer.com/tx/0x1d08f776c793e13817285d9830074d884c25e3ad30189c774c092bb523a10673
+Status: FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN / SUCCESS, SUCCESS
+Source commit: 5769ff707a128d9ff27eab6adf8605307fa2d86e
+LF-normalized source SHA-256: fe0b21907b1612f839da126d91a0dd2d7a9ccdb4f021512fa6b89b551f1d09a7
+Arc Testnet 5042002 escrow: 0x53eeb55fcb5253d6640a5db8c3a7bea9deb9316f
+Arc deployment: https://explorer.testnet.arc.io/tx/0xebc88901a2f00f459f6e2e5baad0e1ca5a82052a917e452e2b036efe724844f0
+Arc binding: https://explorer.testnet.arc.io/tx/0x7fc07c9fbac09cad0df21f6fd8b3e2e2c046f8e21c2d680eda5120695e93b703
+Vercel Production: dpl_DEpMTuf2gxN6FzdRBS52RWSNUgjR READY
+Vercel Preview: dpl_5ansqaEkxLF1gnemp8FHvpfL7gsB READY
+```
+
+The corrected V4.2 source is exactly matched to the deployed GenLayer source
+after LF normalization. Its initial policy, request, assessment, pass,
+settlement and refund counters are zero. The existing unified Human Passport
+attestation was independently read at a pinned Optimism Sepolia block for the
+approved wallet: scorer `335`, raw score `446980` (`44.6980`), raw threshold
+`200000`, valid expiry and no revocation. No V4 request, payment, OAuth link,
+assessment or settlement was created by this release; manual lifecycle testing
+remains operator-controlled.
 
 The existing Discord Worker is healthy at the existing URL (`GET /health`
 returned HTTP 200 with `ok: true`, the expected public base URL, and
@@ -158,27 +182,34 @@ transaction. The detailed release record is [V4_MILESTONE.md](./V4_MILESTONE.md)
 with architecture and operations in [docs/](./docs/) and the no-fabrication
 live ledger at [artifacts/live/v4-deployment.json](./artifacts/live/v4-deployment.json).
 
-### V4 live release
+### V4.2 corrected ABI live release
 
-The current V4.2 TrustPass contract is deployed at
-`0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2` on Studionet `61999` with
-`FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN / SUCCESS` deployment
-execution and exact LF-normalized parity for the pre-correction source. The
-source hash is
-`c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`. The
-fresh Arc Testnet escrow is `0x686f8ab8ce08512af72ab26c78a98a23ea8b71be` on
-chain `5042002`, configured to that V4 address. See the [GenLayer deployment](https://explorer-studio.genlayer.com/tx/0xa3475265f2f0cef9c3fdcb7c49d81f9c3d04eb90257da31b5a56a29f0df6ff0d),
-[Arc escrow deployment](https://explorer.testnet.arc.io/tx/0xc2bd928fe9010d34a87b3a3ac6f565dbca5c17604ff30024f9a3d59ab2b1af8f),
-and [Arc binding](https://explorer.testnet.arc.io/tx/0x98d2ef4169085e695aa8cfabaedc365bb12b0ea7fd0e2878995e1076dc75a80f).
+The active corrected V4.2 TrustPass contract is
+`0xF3B64cD356D9c67144f77e167ee0D02B3a760a3c` on Studionet `61999`. Its
+deployment is `FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN` with raw
+execution `SUCCESS/SUCCESS`, exact LF-normalized source parity, and source
+hash `fe0b21907b1612f839da126d91a0dd2d7a9ccdb4f021512fa6b89b551f1d09a7`.
+See the [GenLayer deployment](https://explorer-studio.genlayer.com/tx/0x1d08f776c793e13817285d9830074d884c25e3ad30189c774c092bb523a10673).
 
-The existing Worker is healthy and Discord remains configured. Vercel
-environment values were updated to the current V4 and Arc addresses; the READY
-deployment IDs and served-bundle verification are recorded in the release
-ledger. Google live linking, a positive Human Passport refresh, and a paid
-Arc assessment/settlement/refund lifecycle remain unclaimed until the
-corresponding user-controlled credentials, evidence, subject consent, and
-time-dependent transactions exist. The prior V4.1 and superseded V4.2 pair
-remain in the milestone ledger as historical records.
+The active Arc Testnet escrow is
+`0x53eeb55fcb5253d6640a5db8c3a7bea9deb9316f` on chain `5042002`, bound once
+to the new V4 by
+[deployment](https://explorer.testnet.arc.io/tx/0xebc88901a2f00f459f6e2e5baad0e1ca5a82052a917e452e2b036efe724844f0)
+and [binding](https://explorer.testnet.arc.io/tx/0x7fc07c9fbac09cad0df21f6fd8b3e2e2c046f8e21c2d680eda5120695e93b703)
+transactions. V3 remains unchanged at
+`0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d`.
+
+The existing Worker, Discord configuration and Google OAuth secrets were not
+changed. Vercel Production is READY at deployment
+`dpl_DEpMTuf2gxN6FzdRBS52RWSNUgjR` and Preview is READY at
+`dpl_5ansqaEkxLF1gnemp8FHvpfL7gsB`; both served bundles contain only the new
+V4/Arc pair. The previous V4.2 pair remains preserved as historical evidence.
+
+The user’s existing unified EAS evidence is independently read-only verified as
+scorer `335`, raw score `446980` (`44.6980`) and raw threshold `200000` for the
+approved wallet. No request, payment, OAuth link, assessment or settlement was
+created by this release. Manual Sybil-resistant TrustPass testing is ready to
+begin.
 
 ## What Changed In v2
 
@@ -582,12 +613,13 @@ typed frontend score.
 
 The historical V4.1 deployment at `0x886582aB1a45452880685b6a50c748cAb7c954ce`
 still uses the legacy decoder, whose `getScore` call returns `0x120a2e77` for
-this unified record. The deployed V4.2 source was intended to add strict direct
-EAS verification, but the real-byte ABI audit found its tuple decoder omitted
-the outer dynamic offset and used the wrong EAS field positions. The corrected
-source is in the working tree and has executable real-response tests; it is not
-yet deployed. The pre-correction source hash is
-`c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`.
+this unified record. The corrected V4.2 source is now deployed at
+`0xF3B64cD356D9c67144f77e167ee0D02B3a760a3c` with exact source hash
+`fe0b21907b1612f839da126d91a0dd2d7a9ccdb4f021512fa6b89b551f1d09a7` and the
+real-byte ABI regression suite passing. The superseded pre-correction V4.2
+source hash was
+`c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4` and is
+retained as historical evidence.
 
 The independent capture at Optimism Sepolia block `50306314` decodes the
 subject’s unified attestation as scorer `335`, raw score `446980` (`44.6980`),
@@ -595,6 +627,9 @@ threshold `200000`, recipient `0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09`,
 and no revocation at the pinned read. The corrected ABI implementation and
 before/after evidence are recorded in
 [`artifacts/live/v4.2-eas-abi-correction-2026-10-20.json`](artifacts/live/v4.2-eas-abi-correction-2026-10-20.json).
+
+Deployment and post-state evidence for the corrected release is recorded in
+[`artifacts/live/v4.2-corrected-deployment-2026-10-20.json`](artifacts/live/v4.2-corrected-deployment-2026-10-20.json).
 
 The historical funded request is intentionally preserved as `ESCROWED` on the
 old V4/Arc pair and has not been assessed or settled. Its authoritative

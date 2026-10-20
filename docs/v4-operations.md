@@ -12,8 +12,8 @@
    escrow once, and independently verify every finalized receipt/post-state.
 6. Configure Vercel public addresses only after both deployed addresses pass
     source/constructor checks. Never send a private key to Vercel. The current
-    public V4 and Arc addresses are `0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2`
-    and `0x686f8ab8ce08512af72ab26c78a98a23ea8b71be` respectively; record READY
+    public V4 and Arc addresses are `0xF3B64cD356D9c67144f77e167ee0D02B3a760a3c`
+    and `0x53eeb55fcb5253d6640a5db8c3a7bea9deb9316f` respectively; record READY
     deployment IDs and served-bundle checks only after an authenticated Vercel
    release.
 7. Deploy the Worker only with preserved Discord secrets. Set Google client
@@ -23,26 +23,26 @@
    and a timeout refund. Keep the transaction hashes in `artifacts/live`.
 
 Historical V4.1 release facts are retained in the earlier entries below. The
-current V4.2 release facts are:
+active corrected V4.2 release facts are:
 
 - GenLayer V4.2 deployment:
-  [0xa3475265f2f0cef9c3fdcb7c49d81f9c3d04eb90257da31b5a56a29f0df6ff0d](https://explorer-studio.genlayer.com/tx/0xa3475265f2f0cef9c3fdcb7c49d81f9c3d04eb90257da31b5a56a29f0df6ff0d)
-  is finalized with majority agreement, successful authoritative execution,
-  exact LF-normalized source parity and source hash
-  `c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`.
+  [0x1d08f776c793e13817285d9830074d884c25e3ad30189c774c092bb523a10673](https://explorer-studio.genlayer.com/tx/0x1d08f776c793e13817285d9830074d884c25e3ad30189c774c092bb523a10673)
+  is `FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN` with raw
+  `SUCCESS/SUCCESS`, exact LF-normalized source parity and source hash
+  `fe0b21907b1612f839da126d91a0dd2d7a9ccdb4f021512fa6b89b551f1d09a7`.
 - Arc V4.2 escrow deployment:
-  [0xc2bd928fe9010d34a87b3a3ac6f565dbca5c17604ff30024f9a3d59ab2b1af8f](https://explorer.testnet.arc.io/tx/0xc2bd928fe9010d34a87b3a3ac6f565dbca5c17604ff30024f9a3d59ab2b1af8f).
+  [0xebc88901a2f00f459f6e2e5baad0e1ca5a82052a917e452e2b036efe724844f0](https://explorer.testnet.arc.io/tx/0xebc88901a2f00f459f6e2e5baad0e1ca5a82052a917e452e2b036efe724844f0).
 - Arc V4.2 binding:
-  [0x98d2ef4169085e695aa8cfabaedc365bb12b0ea7fd0e2878995e1076dc75a80f](https://explorer.testnet.arc.io/tx/0x98d2ef4169085e695aa8cfabaedc365bb12b0ea7fd0e2878995e1076dc75a80f).
+  [0x7fc07c9fbac09cad0df21f6fd8b3e2e2c046f8e21c2d680eda5120695e93b703](https://explorer.testnet.arc.io/tx/0x7fc07c9fbac09cad0df21f6fd8b3e2e2c046f8e21c2d680eda5120695e93b703).
 - Discord Worker health is confirmed at the existing URL, and `/health`
   reports Google configured with the exact callback. A real Google account
   login/link is still not claimed; local OIDC tests do not count as live
   verification.
 - Vercel Production is READY at deployment
-  `dpl_8JSkBWHGAi7L7Jb7TtEHLFicMai5` and Preview is READY at
-  `dpl_6vUZJN1Tx8a2P5sFNgHsowtxQHqv`. The public Production alias and
+  `dpl_DEpMTuf2gxN6FzdRBS52RWSNUgjR` and Preview is READY at
+  `dpl_5ansqaEkxLF1gnemp8FHvpfL7gsB`. The public Production alias and
   authenticated Preview bundle were fetched through the Vercel CLI and
-  contain the current V3 address, current V4 address, current Arc escrow
+  contain the current V3 address, active V4 address, active Arc escrow
   address and Worker URL; the superseded V4/Arc addresses are absent.
 - Both Vercel targets currently set `VITE_GOOGLE_WORKER_URL` and
   `VITE_DISCORD_BACKEND_URL` to
@@ -50,6 +50,11 @@ current V4.2 release facts are:
   response confirms both providers are configured. Its exact Google callback
   is `/api/google/callback`; its Discord callback remains
   `/api/discord/callback`.
+
+The superseded V4.2 ABI-defective release remains historical at GenLayer
+`0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2` with Arc escrow
+`0x686f8ab8ce08512af72ab26c78a98a23ea8b71be`; its deployment and binding
+transactions remain in the earlier evidence records.
 
 The live ledger must mark missing user-controlled Google, Passport, social,
 wallet-signature, payment and settlement actions as blocked or untested. A
@@ -118,10 +123,10 @@ pruned, the stored V4 transaction/log/block reference is used first; a bounded
 recent log scan is only a fallback. Refund itself uses the transaction receipt
 and does not require a block-zero history query.
 
-Making this historical request assessable with the unified attestation cannot
-be done by changing the frontend: its old V4 has no unified-EAS write method,
-and its escrow is bound to the old V4 address. V4.2 is now available at
-`0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2` with escrow
-`0x686f8ab8ce08512af72ab26c78a98a23ea8b71be`; the existing EAS attestation can
+Making this historical request assessable with the active unified attestation
+cannot reuse its old payment: the old V4 and escrow remain a separate pair.
+The active corrected V4.2 is
+`0xF3B64cD356D9c67144f77e167ee0D02B3a760a3c` with escrow
+`0x53eeb55fcb5253d6640a5db8c3a7bea9deb9316f`; the existing EAS attestation can
 be reused as evidence for a new request, but the old escrow deposit cannot be
 reused as payment. Refund the old request only after its documented deadline.

@@ -1,0 +1,97 @@
+{
+  "record_type": "soulstamp_v4_2_corrected_abi_deployment",
+  "status": "DEPLOYED_AND_VERIFIED_DEPLOYMENT_ONLY",
+  "source_commit": "5769ff707a128d9ff27eab6adf8605307fa2d86e",
+  "source_hash_lf_normalized": "fe0b21907b1612f839da126d91a0dd2d7a9ccdb4f021512fa6b89b551f1d09a7",
+  "networks": {
+    "genlayer": {"name": "Studionet", "chain_id": 61999, "rpc": "https://studio.genlayer.com/api"},
+    "arc": {"name": "Arc Testnet", "chain_id": 5042002, "rpc": "https://rpc.testnet.arc.io"},
+    "human_passport": {"name": "Optimism Sepolia", "chain_id": 11155420, "rpc": "https://sepolia.optimism.io"}
+  },
+  "v3_preserved": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d",
+  "genlayer_v4": {
+    "address": "0xF3B64cD356D9c67144f77e167ee0D02B3a760a3c",
+    "deployment_transaction": "0x1d08f776c793e13817285d9830074d884c25e3ad30189c774c092bb523a10673",
+    "explorer": "https://explorer-studio.genlayer.com/tx/0x1d08f776c793e13817285d9830074d884c25e3ad30189c774c092bb523a10673",
+    "signer": "0x231EF01E282385eC2E22394469f1C8c6C28Fd6b1",
+    "finality": "FINALIZED",
+    "consensus": "MAJORITY_AGREE",
+    "execution": "FINISHED_WITH_RETURN",
+    "raw_execution_results": ["SUCCESS", "SUCCESS"],
+    "source_parity": "exact_after_line_ending_normalization",
+    "constructor": {
+      "v3_contract": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d",
+      "arc_escrow": "0x53eeb55fcb5253d6640a5db8c3a7bea9deb9316f",
+      "human_passport_decoder": "0xe53C60F8069C2f0c3a84F9B3DB5cf56f3100ba56",
+      "human_passport_rpc": "https://sepolia.optimism.io",
+      "google_attestation_base_url": "https://soulstamp-discord.delealufejoel.workers.dev",
+      "settlement_operator": "0x231EF01E282385eC2E22394469f1C8c6C28Fd6b1",
+      "admin": "0x231EF01E282385eC2E22394469f1C8c6C28Fd6b1"
+    },
+    "initial_state": {
+      "contract_version": "soulstamp-v4.2-unified-passport-compatibility",
+      "human_passport_evidence_mode": "EAS_UNIFIED_V1_WITH_LEGACY_FALLBACK",
+      "approved_scorer_id": 335,
+      "threshold_raw": 200000,
+      "total_policies": 0,
+      "total_requests": 0,
+      "total_assessments": 0,
+      "total_passes": 0,
+      "total_settlements": 0,
+      "total_refunds": 0
+    }
+  },
+  "arc_escrow": {
+    "address": "0x53eeb55fcb5253d6640a5db8c3a7bea9deb9316f",
+    "deployment_transaction": "0xebc88901a2f00f459f6e2e5baad0e1ca5a82052a917e452e2b036efe724844f0",
+    "deployment_explorer": "https://explorer.testnet.arc.io/tx/0xebc88901a2f00f459f6e2e5baad0e1ca5a82052a917e452e2b036efe724844f0",
+    "binding_transaction": "0x7fc07c9fbac09cad0df21f6fd8b3e2e2c046f8e21c2d680eda5120695e93b703",
+    "binding_explorer": "https://explorer.testnet.arc.io/tx/0x7fc07c9fbac09cad0df21f6fd8b3e2e2c046f8e21c2d680eda5120695e93b703",
+    "deployment_receipt": "SUCCESS",
+    "binding_receipt": "SUCCESS",
+    "bound_v4": "0xF3B64cD356D9c67144f77e167ee0D02B3a760a3c",
+    "usdc": "0x3600000000000000000000000000000000000000",
+    "usdc_decimals": 6,
+    "price_base_units": 1000000,
+    "paused": false,
+    "escrowed_liabilities": 0,
+    "earned_revenue": 0,
+    "total_deposited": 0,
+    "total_settled": 0,
+    "total_refunded": 0
+  },
+  "passport_read_only_evidence": {
+    "wallet": "0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09",
+    "block_number": 50306314,
+    "block_hash": "0x36f11b3f747410d8ebeeb4dbc0b028e2bf0a0837a7d2b28b4983f6ad4e75993f",
+    "eas": "0x4200000000000000000000000000000000000021",
+    "schema_registry": "0x4200000000000000000000000000000000000020",
+    "attestation_uid": "0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813",
+    "schema_uid": "0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8",
+    "resolver": "0xa2c832b63A20C06CCc2Ca31c12b8248452729a4D",
+    "attester": "0x8B1A76795e3CbadD79C5410d2C4D4827D9C1503a",
+    "scorer_id": 335,
+    "raw_score": 446980,
+    "display_score": "44.6980",
+    "raw_threshold": 200000,
+    "passing_score": true,
+    "revocation_time": 0,
+    "expiration_time": "2027-01-17T13:05:57Z",
+    "status": "READ_ONLY_CONFIRMED; NO GENLAYER REFRESH TRANSACTION"
+  },
+  "historical_v4_1_refund": {
+    "v4": "0x886582aB1a45452880685b6a50c748cAb7c954ce",
+    "arc_escrow": "0xe2a0118847cbf424dbd6f5761987624ea7aae72e",
+    "request_id": "9FE94A1BD40CD33197241D5B780B2C448064C0C0C4BF34FF75026170D461CC7F",
+    "request_key": "0x9a953df7ccd34a7db3f52a97d77ac0681038ec53b1c28f16009c6282573875d5",
+    "deposit_transaction": "0x9032dccd6d089ebb0491cb6195265f7b7cad009910b22ac3785ca669329b51648",
+    "status": "ESCROWED; NO REFUND WRITE",
+    "refund_eligible_at": "2026-10-22T23:03:49Z"
+  },
+  "vercel": {
+    "project": "delealufejoel-4184s-projects/soulstamp",
+    "production": {"deployment_id": "dpl_DEpMTuf2gxN6FzdRBS52RWSNUgjR", "url": "https://soulstamp-gen.vercel.app", "status": "READY", "bundle_addresses": {"v4": true, "arc": true, "superseded_v4": false, "superseded_arc": false}},
+    "preview": {"deployment_id": "dpl_5ansqaEkxLF1gnemp8FHvpfL7gsB", "url": "https://soulstamp-ifbrc26ea-delealufejoel-4184s-projects.vercel.app", "status": "READY", "bundle_addresses": {"v4": true, "arc": true, "superseded_v4": false, "superseded_arc": false}}
+  },
+  "lifecycle_status": "NO_REQUESTS_OR_PAYMENTS_CREATED_BY_THIS_RELEASE"
+}

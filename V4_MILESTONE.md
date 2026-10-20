@@ -19,22 +19,22 @@ The Sybil-resistant TrustPass additionally reads Human Passport evidence for
 the exact subject wallet. Neither tier claims that social accounts prove one
 human or prevents all multi-wallet participation.
 
-## Current V4.2 unified-Passport release (deployed; ABI correction pending replacement)
+## Current V4.2 unified-Passport release (corrected and deployed)
 
-The deployed V4.2 contract source is from commit
-`ae494fe5045b20a00babea3838c26e8989ab5e03`. Its LF-normalized source hash is:
+The active V4.2 contract source is commit
+`5769ff707a128d9ff27eab6adf8605307fa2d86e`. Its LF-normalized source hash is:
 
-`c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`
+`fe0b21907b1612f839da126d91a0dd2d7a9ccdb4f021512fa6b89b551f1d09a7`
 
-The current deployment is:
+The active deployment is:
 
 | Network | Component | Address | Evidence |
 |---|---|---|---|
-| GenLayer Studionet `61999` | V4.2 TrustPass | `0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2` | [deployment receipt](https://explorer-studio.genlayer.com/tx/0xa3475265f2f0cef9c3fdcb7c49d81f9c3d04eb90257da31b5a56a29f0df6ff0d) |
-| Arc Testnet `5042002` | V4.2 USDC escrow | `0x686f8ab8ce08512af72ab26c78a98a23ea8b71be` | [deployment](https://explorer.testnet.arc.io/tx/0xc2bd928fe9010d34a87b3a3ac6f565dbca5c17604ff30024f9a3d59ab2b1af8f), [V4 binding](https://explorer.testnet.arc.io/tx/0x98d2ef4169085e695aa8cfabaedc365bb12b0ea7fd0e2878995e1076dc75a80f) |
+| GenLayer Studionet `61999` | V4.2 TrustPass | `0xF3B64cD356D9c67144f77e167ee0D02B3a760a3c` | [deployment receipt](https://explorer-studio.genlayer.com/tx/0x1d08f776c793e13817285d9830074d884c25e3ad30189c774c092bb523a10673) |
+| Arc Testnet `5042002` | V4.2 USDC escrow | `0x53eeb55fcb5253d6640a5db8c3a7bea9deb9316f` | [deployment](https://explorer.testnet.arc.io/tx/0xebc88901a2f00f459f6e2e5baad0e1ca5a82052a917e452e2b036efe724844f0), [V4 binding](https://explorer.testnet.arc.io/tx/0x7fc07c9fbac09cad0df21f6fd8b3e2e2c046f8e21c2d680eda5120695e93b703) |
 | GenLayer V3 preserved | Identity authority | `0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d` | unchanged |
 
-The GenLayer deployment was independently rechecked after deployment:
+The corrected GenLayer deployment was independently rechecked after deployment:
 `FINALIZED`, `MAJORITY_AGREE`, `FINISHED_WITH_RETURN`, raw execution
 `SUCCESS/SUCCESS`, signer/admin `0x231EF01E282385eC2E22394469f1C8c6C28Fd6b1`,
 and exact remote/local source parity after LF normalization. The constructor
@@ -46,7 +46,10 @@ The Arc escrow was independently read on chain `5042002`: USDC is
 `0x3600000000000000000000000000000000000000`, price is exactly `1000000`
 (1 USDC at six ERC-20 decimals), the new V4 address is bound once, all three
 roles are the deployer/admin address, liabilities and earned revenue are zero,
-and the escrow is solvent.
+and the escrow is solvent. The superseded V4.2 deployment at
+`0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2` remains historical; its
+pre-correction source hash was
+`c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`.
 
 ## Corrections in this release
 
@@ -158,8 +161,8 @@ addresses. V3 and Worker configuration were preserved.
 
 | Environment | Deployment | Status | Bundle verification |
 |---|---|---|---|
-| Production | [`dpl_8JSkBWHGAi7L7Jb7TtEHLFicMai5`](https://vercel.com/delealufejoel-4184s-projects/soulstamp/8JSkBWHGAi7L7Jb7TtEHLFicMai5) | READY; [soulstamp-gen.vercel.app](https://soulstamp-gen.vercel.app) | served bundle contains current V4, current Arc escrow and Worker URL; superseded V4/Arc addresses absent |
-| Preview | [`dpl_6vUZJN1Tx8a2P5sFNgHsowtxQHqv`](https://vercel.com/delealufejoel-4184s-projects/soulstamp/6vUZJN1Tx8a2P5sFNgHsowtxQHqv) | READY; [preview](https://soulstamp-3r2zik676-delealufejoel-4184s-projects.vercel.app) | authenticated `vercel curl` bundle contains current V4, current Arc escrow and Worker URL; superseded addresses absent |
+| Production | [`dpl_DEpMTuf2gxN6FzdRBS52RWSNUgjR`](https://vercel.com/delealufejoel-4184s-projects/soulstamp/DEpMTuf2gxN6FzdRBS52RWSNUgjR) | READY; [soulstamp-gen.vercel.app](https://soulstamp-gen.vercel.app) | authenticated `vercel curl` bundle contains `0xF3B64cD356D9c67144f77e167ee0D02B3a760a3c` and `0x53eeb55fcb5253d6640a5db8c3a7bea9deb9316f`; superseded pair absent |
+| Preview | [`dpl_5ansqaEkxLF1gnemp8FHvpfL7gsB`](https://vercel.com/delealufejoel-4184s-projects/soulstamp/5ansqaEkxLF1gnemp8FHvpfL7gsB) | READY; [preview](https://soulstamp-ifbrc26ea-delealufejoel-4184s-projects.vercel.app) | authenticated `vercel curl` bundle contains the active V4/Arc pair; superseded pair absent |
 
 ## Live lifecycle evidence
 
@@ -211,16 +214,15 @@ schema UID is
 `2027-01-17T13:05:57Z` and was not revoked at the pinned read.
 
 The historical V4.1 decoder remains legacy-schema-only and returns
-`0x120a2e77` (`AttestationNotFound`) for this unified UID. The deployed V4.2
-source contains the direct EAS and Schema Registry path, but the independent ABI
-audit found that its tuple decoder omits the outer dynamic-tuple offset and uses
-the wrong EAS field positions. Its exact pre-correction LF-normalized source
-hash is
-`c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`, matching
-the deployed pre-correction source. The corrected Python/TypeScript decoders
-and captured real-RPC regression fixtures are now in the working tree but have
-not been deployed. The old V4.1 escrow and its historical funded request remain
-separate; neither payment nor state is silently migrated into V4.2.
+`0x120a2e77` (`AttestationNotFound`) for this unified UID. The superseded V4.2
+source had the direct EAS and Schema Registry path, but the independent ABI
+audit found that its tuple decoder omitted the outer dynamic-tuple offset and
+used the wrong EAS field positions. The corrected Python/TypeScript decoders
+and captured real-RPC regression fixtures are now deployed in the active V4.2
+release with exact source hash
+`fe0b21907b1612f839da126d91a0dd2d7a9ccdb4f021512fa6b89b551f1d09a7`. The old
+V4.1 escrow and its historical funded request remain separate; neither payment
+nor state is silently migrated into the active V4.2.
 The legacy `getScore(uint256,address)` form was also attempted with scorer
 `335` and returned the same `AttestationNotFound` revert.
 
@@ -257,18 +259,17 @@ Direct Mode and Vitest tests consume the captured response in
 The full audit is in
 [`artifacts/live/v4.2-eas-abi-correction-2026-10-20.json`](./artifacts/live/v4.2-eas-abi-correction-2026-10-20.json).
 
-Because the current V4.2 contract is immutable and the defect is in deployed
-GenLayer logic, a frontend-only update cannot repair the live reader. A future
-replacement requires explicit approval to deploy a corrected V4 and a fresh Arc
-escrow bound to that new address. No deployment, payment, assessment, settlement
-or refund write was submitted by this correction gate.
+The verified corrected deployment ledger is
+[`artifacts/live/v4.2-corrected-deployment-2026-10-20.json`](./artifacts/live/v4.2-corrected-deployment-2026-10-20.json).
 
-The push of the corrected source automatically produced a READY Production
-Vercel deployment (`dpl_4y5hyqQkUnxWhhN6yAa47iLgBpo6`) whose served bundle
-contains the corrected tuple decoder and current V4/Arc addresses. The existing
-READY Preview deployment (`dpl_6vUZJN1Tx8a2P5sFNgHsowtxQHqv`) remains a prior
-pre-correction bundle; no manual Preview deployment was performed before the
-on-chain replacement decision.
+The corrected replacement is now independently verified on Studionet and its
+fresh Arc escrow is bound exactly once. No request, payment, assessment,
+settlement or refund write was submitted by this release.
+
+Vercel Production deployment `dpl_DEpMTuf2gxN6FzdRBS52RWSNUgjR` and Preview
+deployment `dpl_5ansqaEkxLF1gnemp8FHvpfL7gsB` are both READY. Authenticated
+bundle checks confirm the active V4/Arc pair is present and the superseded pair
+is absent.
 
 ## Engineering gates
 
