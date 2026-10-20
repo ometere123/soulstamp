@@ -299,23 +299,25 @@ code because upgrading it would change the required CLI toolchain.
 
 This release changes only the existing Worker, frontend and documentation; it
 does not redeploy or modify V3, V4.2, the Arc escrow, or any request/payment.
-The frontend derives the subject from the connected wallet, calls the Worker
-discovery endpoint, validates the returned EAS candidate directly against the
-Optimism Sepolia EAS/Schema Registry, and then offers **Attach verified
-Passport**. After the user approves the existing
-`refresh_humanity_evidence_unified` write, the UI reads the request-bound
-`get_humanity_evidence` post-state before displaying verified status. Manual UID
-entry is retained only under Advanced / Manual recovery.
+The frontend derives the subject from the connected wallet, automatically scans
+on wallet connection and wallet changes, including before a paid request exists,
+calls the Worker discovery endpoint, validates the returned EAS candidate
+directly against the Optimism Sepolia EAS/Schema Registry, and then offers
+**Attach verified Passport** only for an exact funded request. After the user
+approves the existing `refresh_humanity_evidence_unified` write, the UI reads
+the request-bound `get_humanity_evidence` post-state before displaying verified
+status. There is no user-entered UID workflow.
 
 The deployed Worker version for this release is
-`e10a5c05-788f-4a6f-8573-79649a84a8b5` at
+`5a5131e7-5131-415f-bf12-82905d96232b` at
 `https://soulstamp-discord.delealufejoel.workers.dev`. Health reports Discord,
 Google and Passport configured, with the configured API scorer `12174` and the
 approved on-chain scorer `335`. Because those scorers differ, the Passport API
-score is informational only. The local configured API request returned HTTP 200
-with score/stamp fields; the Worker runtime could not reach that API upstream
-during the live release check. The operational EASSCAN candidate query did
-return the known wallet's UID
+score is informational only. The deployed Worker returned
+`PASSPORT_API_UNAVAILABLE` during the live check, but its independent EASSCAN
+candidate query returned the known wallet's UID for both checksummed and
+lowercase wallet inputs. A bounded secondary indexer is used only when the
+primary result is empty or unavailable.
 `0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813`.
 
 Independent pinned Optimism Sepolia RPC decoding at block `50356420` (hash

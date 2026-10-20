@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { discoverPassport } from "../../frontend/src/lib/passportDiscovery";
+import { clearPassportDiscoveryCache, discoverPassport } from "../../frontend/src/lib/passportDiscovery";
 
 const wallet = "0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09";
 const uid = "0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813";
 const schema = "0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8";
 const attester = "0x8b1a76795e3cbadd79c5410d2c4d4827d9c1503a";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); clearPassportDiscoveryCache(); });
 
 function response(overrides: Record<string, unknown> = {}) {
   return new Response(JSON.stringify({
@@ -53,5 +53,27 @@ describe("automatic Passport discovery", () => {
   it("surfaces server rate limiting without retrying or inventing an attestation", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "rate limit", code: "RATE_LIMITED" }), { status: 429 })));
     await expect(discoverPassport(wallet)).rejects.toThrow(/rate limit/i);
+  });
+
+  it("keeps an EAS candidate when the informational API is unavailable", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => response({
+      passport_api: { available: false, error_code: "PASSPORT_API_UNAVAILABLE" },
+      candidate: { attestation_uid: uid, recipient: wallet.toLowerCase(), schema_uid: schema, attester, time: 1792415168, expiration_time: 1800191157, revocation_time: 0, revocable: true },
+      candidate_count: 1,
+    })));
+    const result = await discoverPassport(wallet);
+    expect(result.candidate?.attestation_uid).toBe(uid);
+    expect(result.passport_api.available).toBe(false);
+  });
+
+  it("deduplicates concurrent wallet scans and caches the bounded result", async () => {
+    const fetchMock = vi.fn(async () => response({
+      candidate: { attestation_uid: uid, recipient: wallet.toLowerCase(), schema_uid: schema, attester, time: 1792415168, expiration_time: 1800191157, revocation_time: 0, revocable: true },
+      candidate_count: 1,
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    await Promise.all([discoverPassport(wallet), discoverPassport(wallet.toLowerCase())]);
+    await discoverPassport(wallet);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

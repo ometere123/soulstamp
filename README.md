@@ -642,16 +642,16 @@ zero initial payment state; the old escrow cannot be migrated or reused.
 
 ## Automatic Human Passport discovery
 
-The V4.2 frontend now derives the Passport subject from the connected wallet;
-there is no globally configured UID and no user-entered UID in the primary flow.
-It calls the existing Worker route
+The V4.2 frontend now derives the Passport subject from the connected wallet on
+connection and wallet changes; there is no globally configured UID and no
+user-entered UID workflow. It calls the existing Worker route
 `/api/passport/discover?wallet=0x...`. The Worker keeps
 `PASSPORT_API_KEY` server-side, queries the configured Passport v2 scorer for
 informational score/stamp data, and queries a bounded Optimism Sepolia EASSCAN
 GraphQL candidate list. A candidate is not evidence: the browser still performs
-direct EAS validation and the user must attach the exact UID to the exact
-funded request through `refresh_humanity_evidence_unified`. Finalized post-state
-is then checked with `get_humanity_evidence(request_id)`.
+direct EAS validation and the user may attach the discovered record only to the
+exact funded request through `refresh_humanity_evidence_unified`. Finalized
+post-state is then checked with `get_humanity_evidence(request_id)`.
 
 Production health reports API scorer `12174`, while the approved on-chain
 scorer is `335`; this mismatch is intentionally visible and cannot authorize a
@@ -661,6 +661,8 @@ Independent Optimism Sepolia decoding confirms `44.6980`, raw `446980`, raw
 threshold `200000`, 15 stamps, valid expiry and no revocation. The local API
 request returned HTTP 200, but the deployed Worker runtime could not reach the
 API upstream during the release check; this is reported as an upstream
-limitation and never bypasses EAS. No contract, escrow, payment, assessment or
-settlement write was made by this integration release.
+limitation and never bypasses EAS. EAS discovery is independent of API
+configuration or availability, canonicalizes wallet casing for the indexer,
+and has a bounded secondary indexer fallback. No contract, escrow, payment,
+assessment or settlement write was made by this integration release.
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ExternalLink, RefreshCw } from "lucide-react";
 import { discoverPassport, type PassportDiscovery } from "../lib/passportDiscovery";
 import { humanPassportAppUrl, humanPassportAttestationUrl, humanPassportDocumentationUrl, readHumanPassport, readUnifiedHumanPassport, type HumanPassportEvidence } from "../lib/humanPassport";
@@ -8,35 +8,42 @@ type Snapshot = Record<string, unknown>;
 
 export function HumanPassportPanel({ subject, requestId, required, canAttachUnified = false, onRefreshed }: { subject: string; requestId?: string; required: boolean; canAttachUnified?: boolean; onRefreshed?: () => Promise<void> | void }) {
   const [discovery, setDiscovery] = useState<PassportDiscovery | null>(null);
-  const [manualUid, setManualUid] = useState("");
   const [evidence, setEvidence] = useState<HumanPassportEvidence | null>(null);
   const [attachedSnapshot, setAttachedSnapshot] = useState<Snapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const scanGeneration = useRef(0);
 
-  async function inspectRequestSnapshot() {
+  async function inspectRequestSnapshot(isCurrent: () => boolean = () => true) {
     if (!requestId) return;
     try {
       const snapshot = await getHumanityEvidence(requestId);
+      if (!isCurrent()) return;
       if (snapshot && snapshot.found !== false && String(snapshot.wallet || "").toLowerCase() === subject.toLowerCase()) setAttachedSnapshot(snapshot);
       else setAttachedSnapshot(null);
     } catch {
-      setAttachedSnapshot(null);
+      if (isCurrent()) setAttachedSnapshot(null);
     }
   }
 
-  async function scan() {
+  async function scan(force = false) {
+    const generation = ++scanGeneration.current;
+    const isCurrent = () => generation === scanGeneration.current;
     setBusy(true); setError(""); setNotice(""); setEvidence(null); setDiscovery(null);
+    setAttachedSnapshot(null);
     try {
-      const result = await discoverPassport(subject);
+      const result = await discoverPassport(subject, { force });
+      if (!isCurrent()) return;
       setDiscovery(result);
-      if (result.passport_api.available && result.passport_api.matches_approved_scorer === false) {
+      if (!result.passport_api.available && result.passport_api.error_code) {
+        setNotice("The Passport API is unavailable or informational only; SoulStamp continues with independent EAS discovery.");
+      } else if (result.passport_api.available && result.passport_api.matches_approved_scorer === false) {
         setNotice(`Passport API scorer ${result.passport_api.scorer_id || "unknown"} is informational only; SoulStamp requires approved on-chain scorer 335.`);
       }
       if (!result.candidate) {
-        setNotice((current) => current || (result.eas_indexer.error_code
-          ? "The Passport indexer is temporarily unavailable. Use Advanced / Manual recovery only with a UID you already trust."
+        setNotice((current) => current || (result.eas_indexer.error_code || result.eas_indexer.secondary_error_code
+          ? "Passport indexer coverage is incomplete. No authenticated Passport result is reported; refresh later."
           : result.passport_api.score !== null && result.passport_api.score !== undefined
             ? "A Passport API score was found, but no compatible unified EAS attestation is indexed for this wallet yet. The API score cannot authorize a TrustPass."
             : "No compatible unified EAS attestation was discovered for this wallet."));
@@ -44,35 +51,21 @@ export function HumanPassportPanel({ subject, requestId, required, canAttachUnif
       }
       // The indexer result is a candidate only. Direct EAS reads authenticate
       // the UID, wallet, schema, resolver, attester, score and expiry.
-      setEvidence(await readUnifiedHumanPassport(subject, result.candidate.attestation_uid));
-      await inspectRequestSnapshot();
+      const authenticated = await readUnifiedHumanPassport(subject, result.candidate.attestation_uid);
+      if (!isCurrent()) return;
+      setEvidence(authenticated);
+      await inspectRequestSnapshot(isCurrent);
     } catch (cause) {
-      setEvidence(null);
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally { setBusy(false); }
-  }
-
-  async function inspectManual() {
-    const uid = manualUid.trim();
-    if (!uid) { setError("Enter a unified EAS UID in the advanced recovery section."); return; }
-    setBusy(true); setError(""); setNotice("");
-    try {
-      setEvidence(await readUnifiedHumanPassport(subject, uid));
-      setNotice("Manual UID was independently validated against EAS. It is not trusted until the direct read succeeds.");
-      await inspectRequestSnapshot();
-    } catch (cause) { setEvidence(null); setError(cause instanceof Error ? cause.message : String(cause)); } finally { setBusy(false); }
+      if (isCurrent()) {
+        setEvidence(null);
+        setError(cause instanceof Error ? cause.message : String(cause));
+      }
+    } finally { if (isCurrent()) setBusy(false); }
   }
 
   useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const snapshot = requestId ? await getHumanityEvidence(requestId) : null;
-        if (active && snapshot && snapshot.found !== false && String(snapshot.wallet || "").toLowerCase() === subject.toLowerCase()) setAttachedSnapshot(snapshot);
-      } catch { /* a later scan or refresh can retry */ }
-      if (active) await scan();
-    })();
-    return () => { active = false; };
+    void scan();
+    return () => { scanGeneration.current += 1; };
     // Scan only when the subject/request wallet changes. The button invokes it explicitly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subject, requestId]);
@@ -105,7 +98,7 @@ export function HumanPassportPanel({ subject, requestId, required, canAttachUnif
           <h3 className="font-semibold text-white">Human Passport evidence {required ? <span className="text-amber-300">(required)</span> : <span className="text-gray-500">(optional)</span>}</h3>
           <p className="text-xs text-gray-400 mt-1">The connected subject wallet is scanned automatically. API and indexer results are candidates; only direct EAS validation and finalized GenLayer state can authorize this request.</p>
         </div>
-        <button className="btn-secondary" onClick={scan} disabled={busy}><RefreshCw className="w-4 h-4" />{busy ? "Scanning…" : "Scan / Refresh Passport"}</button>
+        <button className="btn-secondary" onClick={() => void scan(true)} disabled={busy}><RefreshCw className="w-4 h-4" />{busy ? "Scanning…" : "Scan / Refresh Passport"}</button>
       </div>
 
       <div className="grid sm:grid-cols-2 gap-2 text-xs text-gray-300">
@@ -131,7 +124,6 @@ export function HumanPassportPanel({ subject, requestId, required, canAttachUnif
       {notice && <p className="text-sm text-sky-300">{notice}</p>}
       {error && <p className="text-sm text-red-300">{error}</p>}
 
-      <details className="rounded-lg border border-gray-800 p-3"><summary className="cursor-pointer text-xs text-gray-300">Advanced / Manual recovery</summary><div className="mt-3 space-y-2"><p className="text-[11px] text-gray-500">Use only when the indexer is delayed or unavailable. The UID is still checked directly against EAS; a typed score or arbitrary UID is never accepted.</p><div className="flex gap-2"><input className="input flex-1 font-mono" value={manualUid} onChange={(event) => setManualUid(event.target.value)} placeholder="0x… unified EAS UID" spellCheck={false} /><button className="btn-secondary" onClick={inspectManual} disabled={busy}>Validate UID</button></div></div></details>
       <div className="flex flex-wrap gap-3 text-xs"><a className="footer-link inline-flex items-center gap-1" href={humanPassportDocumentationUrl()} target="_blank" rel="noreferrer">Official schema docs <ExternalLink className="w-3 h-3" /></a><a className="footer-link inline-flex items-center gap-1" href={humanPassportAppUrl()} target="_blank" rel="noreferrer">Open Passport <ExternalLink className="w-3 h-3" /></a></div>
       {!evidence && !busy && <p className="text-[11px] text-gray-500">If you have no on-chain Passport evidence, publish the wallet’s approved score through the official Human Passport flow first. An off-chain API score alone cannot authorize a paid TrustPass.</p>}
     </section>

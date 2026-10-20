@@ -1,21 +1,25 @@
 {
   "record_type": "soulstamp_v4_2_automatic_human_passport_discovery",
-  "status": "IMPLEMENTED_WORKER_DEPLOYED_READ_ONLY_EAS_CONFIRMED_MANUAL_ATTACHMENT_REQUIRED",
-  "source_commit_before_release": "939950c82b0879a66f8203314be29b5c6ccb9992",
+  "status": "IMPLEMENTED_DEPLOYED_LIVE_DISCOVERY_CONFIRMED_MANUAL_ATTACHMENT_REQUIRED",
+  "source_commit_before_release": "139f49b85dd5802d061df4ebbc50a5329d6bca6a",
   "contract_changes": false,
   "contract_redeployments": false,
   "preserved_contracts": {
     "v3": "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d",
     "v4_2": "0xF3B64cD356D9c67144f77e167ee0D02B3a760a3c",
+    "v4_2_source_commit": "5769ff707a128d9ff27eab6adf8605307fa2d86e",
+    "v4_2_source_sha256_lf": "fe0b21907b1612f839da126d91a0dd2d7a9ccdb4f021512fa6b89b551f1d09a7",
     "arc_escrow": "0x53eeb55fcb5253d6640a5db8c3a7bea9deb9316f"
   },
   "worker": {
     "url": "https://soulstamp-discord.delealufejoel.workers.dev",
-    "version_id": "e10a5c05-788f-4a6f-8573-79649a84a8b5",
+    "version_id": "5a5131e7-5131-415f-bf12-82905d96232b",
     "health": {
       "discord_configured": true,
       "google_configured": true,
       "passport_configured": true,
+      "passport_api_configured": true,
+      "passport_eas_discovery_configured": true,
       "configured_api_scorer_id": "12174",
       "approved_onchain_scorer_id": 335,
       "scorer_matches_approved": false,
@@ -23,20 +27,59 @@
     },
     "discovery_endpoint": "https://soulstamp-discord.delealufejoel.workers.dev/api/passport/discover",
     "indexer_endpoint": "https://optimism-sepolia.easscan.org/graphql",
+    "bounded_fallback_indexer_endpoint": "https://optimism-sepolia-bedrock.easscan.org/graphql",
     "api_result": {
       "configured_scorer_id": "12174",
-      "http_status": 200,
-      "wallet": "0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09",
-      "score": "44.69800",
-      "threshold": "20.00000",
-      "passing_score": true,
-      "stamps_count": 1,
-      "last_score_timestamp": "2026-10-20T18:07:59.381038+01:00",
-      "expiration_timestamp": "2027-01-17T14:02:29.246+01:00",
+      "live_worker_result": "PASSPORT_API_UNAVAILABLE",
       "authority": "informational_only",
-      "worker_runtime_request": "UNAVAILABLE_FROM_WORKER_RUNTIME"
+      "approved_onchain_scorer_id": 335
     }
   },
+  "live_discovery_checks": [
+    {
+      "input_case": "checksummed",
+      "wallet": "0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09",
+      "http_status": 200,
+      "candidate_count": 1,
+      "candidate_uid": "0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813",
+      "api_available": false,
+      "api_error": "PASSPORT_API_UNAVAILABLE",
+      "indexer_error": null,
+      "secondary_error": null
+    },
+    {
+      "input_case": "lowercase",
+      "wallet": "0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09",
+      "http_status": 200,
+      "candidate_count": 1,
+      "candidate_uid": "0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813",
+      "api_available": false,
+      "api_error": "PASSPORT_API_UNAVAILABLE",
+      "indexer_error": null,
+      "secondary_error": null
+    },
+    {
+      "input_case": "no_attestation_control",
+      "wallet": "0x0000000000000000000000000000000000000042",
+      "http_status": 200,
+      "candidate_count": 0,
+      "candidate_uid": null,
+      "api_available": true,
+      "api_error": null,
+      "indexer_error": null,
+      "secondary_error": "PASSPORT_INDEXER_UNAVAILABLE",
+      "interpretation": "No authenticated evidence is reported; the secondary indexer was unavailable and the UI reports incomplete coverage rather than Passport absence."
+    },
+    {
+      "input_case": "expired_record_control",
+      "wallet": "0xeab804590011d0650fcb6c4da1870c6e9ca062d1",
+      "http_status": 200,
+      "candidate_count": 1,
+      "candidate_uid": "0x8d716ddf7475db5147e5a811ec665788ea5bc364d0990621dcf3592f5f990543",
+      "direct_eas_result": "REJECTED_AS_EXPECTED",
+      "reason": "Human Passport attestation is not valid at the pinned block."
+    }
+  ],
   "passport_read_only": {
     "network": "Optimism Sepolia",
     "chain_id": 11155420,
@@ -49,9 +92,9 @@
     "attester": "0x8B1A76795e3CbadD79C5410d2C4D4827D9C1503a",
     "resolver": "0xa2c832b63A20C06CCc2Ca31c12b8248452729a4D",
     "pinned_block": {
-      "number": 50356420,
-      "hash": "0xc9e2cceb4aaf7f85115806b30b70c4dcd1be9f04d22fabb1ef577b5c672cff10",
-      "timestamp": 1792515380
+      "number": 50358574,
+      "hash": "0x0ccbea3b9c462df15516fdd02daf6ce3035dd5ea508b7e0435f0e995e14e2f80",
+      "timestamp": 1792519688
     },
     "scorer_id": 335,
     "raw_score": 446980,
@@ -61,42 +104,69 @@
     "stamp_count": 15,
     "expiration": "2027-01-17T13:05:57Z",
     "revocation_time": 0,
-    "status": "READ_ONLY_CONFIRMED"
+    "status": "READ_ONLY_CONFIRMED_FROM_WORKER_DISCOVERY"
+  },
+  "indexer_audit": {
+    "endpoint": "https://optimism-sepolia.easscan.org/graphql",
+    "approved_schema_records_examined": 46,
+    "revoked_records_found": 0,
+    "expired_records_found": 45,
+    "live_revoked_record_test": "NOT_AVAILABLE_IN_INDEXER_SAMPLE; local adversarial revocation tests pass",
+    "authority": "candidate_locator_only"
   },
   "automatic_discovery": {
-    "candidate_uid": "0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813",
+    "candidate_uid_is_wallet_discovered": true,
     "candidate_wallet_match": true,
     "candidate_schema_match": true,
     "candidate_attester_match": true,
     "candidate_is_authority": false,
-    "direct_eas_validation_required": true
+    "direct_eas_validation_required": true,
+    "manual_uid_entry_in_production_ui": false,
+    "wallet_switch_generation_guard": true,
+    "bounded_cache_and_inflight_deduplication": true
   },
   "vercel": {
     "project": "delealufejoel-4184s-projects/soulstamp",
     "production": {
-      "deployment_id": "dpl_65DbVbkcAGZzYewLPv5SrPaUevRc",
+      "deployment_id": "dpl_7TZ4pv5Xuay6kyNkXUEwSWeAhLNV",
       "url": "https://soulstamp-gen.vercel.app",
+      "deployment_url": "https://soulstamp-5l33pfpio-delealufejoel-4184s-projects.vercel.app",
+      "inspect_url": "https://vercel.com/delealufejoel-4184s-projects/soulstamp/7TZ4pv5Xuay6kyNkXUEwSWeAhLNV",
       "status": "READY",
       "bundle_checks": {
+        "active_v4_address_present": true,
+        "active_arc_escrow_present": true,
         "worker_url_present": true,
         "discovery_route_present": true,
-        "attach_button_present": true,
-        "passport_api_key_name_present": false,
-        "manual_uid_env_present": false
+        "manual_uid_ui_or_env_present": false,
+        "passport_api_key_or_header_present": false
       }
     },
     "preview": {
-      "deployment_id": "dpl_26xRzF7b8J5b8VtNShTQ8pn5YEui",
-      "url": "https://soulstamp-cj91jx03q-delealufejoel-4184s-projects.vercel.app",
+      "deployment_id": "dpl_AxUrUu6VcM3Le2kj7ZYDGQ9Xdteo",
+      "url": "https://soulstamp-o6uiotme4-delealufejoel-4184s-projects.vercel.app",
+      "inspect_url": "https://vercel.com/delealufejoel-4184s-projects/soulstamp/AxUrUu6VcM3Le2kj7ZYDGQ9Xdteo",
       "status": "READY",
       "bundle_checks": {
+        "active_v4_address_present": true,
+        "active_arc_escrow_present": true,
         "worker_url_present": true,
         "discovery_route_present": true,
-        "attach_button_present": true,
-        "passport_api_key_name_present": false,
-        "manual_uid_env_present": false
+        "manual_uid_ui_or_env_present": false,
+        "passport_api_key_or_header_present": false
       }
     }
+  },
+  "engineering_gates": {
+    "contract_lint_and_semantic_validation": "PASS",
+    "python": "88 passed, 2 skipped",
+    "frontend": "60 passed",
+    "finality": "4 passed",
+    "worker": "18 passed",
+    "foundry": "10 passed",
+    "frontend_production_build": "PASS",
+    "worker_syntax": "PASS",
+    "contract_source_unchanged": true
   },
   "historical_funded_request": {
     "preserved": true,
@@ -106,7 +176,7 @@
   },
   "manual_user_action": {
     "required": true,
-    "action": "Open the existing funded Sybil request on V4.2, connect the subject wallet, use Scan / Refresh Passport, review the directly validated evidence, and approve Attach verified Passport. Do not create a new request or payment."
+    "action": "Connect the subject wallet, review the automatically discovered and directly validated Passport evidence, open the existing funded Sybil request, and approve Attach verified Passport. Do not create a new request or payment."
   },
   "verification_timestamp": "2026-10-20"
 }

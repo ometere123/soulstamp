@@ -38,11 +38,19 @@ export type PassportDiscovery = {
   approved_attester: string;
   approved_scorer_id: number;
   passport_api: PassportApiSummary;
-  eas_indexer: { endpoint: string; candidates: PassportDiscoveryCandidate[]; error_code?: string };
+  eas_indexer: { endpoint: string; candidates: PassportDiscoveryCandidate[]; error_code?: string; secondary_error_code?: string };
   candidate: PassportDiscoveryCandidate | null;
   candidate_count: number;
   authority: "candidate_only_until_direct_eas_validation";
 };
+
+const DISCOVERY_CACHE_TTL_MS = 30_000;
+const discoveryCache = new Map<string, { expiresAt: number; value: PassportDiscovery }>();
+const discoveryInFlight = new Map<string, Promise<PassportDiscovery>>();
+
+export function clearPassportDiscoveryCache(): void {
+  discoveryCache.clear();
+}
 
 function requireWallet(wallet: string): string {
   if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) throw new Error("The connected wallet address is malformed.");
@@ -86,7 +94,12 @@ function parseDiscovery(value: unknown, wallet: string): PassportDiscovery {
     approved_attester: String(body.approved_attester || "").toLowerCase(),
     approved_scorer_id: Number(body.approved_scorer_id),
     passport_api: api,
-    eas_indexer: { endpoint: String(indexer.endpoint || ""), candidates, ...(indexer.error_code ? { error_code: String(indexer.error_code) } : {}) },
+    eas_indexer: {
+      endpoint: String(indexer.endpoint || ""),
+      candidates,
+      ...(indexer.error_code ? { error_code: String(indexer.error_code) } : {}),
+      ...(indexer.secondary_error_code ? { secondary_error_code: String(indexer.secondary_error_code) } : {}),
+    },
     candidate,
     candidate_count: Number(body.candidate_count || candidates.length),
     authority: "candidate_only_until_direct_eas_validation",
@@ -98,20 +111,31 @@ function parseDiscovery(value: unknown, wallet: string): PassportDiscovery {
  * through readUnifiedHumanPassport before it is eligible for an on-chain
  * attachment. No API score is accepted as a substitute for EAS evidence.
  */
-export async function discoverPassport(wallet: string): Promise<PassportDiscovery> {
+export async function discoverPassport(wallet: string, options: { force?: boolean } = {}): Promise<PassportDiscovery> {
   const subject = requireWallet(wallet);
+  const cacheKey = subject.toLowerCase();
+  const cached = discoveryCache.get(cacheKey);
+  if (!options.force && cached && cached.expiresAt > Date.now()) return cached.value;
+  const inFlight = discoveryInFlight.get(cacheKey);
+  if (inFlight) return inFlight;
   if (!PASSPORT_DISCOVERY_URL) throw new Error("Passport discovery Worker is not configured.");
-  const response = await fetch(`${PASSPORT_DISCOVERY_URL}/api/passport/discover?wallet=${encodeURIComponent(subject)}`, {
-    headers: { accept: "application/json" },
-    cache: "no-store",
-  });
-  const text = await response.text();
-  if (text.length > 256 * 1024) throw new Error("Passport discovery response is too large.");
-  let body: unknown;
-  try { body = JSON.parse(text); } catch { throw new Error("Passport discovery Worker returned invalid JSON."); }
-  if (!response.ok) {
-    const error = body && typeof body === "object" ? String((body as Record<string, unknown>).error || "Passport discovery failed") : "Passport discovery failed";
-    throw new Error(error);
-  }
-  return parseDiscovery(body, subject);
+  const task = (async () => {
+    const response = await fetch(`${PASSPORT_DISCOVERY_URL}/api/passport/discover?wallet=${encodeURIComponent(subject)}`, {
+      headers: { accept: "application/json" },
+      cache: "no-store",
+    });
+    const text = await response.text();
+    if (text.length > 256 * 1024) throw new Error("Passport discovery response is too large.");
+    let body: unknown;
+    try { body = JSON.parse(text); } catch { throw new Error("Passport discovery Worker returned invalid JSON."); }
+    if (!response.ok) {
+      const error = body && typeof body === "object" ? String((body as Record<string, unknown>).error || "Passport discovery failed") : "Passport discovery failed";
+      throw new Error(error);
+    }
+    const result = parseDiscovery(body, subject);
+    discoveryCache.set(cacheKey, { expiresAt: Date.now() + DISCOVERY_CACHE_TTL_MS, value: result });
+    return result;
+  })();
+  discoveryInFlight.set(cacheKey, task);
+  try { return await task; } finally { discoveryInFlight.delete(cacheKey); }
 }

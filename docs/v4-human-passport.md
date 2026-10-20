@@ -80,21 +80,26 @@ The earlier V4.2 pair with an empty Google issuer was superseded before any
 user state was created and is retained separately in the live ledger.
 
 The frontend no longer treats a globally configured UID as an ordinary identity
-source. On opening a TrustPass request it derives the subject from the connected
-wallet and calls the existing Worker discovery route. That route uses the
+source. On wallet connection and wallet changes it derives the subject from the
+connected wallet and calls the existing Worker discovery route, including before
+a paid request exists. That route uses the
 Passport v2 API only for informational score/stamp status and the operational
 Optimism Sepolia EASSCAN GraphQL indexer only to locate candidate UIDs. It
 returns no API key and no raw provider secret. The browser then performs the
-existing direct EAS validation and pins a block. Only after that validation does
-the user see **Attach verified Passport**; after the finalized GenLayer write,
+existing direct EAS validation and pins a block. Only after that validation and
+an exact funded request does the user see **Attach verified Passport**; after the finalized GenLayer write,
 the frontend reads `get_humanity_evidence(request_id)` and checks the wallet and
 UID before showing **Verified for this request**.
 
 The configured API scorer is `12174`, not approved scorer `335`, so its API score
-is explicitly informational. The deployed Worker returned a live EAS candidate
-for the known wallet but its API upstream was unavailable from the Worker
-runtime; the local configured API request returned HTTP 200. This does not
-weaken the on-chain path. The operational indexer host is
+is explicitly informational. Worker version
+`5a5131e7-5131-415f-bf12-82905d96232b` returned a live EAS candidate for the
+known wallet for both checksummed and lowercase inputs, while its API upstream
+returned `PASSPORT_API_UNAVAILABLE`. This does not
+weaken the on-chain path. The Worker canonicalizes mixed-case and lowercase
+wallet inputs to EIP-55 before querying the case-sensitive indexer and tries a
+bounded secondary indexer only when the primary result is unavailable or empty.
+The operational indexer host is
 `https://optimism-sepolia.easscan.org/graphql`; the bedrock hostname listed in
 some EAS documentation did not resolve during the release check. Indexer data
 is never authoritative and older candidates are not silently substituted for a

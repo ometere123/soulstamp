@@ -1,3 +1,5 @@
+import { keccak_256 } from "@noble/hashes/sha3.js";
+
 const FALLBACK_LOCAL_ORIGIN = "http://localhost:5173";
 const DISCORD_API = "https://discord.com/api/v10";
 const DISCORD_TOKEN_ENDPOINT = "https://discord.com/api/oauth2/token";
@@ -14,6 +16,7 @@ const PASSPORT_API_ENDPOINT = "https://api.passport.xyz/v2/stamps";
 // is the one currently resolving for Optimism Sepolia. It is still only a
 // candidate index; direct EAS eth_call validation remains authoritative.
 const PASSPORT_GRAPHQL_ENDPOINT = "https://optimism-sepolia.easscan.org/graphql";
+const PASSPORT_GRAPHQL_FALLBACK_ENDPOINT = "https://optimism-sepolia-bedrock.easscan.org/graphql";
 const PASSPORT_CHAIN_ID = 11155420;
 const PASSPORT_APPROVED_SCHEMA = "0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8";
 const PASSPORT_APPROVED_ATTESTER = "0x8b1a76795e3cbadd79c5410d2c4d4827d9c1503a";
@@ -275,7 +278,19 @@ function requireV4Address(value) {
 function requirePassportWallet(value) {
   const wallet = String(value || "").trim();
   if (!/^0x[0-9a-fA-F]{40}$/.test(wallet)) throw new Error("Invalid Passport wallet address");
-  return wallet;
+  return checksumPassportAddress(wallet);
+}
+
+function checksumPassportAddress(wallet) {
+  const hex = String(wallet).replace(/^0x/, "").toLowerCase();
+  if (!/^[0-9a-f]{40}$/.test(hex)) throw new Error("Invalid Passport wallet address");
+  const digest = Array.from(keccak_256(new TextEncoder().encode(hex)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  let result = "";
+  for (let index = 0; index < hex.length; index += 1) {
+    const character = hex[index];
+    result += /[a-f]/.test(character) && Number.parseInt(digest[index], 16) >= 8 ? character.toUpperCase() : character;
+  }
+  return `0x${result}`;
 }
 
 function passportScorerId(env) {
@@ -286,6 +301,10 @@ function passportScorerId(env) {
 
 function passportConfig(env) {
   return Boolean(String(env.PASSPORT_API_KEY || "").trim() && String(env.PASSPORT_SCORER_ID || "").trim());
+}
+
+function passportApiConfig(env) {
+  return passportConfig(env);
 }
 
 function passportRateKey(request, wallet) {
@@ -389,9 +408,7 @@ async function fetchPassportApi(wallet, env) {
   return safePassportApiResult(result.body, scorerId);
 }
 
-async function fetchPassportCandidates(wallet, env) {
-  const endpoint = String(env.PASSPORT_GRAPHQL_URL || PASSPORT_GRAPHQL_ENDPOINT);
-  if (endpoint !== PASSPORT_GRAPHQL_ENDPOINT) throw new Error("Passport indexer endpoint is not approved");
+async function fetchPassportCandidatesFromEndpoint(wallet, endpoint) {
   const query = `query PassportAttestations($recipient: String!, $schemaId: String!, $take: Int!) {
     attestations(
       where: { recipient: { equals: $recipient }, schemaId: { equals: $schemaId } }
@@ -421,6 +438,53 @@ async function fetchPassportCandidates(wallet, env) {
   return { endpoint, candidates: candidates.slice(0, PASSPORT_QUERY_LIMIT) };
 }
 
+function passportGraphqlEndpoints(env) {
+  const configured = String(env.PASSPORT_GRAPHQL_URL || "").trim();
+  const allowed = new Set([PASSPORT_GRAPHQL_ENDPOINT, PASSPORT_GRAPHQL_FALLBACK_ENDPOINT]);
+  if (configured && !allowed.has(configured)) throw new Error("Passport indexer endpoint is not approved");
+  return [...new Set([configured || PASSPORT_GRAPHQL_ENDPOINT, PASSPORT_GRAPHQL_ENDPOINT, PASSPORT_GRAPHQL_FALLBACK_ENDPOINT])];
+}
+
+function mergePassportCandidates(results) {
+  const byUid = new Map();
+  for (const result of results) {
+    for (const candidate of result.candidates || []) byUid.set(candidate.attestation_uid, candidate);
+  }
+  return [...byUid.values()]
+    .sort((left, right) => right.time - left.time || left.attestation_uid.localeCompare(right.attestation_uid))
+    .slice(0, PASSPORT_QUERY_LIMIT);
+}
+
+async function fetchPassportCandidates(wallet, env) {
+  const endpoints = passportGraphqlEndpoints(env);
+  const failures = [];
+  const results = [];
+  for (const endpoint of endpoints) {
+    try {
+      const result = await fetchPassportCandidatesFromEndpoint(wallet, endpoint);
+      results.push(result);
+      // The primary result is authoritative when it has a candidate. Only
+      // query the bounded fallback when the primary is empty, so a delayed or
+      // stale secondary index cannot silently replace the newest primary view.
+      if (result.candidates.length > 0 || endpoint !== endpoints[0]) break;
+    } catch (cause) {
+      failures.push(upstreamErrorCode(cause, "PASSPORT_INDEXER"));
+    }
+  }
+  if (results.length > 0) {
+    return {
+      endpoint: results.map((result) => result.endpoint).join(","),
+      candidates: mergePassportCandidates(results),
+      ...(failures.length > 0 ? { secondary_error_code: failures[0] } : {}),
+    };
+  }
+  return {
+    endpoint: endpoints.join(","),
+    candidates: [],
+    error_code: failures[0] || "PASSPORT_INDEXER_UNAVAILABLE",
+  };
+}
+
 function upstreamErrorCode(error, prefix) {
   const message = String(error?.message || "");
   const status = message.match(/HTTP (\d{3})/i)?.[1];
@@ -434,11 +498,19 @@ async function handlePassportDiscover(request, url, env) {
   const wallet = requirePassportWallet(url.searchParams.get("wallet"));
   const rate = consumePassportRateLimit(request, wallet);
   if (!rate.allowed) return json({ error: "Passport discovery rate limit exceeded", code: "RATE_LIMITED" }, 429, env, { "retry-after": String(rate.retryAfter) });
-  if (!passportConfig(env)) return json({ error: "Passport discovery is not configured", code: "PASSPORT_NOT_CONFIGURED" }, 503, env);
 
-  const [apiResult, indexerResult] = await Promise.allSettled([fetchPassportApi(wallet, env), fetchPassportCandidates(wallet, env)]);
-  const api = apiResult.status === "fulfilled" ? apiResult.value : { available: false, error_code: upstreamErrorCode(apiResult.reason, "PASSPORT_API") };
-  const indexer = indexerResult.status === "fulfilled" ? indexerResult.value : { endpoint: PASSPORT_GRAPHQL_ENDPOINT, candidates: [], error_code: upstreamErrorCode(indexerResult.reason, "PASSPORT_INDEXER") };
+  const apiConfigured = passportApiConfig(env);
+  const apiResult = apiConfigured
+    ? await Promise.allSettled([fetchPassportApi(wallet, env)])
+    : [];
+  const indexerResult = await Promise.allSettled([fetchPassportCandidates(wallet, env)]);
+  const api = !apiConfigured
+    ? { available: false, error_code: "PASSPORT_API_NOT_CONFIGURED" }
+    : apiResult[0].status === "fulfilled"
+      ? apiResult[0].value
+      : { available: false, error_code: upstreamErrorCode(apiResult[0].reason, "PASSPORT_API") };
+  const indexerOutcome = indexerResult[0];
+  const indexer = indexerOutcome.status === "fulfilled" ? indexerOutcome.value : { endpoint: PASSPORT_GRAPHQL_ENDPOINT, candidates: [], error_code: upstreamErrorCode(indexerOutcome.reason, "PASSPORT_INDEXER") };
   return json({
     wallet: wallet.toLowerCase(),
     chain_id: PASSPORT_CHAIN_ID,
@@ -809,6 +881,8 @@ async function router(request, env) {
         discord_configured: Boolean(env.DISCORD_CLIENT_ID && env.DISCORD_CLIENT_SECRET),
         google_configured: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_ACCOUNT_COMMITMENT_SECRET),
         passport_configured: passportConfig(env),
+        passport_api_configured: passportApiConfig(env),
+        passport_eas_discovery_configured: true,
         passport_api_endpoint: PASSPORT_API_ENDPOINT,
         passport_scorer_id: env.PASSPORT_SCORER_ID ? String(env.PASSPORT_SCORER_ID) : null,
         passport_approved_scorer_id: Number(PASSPORT_APPROVED_SCORER_ID),
