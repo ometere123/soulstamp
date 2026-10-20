@@ -78,6 +78,35 @@
       "totalRefunded": 0
     }
   },
+  "vercel": {
+    "project": "soulstamp",
+    "team": "delealufejoel-4184s-projects",
+    "production": {
+      "deploymentId": "dpl_8JSkBWHGAi7L7Jb7TtEHLFicMai5",
+      "url": "https://soulstamp-kzm84igtp-delealufejoel-4184s-projects.vercel.app",
+      "alias": "https://soulstamp-gen.vercel.app",
+      "readyState": "READY",
+      "bundleChecks": {
+        "currentV4Present": true,
+        "currentArcPresent": true,
+        "supersededV4Absent": true,
+        "supersededArcAbsent": true,
+        "workerUrlPresent": true
+      }
+    },
+    "preview": {
+      "deploymentId": "dpl_6vUZJN1Tx8a2P5sFNgHsowtxQHqv",
+      "url": "https://soulstamp-3r2zik676-delealufejoel-4184s-projects.vercel.app",
+      "readyState": "READY",
+      "bundleChecks": {
+        "currentV4Present": true,
+        "currentArcPresent": true,
+        "supersededV4Absent": true,
+        "supersededArcAbsent": true,
+        "workerUrlPresent": true
+      }
+    }
+  },
   "historicalSupersededPair": {
     "v4Contract": "0xd4f87c10e80d6f5cFaDBf8815D9eB7f1D0E518b7",
     "v4DeploymentTransaction": "0xaf10ba4314ec27e3b5900a6268abc5c704b31a0919eec346e8df9c3790500735",

@@ -158,8 +158,8 @@ addresses. V3 and Worker configuration were preserved.
 
 | Environment | Deployment | Status | Bundle verification |
 |---|---|---|---|
-| Production | [`dpl_H2r1eNtf1g6i4CSf8qXxQzbTQtsU`](https://vercel.com/delealufejoel-4184s-projects/soulstamp/H2r1eNtf1g6i4CSf8qXxQzbTQtsU) | READY; [soulstamp-gen.vercel.app](https://soulstamp-gen.vercel.app) | served `index-DK4lfddf.js` contains current V4, current Arc escrow, Worker URL and callback code; legacy Cloud Function URL absent |
-| Preview | [`dpl_5HGg2qznpThXrjSVGFNyor4xvPxn`](https://vercel.com/delealufejoel-4184s-projects/soulstamp/5HGg2qznpThXrjSVGFNyor4xvPxn) | READY; [preview](https://soulstamp-j0iuon5oa-delealufejoel-4184s-projects.vercel.app) | same authenticated bundle checks |
+| Production | [`dpl_8JSkBWHGAi7L7Jb7TtEHLFicMai5`](https://vercel.com/delealufejoel-4184s-projects/soulstamp/8JSkBWHGAi7L7Jb7TtEHLFicMai5) | READY; [soulstamp-gen.vercel.app](https://soulstamp-gen.vercel.app) | served bundle contains current V4, current Arc escrow and Worker URL; superseded V4/Arc addresses absent |
+| Preview | [`dpl_6vUZJN1Tx8a2P5sFNgHsowtxQHqv`](https://vercel.com/delealufejoel-4184s-projects/soulstamp/6vUZJN1Tx8a2P5sFNgHsowtxQHqv) | READY; [preview](https://soulstamp-3r2zik676-delealufejoel-4184s-projects.vercel.app) | authenticated `vercel curl` bundle contains current V4, current Arc escrow and Worker URL; superseded addresses absent |
 
 ## Live lifecycle evidence
 

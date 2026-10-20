@@ -28,11 +28,11 @@ Initial state: verifier `soulstamp-v3.0-continuity`, admin
 `0x4e44636494650386b89c64011c10f48d4b344c4f`, legacy contract
 `0x3108daffcbc24e261137056c56afcae17677bdfb`, and zero verifications,
 identities, challenges, and recoveries.
-Vercel: Production `dpl_H2r1eNtf1g6i4CSf8qXxQzbTQtsU` READY at
-`https://soulstamp-h80txidb0-delealufejoel-4184s-projects.vercel.app`
+Vercel: Production `dpl_8JSkBWHGAi7L7Jb7TtEHLFicMai5` READY at
+`https://soulstamp-kzm84igtp-delealufejoel-4184s-projects.vercel.app`
 (`https://soulstamp-gen.vercel.app`); Preview
-`dpl_5HGg2qznpThXrjSVGFNyor4xvPxn` READY at
-`https://soulstamp-j0iuon5oa-delealufejoel-4184s-projects.vercel.app`.
+`dpl_6vUZJN1Tx8a2P5sFNgHsowtxQHqv` READY at
+`https://soulstamp-3r2zik676-delealufejoel-4184s-projects.vercel.app`.
 The production, preview, and public alias bundles contain the current V3/V4,
 Arc escrow and Worker configuration and no legacy Cloud Function URL. These
 deployments include the Google callback-routing correction from release commit
@@ -171,9 +171,9 @@ chain `5042002`, configured to that V4 address. See the [GenLayer deployment](ht
 and [Arc binding](https://explorer.testnet.arc.io/tx/0x98d2ef4169085e695aa8cfabaedc365bb12b0ea7fd0e2878995e1076dc75a80f).
 
 The existing Worker is healthy and Discord remains configured. Vercel
-environment values were updated to the current V4 and Arc addresses; READY
-deployment IDs and served-bundle verification are recorded after the release
-deployment. Google live linking, a positive Human Passport refresh, and a paid
+environment values were updated to the current V4 and Arc addresses; the READY
+deployment IDs and served-bundle verification are recorded in the release
+ledger. Google live linking, a positive Human Passport refresh, and a paid
 Arc assessment/settlement/refund lifecycle remain unclaimed until the
 corresponding user-controlled credentials, evidence, subject consent, and
 time-dependent transactions exist. The prior V4.1 and superseded V4.2 pair

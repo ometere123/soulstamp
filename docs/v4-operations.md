@@ -39,12 +39,11 @@ current V4.2 release facts are:
   login/link is still not claimed; local OIDC tests do not count as live
   verification.
 - Vercel Production is READY at deployment
-  `dpl_H2r1eNtf1g6i4CSf8qXxQzbTQtsU` and Preview is READY at
-  `dpl_5HGg2qznpThXrjSVGFNyor4xvPxn`. The public Production alias and
+  `dpl_8JSkBWHGAi7L7Jb7TtEHLFicMai5` and Preview is READY at
+  `dpl_6vUZJN1Tx8a2P5sFNgHsowtxQHqv`. The public Production alias and
   authenticated Preview bundle were fetched through the Vercel CLI and
   contain the current V3 address, current V4 address, current Arc escrow
-  address, Worker URL, and Google callback handoff code; the legacy Cloud
-  Function URL is absent.
+  address and Worker URL; the superseded V4/Arc addresses are absent.
 - Both Vercel targets currently set `VITE_GOOGLE_WORKER_URL` and
   `VITE_DISCORD_BACKEND_URL` to
   `https://soulstamp-discord.delealufejoel.workers.dev`. The Worker health
