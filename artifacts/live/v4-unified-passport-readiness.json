@@ -1,0 +1,93 @@
+{
+  "artifact": "v4-unified-passport-readiness",
+  "status": "PREPARED_NOT_DEPLOYED",
+  "verifiedAt": "2026-10-20",
+  "network": {
+    "name": "Optimism Sepolia",
+    "chainId": 11155420
+  },
+  "subject": {
+    "wallet": "0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09"
+  },
+  "humanPassportEvidence": {
+    "mintTransaction": "0x93930c72a9bcf30789f2fd5bdbb29f4f72ac2d71f6026e481406c411ff1f6260",
+    "transactionStatus": "SUCCESS",
+    "transactionBlock": 50306314,
+    "transactionBlockHash": "0x36f11b3f747410d8ebeeb4dbc0b028e2bf0a0837a7d2b28b4983f6ad4e75993f",
+    "easContract": "0x4200000000000000000000000000000000000021",
+    "attestationUid": "0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813",
+    "schemaUid": "0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8",
+    "schema": "bool passing_score, uint8 score_decimals, uint128 scorer_id, uint32 score, uint32 threshold, tuple(string provider, uint256 score)[] stamps",
+    "resolver": "0xa2c832b63a20c06ccc2ca31c12b8248452729a4d",
+    "attester": "0x8b1a76795e3cbadd79c5410d2c4d4827d9c1503a",
+    "recipient": "0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09",
+    "scorerId": 335,
+    "rawScore": 446980,
+    "scoreDecimals": 4,
+    "thresholdRawScore": 200000,
+    "passingScore": true,
+    "createdAt": "2026-10-19T13:06:08Z",
+    "expiration": "2027-01-17T13:05:57Z",
+    "revoked": false,
+    "verification": "Confirmed from Optimism Sepolia EAS getAttestation and SchemaRegistry reads at the mint block; the attestation recipient, schema, resolver, attester, score fields and expiry were independently decoded."
+  },
+  "legacyDecoderCompatibility": {
+    "decoder": "0xe53c60f8069c2f0c3a84f9b3db5cf56f3100ba56",
+    "getScoreSelector": "0xd47875d0",
+    "getScoreByScorerSelector": "0x2b3b7f22",
+    "result": "INCOMPATIBLE_WITH_CURRENT_UNIFIED_SCHEMA",
+    "revertData": "0x120a2e77",
+    "revertMeaning": "AttestationNotFound",
+    "configuredLegacySchemaReads": true
+  },
+  "candidateSource": {
+    "contract": "contracts/soulstamp_trustpass.py",
+    "version": "soulstamp-v4.2-unified-passport-compatibility",
+    "normalizedLfSha256": "c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4",
+    "deploymentStatus": "NOT_DEPLOYED"
+  },
+  "currentV4": {
+    "contract": "0x886582aB1a45452880685b6a50c748cAb7c954ce",
+    "unifiedEvidenceMethod": "refresh_humanity_evidence_unified",
+    "currentState": "The deployed contract predates the unified EAS adapter and must not be reported as compatible."
+  },
+  "fundedRequest": {
+    "requestId": "9FE94A1BD40CD33197241D5B780B2C448064C0C0C4BF34FF75026170D461CC7F",
+    "state": "FUNDED",
+    "paymentState": "ESCROWED",
+    "paymentRequestKey": "0x9a953df7ccd34a7db3f52a97d77ac0681038ec53b1c28f16009c6282573875d5",
+    "arcEscrow": "0xe2a0118847cbf424dbd6f5761987624ea7aae72e",
+    "depositTransaction": "0x9032dccd6d089ebb0491cb6195265f7b7cad009910b22ac3785ca669329b51648",
+    "payer": "0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09",
+    "subject": "0xfd69a5d0b8330dc86e266304b3d1abe3f57b9d09",
+    "amountUsdcBaseUnits": "1000000",
+    "depositedAt": "2026-10-19T23:03:49Z",
+    "refundDeadline": "2026-10-22T23:03:49Z",
+    "refundEligibilitySource": "Arc payment.depositedAt + 72 hours",
+    "assessmentSubmitted": false,
+    "settlementSubmitted": false,
+    "refundSubmitted": false
+  },
+  "refundProcedure": {
+    "script": "scripts/refund-v4-payment.mjs",
+    "preconditions": [
+      "Use the original payer wallet only.",
+      "Wait until the Arc depositedAt + 72 hour deadline.",
+      "Read getPayment(paymentRequestKey) and confirm status is ESCROWED.",
+      "Do not run the assessment or settlement first.",
+      "After the Arc refund is FINALIZED, verify the payment state is REFUNDED and only then record the result on GenLayer if the deployed protocol requires that acknowledgement."
+    ],
+    "status": "PREPARED_NOT_SUBMITTED"
+  },
+  "deploymentDecision": {
+    "newV4Required": true,
+    "newArcEscrowRequired": true,
+    "oldArcPaymentReusableByNewV4": false,
+    "explicitApprovalRequiredBeforeDeployment": true,
+    "v3RegistryPreserved": true
+  },
+  "links": {
+    "easAttestation": "https://optimism-sepolia.easscan.org/attestation/view/0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813",
+    "easSchema": "https://optimism-sepolia.easscan.org/schema/view/0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8"
+  }
+}

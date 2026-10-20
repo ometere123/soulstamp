@@ -569,3 +569,29 @@ records the public signer, decoded method, and exact arguments for every
 transaction. A receipt that is `FINALIZED` with leader execution `SUCCESS` but
 consensus `Undetermined`, `NO_MAJORITY`, or `MAJORITY_DISAGREE` is rejected.
 
+### Unified Human Passport compatibility correction
+
+The current subject’s Human Passport evidence is a genuine Optimism Sepolia
+unified EAS attestation: UID
+`0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813`, schema
+`0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8`, scorer
+`335`, raw score `446980` (`44.6980`), and raw threshold `200000`. The
+attestation is independently verified against EAS and the Schema Registry for
+wallet `0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09`; the evidence is not a
+typed frontend score.
+
+The deployed V4 at `0x886582aB1a45452880685b6a50c748cAb7c954ce` still uses the
+legacy decoder, whose `getScore` call returns `0x120a2e77` for this unified
+record. A prepared, not-deployed source correction adds strict direct EAS
+verification with independent validator reads and keeps the legacy fallback.
+Its candidate LF-normalized source hash is
+`c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`.
+
+The funded request is intentionally preserved as `ESCROWED` and has not been
+assessed or settled. Its authoritative 72-hour Arc refund deadline is
+`2026-10-22T23:03:49Z`; the exact request key, deposit transaction, read-only
+facts, and safe refund sequence are in
+[`artifacts/live/v4-unified-passport-readiness.json`](artifacts/live/v4-unified-passport-readiness.json).
+Do not run the refund before that time. A new V4/Arc pair requires explicit
+approval; the old escrow cannot be migrated or reused.
+

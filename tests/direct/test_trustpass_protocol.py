@@ -9,6 +9,14 @@ SPONSOR = "0x" + "33" * 20
 V3 = "0x" + "44" * 20
 ESCROW = "0x" + "55" * 20
 DECODER = "0x" + "66" * 20
+EAS = "0x4200000000000000000000000000000000000021"
+SCHEMA_REGISTRY = "0x4200000000000000000000000000000000000020"
+UNIFIED_SCHEMA_UID = "0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8"
+UNIFIED_RESOLVER = "0xa2c832b63a20c06ccc2ca31c12b8248452729a4d"
+OFFICIAL_ATTESTER = "0x8b1a76795e3cbadd79c5410d2c4d4827d9c1503a"
+ATTESTATION_UID = "0x" + "65" * 32
+PASSPORT_CREATED = 1_792_415_168
+PASSPORT_EXPIRATION = 1_800_191_157
 
 
 def deploy(direct_deploy):
@@ -40,15 +48,80 @@ def policy(*, humanity=False, credentials=None):
     })
 
 
+def abi_word(value):
+    if isinstance(value, str) and value.startswith("0x"):
+        value = value[2:]
+    else:
+        value = hex(int(value))[2:]
+    return value.rjust(64, "0")
+
+
+def abi_string(value):
+    raw = value.encode().hex()
+    return abi_word(len(raw) // 2) + raw.ljust(((len(raw) + 63) // 64) * 64, "0")
+
+
+def unified_data(*, score=446980, scorer_id=335, threshold=200000, passing=True):
+    elements = []
+    for provider, stamp_score in (("Google", 100), ("Discord", 90)):
+        elements.append(abi_word(64) + abi_word(stamp_score) + abi_string(provider))
+    offset = len(elements) * 32
+    offsets = []
+    for element in elements:
+        offsets.append(abi_word(offset))
+        offset += len(element) // 2
+    return "0x" + "".join([
+        abi_word(1 if passing else 0), abi_word(4), abi_word(scorer_id), abi_word(score), abi_word(threshold), abi_word(192),
+        abi_word(len(elements)), "".join(offsets), "".join(elements),
+    ])
+
+
+def eas_attestation(*, recipient=OWNER, schema=UNIFIED_SCHEMA_UID, attester=OFFICIAL_ATTESTER, data=None, expiration=PASSPORT_EXPIRATION, revocation=0):
+    data = data or unified_data()
+    padded_data = data[2:].ljust(((len(data) - 2 + 63) // 64) * 64, "0")
+    return "0x" + "".join([
+        ATTESTATION_UID[2:], schema[2:], abi_word(PASSPORT_CREATED), abi_word(expiration), abi_word(revocation), abi_word(1), abi_word(0),
+        abi_word(recipient), abi_word(attester), abi_word(320), abi_word((len(data) - 2) // 2), padded_data,
+    ])
+
+
+def schema_record(schema="bool passing_score, uint8 score_decimals, uint128 scorer_id, uint32 score, uint32 threshold, tuple(string provider, uint256 score)[] stamps", resolver=UNIFIED_RESOLVER):
+    return "0x" + abi_word(96) + abi_word(resolver) + abi_word(1) + abi_string(schema)
+
+
+def unified_rpc_fixture(*, recipient=OWNER, schema=UNIFIED_SCHEMA_UID, attester=OFFICIAL_ATTESTER, data=None, expiration=PASSPORT_EXPIRATION, revocation=0, resolver=UNIFIED_RESOLVER):
+    def rpc(method, params):
+        if method == "eth_chainId":
+            return "0xaa37dc"
+        if method == "eth_getBlockByNumber":
+            return {"number": "0x64", "hash": "0x" + "ab" * 32, "timestamp": hex(PASSPORT_CREATED)}
+        if method == "eth_getCode":
+            return "0x6001600155"
+        if method == "eth_call":
+            call = params[0]
+            if str(call.get("to", "")).lower() == EAS:
+                return eas_attestation(recipient=recipient, schema=schema, attester=attester, data=data, expiration=expiration, revocation=revocation)
+            if str(call.get("to", "")).lower() == SCHEMA_REGISTRY:
+                return schema_record(resolver=resolver)
+        raise AssertionError((method, params))
+    return rpc
+
+
 def test_v4_constructor_binds_v3_arc_and_human_passport_config(direct_vm, direct_deploy):
     contract = deploy(direct_deploy)
     stats = contract.get_stats()
-    assert stats["contract_version"] == "soulstamp-v4.1-trustpass-security-correction"
+    assert stats["contract_version"] == "soulstamp-v4.2-unified-passport-compatibility"
     assert stats["v3_contract_address"] == V3
     assert stats["arc_escrow_address"] == ESCROW
     assert stats["human_passport_chain_id"] == 11155420
     assert stats["human_passport_decoder_address"] == DECODER
     assert stats["human_passport_threshold_raw"] == 200000
+    assert stats["human_passport_evidence_mode"] == "EAS_UNIFIED_V1_WITH_LEGACY_FALLBACK"
+    assert stats["human_passport_eas_address"] == EAS
+    assert stats["human_passport_unified_schema_uid"] == UNIFIED_SCHEMA_UID
+    assert stats["human_passport_unified_resolver"] == UNIFIED_RESOLVER
+    assert stats["human_passport_permitted_attester"] == OFFICIAL_ATTESTER
+    assert stats["human_passport_approved_scorer_id"] == 335
     assert stats["assessment_price_usdc"] == 1000000
 
 
@@ -171,6 +244,64 @@ def test_human_passport_scaling_199999_fails_and_200000_passes(direct_vm, direct
     facts = contract._humanity_facts(request, contract.get_policy("human-v1"), request["created_at"] + 1)
     assert facts["valid"] is True
     assert facts["score_scaled"] == "20"
+
+
+def _unified_request(direct_vm, direct_deploy, policy_id="unified-passport-v1"):
+    contract = deploy(direct_deploy)
+    direct_vm.sender = OWNER
+    contract.create_policy(policy_id, policy(humanity=True))
+    contract.create_assessment_request(policy_id, OWNER, "sybil_screening", False)
+    request = contract.get_requests(OWNER, 0, 10)[0]
+    contract.consent_assessment(request["request_id"], request["purpose"], "passport-consent-123456", request["created_at"] + 300)
+    return contract, contract.get_request(request["request_id"])
+
+
+def test_unified_human_passport_attestation_is_independently_decoded_and_snapshotted(direct_vm, direct_deploy, monkeypatch):
+    contract, request = _unified_request(direct_vm, direct_deploy)
+    monkeypatch.setattr(contract, "_passport_rpc", unified_rpc_fixture())
+    monkeypatch.setattr(contract, "_now", lambda: PASSPORT_CREATED + 60)
+    result = contract.refresh_humanity_evidence_unified(request["request_id"], ATTESTATION_UID, 100)
+    assert json.loads(result)["raw_score"] == 446980
+    snapshot = contract.get_humanity_evidence(request["request_id"])
+    assert snapshot["evidence_type"] == "eas_unified_v1"
+    assert snapshot["attestation_uid"] == ATTESTATION_UID
+    assert snapshot["scorer_id"] == 335
+    assert snapshot["score_decimals"] == 4
+    assert snapshot["raw_score"] == 446980
+    assert snapshot["evidence_commitment"].startswith("0x")
+    facts = contract._humanity_facts(contract.get_request(request["request_id"]), contract.get_policy("unified-passport-v1"), PASSPORT_CREATED + 60)
+    assert facts["valid"] is True
+    assert facts["reason"] == "HUMANITY_UNIFIED_ATTESTATION_VALID"
+
+
+def test_unified_passport_rejects_wrong_recipient_schema_attester_and_revocation(direct_vm, direct_deploy, monkeypatch):
+    contract, _request = _unified_request(direct_vm, direct_deploy, "unified-negative-v1")
+    cases = [
+        (unified_rpc_fixture(recipient=SPONSOR), "recipient"),
+        (unified_rpc_fixture(schema="0x" + "99" * 32), "schema UID"),
+        (unified_rpc_fixture(attester=SPONSOR), "attester"),
+        (unified_rpc_fixture(revocation=PASSPORT_CREATED), "revoked"),
+        (unified_rpc_fixture(data=unified_data(scorer_id=334)), "scorer"),
+    ]
+    for fixture, message in cases:
+        monkeypatch.setattr(contract, "_passport_rpc", fixture)
+        with direct_vm.expect_revert(message):
+            contract._passport_unified_stable_facts(OWNER, ATTESTATION_UID, 100)
+
+
+def test_unified_passport_rejects_malformed_dynamic_stamp_abi(direct_vm, direct_deploy, monkeypatch):
+    contract, _request = _unified_request(direct_vm, direct_deploy, "unified-malformed-v1")
+    monkeypatch.setattr(contract, "_passport_rpc", unified_rpc_fixture(data="0x1234"))
+    with direct_vm.expect_revert("truncated"):
+        contract._passport_unified_stable_facts(OWNER, ATTESTATION_UID, 100)
+
+
+def test_unified_passport_rejects_expired_evidence_before_snapshot(direct_vm, direct_deploy, monkeypatch):
+    contract, request = _unified_request(direct_vm, direct_deploy, "unified-expired-v1")
+    monkeypatch.setattr(contract, "_passport_rpc", unified_rpc_fixture(expiration=PASSPORT_CREATED + 1))
+    monkeypatch.setattr(contract, "_now", lambda: PASSPORT_CREATED + 60)
+    with direct_vm.expect_revert("expired"):
+        contract.refresh_humanity_evidence_unified(request["request_id"], ATTESTATION_UID, 100)
 
 
 def test_google_commitment_cannot_be_active_for_two_wallets(direct_vm, direct_deploy):

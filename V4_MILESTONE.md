@@ -198,6 +198,44 @@ The complete structured ledger is
 and the read-only current-contract audit is
 [`artifacts/live/v4-lifecycle-audit.json`](./artifacts/live/v4-lifecycle-audit.json).
 
+## Unified Human Passport compatibility correction
+
+The current subject evidence is now independently confirmed as a unified EAS
+attestation on Optimism Sepolia, not an invalid Passport record. The exact
+recipient wallet is `0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09`; the attestation
+UID is
+`0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813`; the
+schema UID is
+`0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8`; scorer
+`335` returned raw `446980` with four decimals, so the authenticated display is
+`44.6980` and the raw `200000` threshold is met. The attestation expires at
+`2027-01-17T13:05:57Z` and was not revoked at the pinned read.
+
+The deployed V4.1 decoder remains legacy-schema-only and returns
+`0x120a2e77` (`AttestationNotFound`) for this unified UID. The prepared V4.2
+source adds strict EAS `getAttestation` and Schema Registry reads at a pinned
+block, exact schema/resolver/attester/recipient/scorer checks, dynamic ABI
+decoding, evidence commitments, and independent validator re-reads. It is not
+deployed; its candidate LF-normalized source hash is
+`c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`.
+The legacy `getScore(uint256,address)` form was also attempted with scorer
+`335` and returned the same `AttestationNotFound` revert.
+
+The existing funded request is preserved without assessment or settlement.
+Arc escrow reports `ESCROWED`, amount `1000000`, and `depositedAt`
+`2026-10-19T23:03:49Z`. The authoritative refund deadline is
+`2026-10-22T23:03:49Z`. The original payer can use the existing escrow’s
+permissionless `refund(requestKey)` after that time; the funds always return to
+the stored payer. Only after a successful Arc receipt and `status=REFUNDED`
+should `confirm_arc_refund` be submitted on the current V4. The complete
+procedure and no-write status are recorded in
+[`artifacts/live/v4-unified-passport-readiness.json`](./artifacts/live/v4-unified-passport-readiness.json).
+
+The old escrow is bound to the old V4, so the unified path requires explicit
+approval for a fresh V4 plus compatible Arc escrow after the old request is
+recovered. The old payment cannot be migrated or reused, and V3 remains
+unchanged.
+
 ## Engineering gates
 
 ```text

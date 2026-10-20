@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { classifyPaymentRecovery, refundAvailableAtFromEscrow } from "../../frontend/src/lib/paymentRecovery";
+import { boundedArcLogRanges } from "../../frontend/src/lib/arc";
 
 const PAYER = "0x1111111111111111111111111111111111111111";
 const OTHER = "0x2222222222222222222222222222222222222222";
@@ -35,5 +36,12 @@ describe("chain-backed payment recovery", () => {
 
   it("derives the refund deadline only from a genuine escrow timestamp", () => {
     expect(refundAvailableAtFromEscrow(1, 1_000)).toBe(1_000 + 72 * 60 * 60);
+  });
+
+  it("uses bounded Arc log ranges and never falls back to block zero", () => {
+    const ranges = boundedArcLogRanges(200_000n, 25_000n, 10_000n);
+    expect(ranges[0]).toEqual({ fromBlock: 190_001n, toBlock: 200_000n });
+    expect(ranges[ranges.length - 1]?.fromBlock).toBe(175_001n);
+    expect(ranges.every((range) => range.fromBlock > 0n && range.toBlock - range.fromBlock < 10_000n)).toBe(true);
   });
 });

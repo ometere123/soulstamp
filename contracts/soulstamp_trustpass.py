@@ -18,8 +18,8 @@ import re
 from urllib.parse import urlparse
 
 
-CONTRACT_VERSION = "soulstamp-v4.1-trustpass-security-correction"
-VERIFIER_VERSION = "soulstamp-v4.1-independent-assessment"
+CONTRACT_VERSION = "soulstamp-v4.2-unified-passport-compatibility"
+VERIFIER_VERSION = "soulstamp-v4.2-independent-assessment"
 V3_CONTRACT_VERSION = "soulstamp-v3.0-continuity"
 GENLAYER_CHAIN_ID = 61999
 ARC_CHAIN_ID = 5042002
@@ -27,6 +27,18 @@ HUMAN_PASSPORT_CHAIN_ID = 11155420
 HUMAN_PASSPORT_SCORE_SELECTOR = "0xd47875d0"
 HUMAN_PASSPORT_THRESHOLD_RAW = 200000
 HUMAN_PASSPORT_DECIMALS = 4
+HUMAN_PASSPORT_EAS_ADDRESS = "0x4200000000000000000000000000000000000021"
+HUMAN_PASSPORT_SCHEMA_REGISTRY_ADDRESS = "0x4200000000000000000000000000000000000020"
+HUMAN_PASSPORT_UNIFIED_SCHEMA_UID = "0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8"
+HUMAN_PASSPORT_UNIFIED_SCHEMA = "bool passing_score, uint8 score_decimals, uint128 scorer_id, uint32 score, uint32 threshold, tuple(string provider, uint256 score)[] stamps"
+HUMAN_PASSPORT_UNIFIED_RESOLVER = "0xa2c832b63a20c06ccc2ca31c12b8248452729a4d"
+HUMAN_PASSPORT_PERMITTED_ATTESTER = "0x8b1a76795e3cbadd79c5410d2c4d4827d9c1503a"
+HUMAN_PASSPORT_APPROVED_SCORER_ID = 335
+HUMAN_PASSPORT_GET_ATTESTATION_SELECTOR = "0xa3112a64"
+HUMAN_PASSPORT_GET_SCHEMA_SELECTOR = "0xa2ea7c6e"
+MAX_HUMAN_PASSPORT_STAMPS = 64
+MAX_HUMAN_PASSPORT_PROVIDER_LENGTH = 128
+MAX_HUMAN_PASSPORT_RESPONSE_BYTES = 131072
 USDC_DECIMALS = 6
 ASSESSMENT_PRICE_USDC = 1_000_000
 PAYMENT_INTENT_TTL_SECONDS = 30 * 60
@@ -422,15 +434,42 @@ class SoulStampTrustPass(gl.Contract):
         raw_score = int(snapshot.get("raw_score", -1) or -1)
         observed_at = int(snapshot.get("observed_at", 0) or 0)
         block_timestamp = int(snapshot.get("block_timestamp", 0) or 0)
-        valid = (
+        common_valid = (
             str(snapshot.get("wallet", "")).lower() == str(request.get("subject", "")).lower()
             and int(snapshot.get("chain_id", 0) or 0) == HUMAN_PASSPORT_CHAIN_ID
-            and str(snapshot.get("decoder", "")).lower() == self.human_passport_decoder_address
             and raw_score >= int(policy.get("minimum_humanity_score", HUMAN_PASSPORT_THRESHOLD_RAW))
             and observed_at > 0 and now - observed_at <= MAX_HUMANITY_SNAPSHOT_AGE_SECONDS
             and block_timestamp > 0 and block_timestamp <= now
             and now - block_timestamp <= MAX_HUMANITY_SNAPSHOT_AGE_SECONDS
         )
+        if str(snapshot.get("evidence_type", "")) == "eas_unified_v1":
+            expiration_time = int(snapshot.get("expiration_time", 0) or 0)
+            created_at = int(snapshot.get("created_at", 0) or 0)
+            score_threshold = int(snapshot.get("threshold_raw", 0) or 0)
+            valid = (
+                common_valid
+                and str(snapshot.get("eas_address", "")).lower() == HUMAN_PASSPORT_EAS_ADDRESS
+                and str(snapshot.get("schema_uid", "")).lower() == HUMAN_PASSPORT_UNIFIED_SCHEMA_UID
+                and str(snapshot.get("schema_registry", "")).lower() == HUMAN_PASSPORT_SCHEMA_REGISTRY_ADDRESS
+                and str(snapshot.get("resolver", "")).lower() == HUMAN_PASSPORT_UNIFIED_RESOLVER
+                and str(snapshot.get("attester", "")).lower() == HUMAN_PASSPORT_PERMITTED_ATTESTER
+                and int(snapshot.get("scorer_id", -1) or -1) == HUMAN_PASSPORT_APPROVED_SCORER_ID
+                and int(snapshot.get("score_decimals", -1) or -1) == HUMAN_PASSPORT_DECIMALS
+                and bool(snapshot.get("passing_score", False))
+                and score_threshold == HUMAN_PASSPORT_THRESHOLD_RAW
+                and raw_score >= score_threshold
+                and created_at > 0 and created_at <= block_timestamp
+                and expiration_time > now
+                and int(snapshot.get("revocation_time", 0) or 0) == 0
+                and bool(snapshot.get("evidence_commitment", ""))
+            )
+            reason = "HUMANITY_UNIFIED_ATTESTATION_VALID" if valid else "HUMANITY_UNIFIED_ATTESTATION_INVALID_OR_STALE"
+        else:
+            valid = (
+                common_valid
+                and str(snapshot.get("decoder", "")).lower() == self.human_passport_decoder_address
+            )
+            reason = "HUMANITY_SCORE_MEETS_THRESHOLD" if valid else "HUMANITY_SCORE_BELOW_THRESHOLD_OR_STALE"
         return {
             "required": True,
             "valid": valid,
@@ -442,7 +481,13 @@ class SoulStampTrustPass(gl.Contract):
             "block_hash": str(snapshot.get("block_hash", "")),
             "block_timestamp": block_timestamp,
             "observed_at": observed_at,
-            "reason": "HUMANITY_SCORE_MEETS_THRESHOLD" if valid else "HUMANITY_SCORE_BELOW_THRESHOLD_OR_STALE",
+            "evidence_type": str(snapshot.get("evidence_type", "legacy_decoder_v1") or "legacy_decoder_v1"),
+            "attestation_uid": str(snapshot.get("attestation_uid", "")),
+            "schema_uid": str(snapshot.get("schema_uid", "")),
+            "scorer_id": int(snapshot.get("scorer_id", 0) or 0),
+            "expiration_time": int(snapshot.get("expiration_time", 0) or 0),
+            "revocation_time": int(snapshot.get("revocation_time", 0) or 0),
+            "reason": reason,
         }
 
     def _score_decimal(self, raw_score: int) -> str:
@@ -882,6 +927,8 @@ class SoulStampTrustPass(gl.Contract):
             if status != 200:
                 raise gl.vm.UserError(f"{ERROR_TRANSIENT} Human Passport RPC HTTP {status}")
             body = response.body.decode("utf-8") if isinstance(response.body, (bytes, bytearray)) else str(response.body)
+            if len(body.encode("utf-8")) > MAX_HUMAN_PASSPORT_RESPONSE_BYTES:
+                raise gl.vm.UserError(f"{ERROR_EXTERNAL} Human Passport RPC response is too large")
             payload = json.loads(body)
             if payload.get("error") is not None:
                 raise gl.vm.UserError(f"{ERROR_EXTERNAL} Human Passport RPC returned an error")
@@ -913,6 +960,234 @@ class SoulStampTrustPass(gl.Contract):
             "block_number": int(block_number), "block_hash": block_hash, "block_timestamp": block_timestamp,
             "raw_score": raw_score, "score_scaled": self._score_decimal(raw_score),
         }
+
+    def _hex_body(self, value: str, label: str) -> str:
+        clean = str(value or "").strip().lower()
+        self._require(bool(re.match(r"^0x[0-9a-f]*$", clean)) and len(clean[2:]) % 2 == 0, f"{label} is not valid hex")
+        return clean[2:]
+
+    def _abi_word(self, body: str, byte_offset: int, label: str) -> str:
+        self._require(int(byte_offset) >= 0 and int(byte_offset) % 32 == 0, f"{label} offset is malformed")
+        start = int(byte_offset) * 2
+        self._require(start + 64 <= len(body), f"{label} ABI word is truncated")
+        return body[start:start + 64]
+
+    def _abi_uint(self, body: str, byte_offset: int, label: str) -> int:
+        try:
+            return int(self._abi_word(body, byte_offset, label), 16)
+        except Exception:
+            raise gl.vm.UserError(f"{ERROR_EXTERNAL} {label} is not a valid ABI integer")
+
+    def _abi_address(self, word: str, label: str) -> str:
+        clean = str(word or "").lower()
+        self._require(bool(re.match(r"^[0-9a-f]{64}$", clean)), f"{label} address word is malformed")
+        self._require(clean[:24] == "0" * 24, f"{label} address has non-zero padding")
+        return "0x" + clean[24:]
+
+    def _abi_utf8(self, body: str, byte_offset: int, label: str) -> str:
+        length = self._abi_uint(body, byte_offset, label + " length")
+        start = int(byte_offset) + 32
+        end = start + length
+        padded_end = start + ((length + 31) // 32) * 32
+        self._require(end <= len(body) // 2 and padded_end <= len(body) // 2, f"{label} string is truncated")
+        try:
+            return bytes.fromhex(body[start * 2:end * 2]).decode("utf-8")
+        except Exception:
+            raise gl.vm.UserError(f"{ERROR_EXTERNAL} {label} is not valid UTF-8")
+
+    def _decode_eas_attestation(self, raw: str) -> dict:
+        body = self._hex_body(raw, "Human Passport EAS attestation")
+        # EAS Attestation is a tuple of nine static values followed by bytes data.
+        self._require(len(body) >= 10 * 64, "Human Passport EAS attestation is truncated")
+        data_offset = self._abi_uint(body, 9 * 32, "EAS data")
+        data_length = self._abi_uint(body, data_offset, "EAS data")
+        data_start = data_offset + 32
+        data_end = data_start + data_length
+        padded_end = data_start + ((data_length + 31) // 32) * 32
+        self._require(padded_end == len(body) // 2, "Human Passport EAS attestation has trailing or missing ABI data")
+        revocable = self._abi_uint(body, 5 * 32, "EAS revocable")
+        self._require(revocable in (0, 1), "Human Passport EAS revocable flag is malformed")
+        return {
+            "uid": "0x" + self._abi_word(body, 0, "EAS UID"),
+            "schema": "0x" + self._abi_word(body, 32, "EAS schema"),
+            "time": self._abi_uint(body, 2 * 32, "EAS creation time"),
+            "expiration_time": self._abi_uint(body, 3 * 32, "EAS expiration time"),
+            "revocation_time": self._abi_uint(body, 4 * 32, "EAS revocation time"),
+            "revocable": bool(revocable),
+            "ref_uid": "0x" + self._abi_word(body, 6 * 32, "EAS reference UID"),
+            "recipient": self._abi_address(self._abi_word(body, 7 * 32, "EAS recipient"), "EAS recipient"),
+            "attester": self._abi_address(self._abi_word(body, 8 * 32, "EAS attester"), "EAS attester"),
+            "data": "0x" + body[data_start * 2:data_end * 2],
+        }
+
+    def _decode_schema_record(self, raw: str) -> dict:
+        body = self._hex_body(raw, "Human Passport schema record")
+        self._require(len(body) >= 3 * 64, "Human Passport schema record is truncated")
+        schema_offset = self._abi_uint(body, 0, "schema string")
+        schema = self._abi_utf8(body, schema_offset, "Human Passport schema")
+        schema_length = self._abi_uint(body, schema_offset, "Human Passport schema length")
+        schema_end = schema_offset + 32 + schema_length
+        padded_end = schema_offset + 32 + ((schema_length + 31) // 32) * 32
+        self._require(padded_end == len(body) // 2, "Human Passport schema record has trailing or missing ABI data")
+        revocable = self._abi_uint(body, 2 * 32, "schema revocable")
+        self._require(revocable in (0, 1), "Human Passport schema revocable flag is malformed")
+        return {
+            "schema": schema,
+            "resolver": self._abi_address(self._abi_word(body, 32, "schema resolver"), "schema resolver"),
+            "revocable": bool(revocable),
+        }
+
+    def _decode_unified_passport_data(self, raw: str) -> dict:
+        body = self._hex_body(raw, "Human Passport unified attestation data")
+        self._require(len(body) >= 6 * 64, "Human Passport unified attestation data is truncated")
+        passing_word = self._abi_uint(body, 0, "passing_score")
+        self._require(passing_word in (0, 1), "passing_score is malformed")
+        score_decimals = self._abi_uint(body, 32, "score_decimals")
+        scorer_id = self._abi_uint(body, 64, "scorer_id")
+        raw_score = self._abi_uint(body, 96, "score")
+        threshold = self._abi_uint(body, 128, "threshold")
+        stamps_offset = self._abi_uint(body, 160, "stamps")
+        self._require(stamps_offset >= 6 * 32, "stamps offset is malformed")
+        stamp_count = self._abi_uint(body, stamps_offset, "stamps count")
+        self._require(stamp_count <= MAX_HUMAN_PASSPORT_STAMPS, "Human Passport stamp array is too large")
+        array_base = stamps_offset + 32
+        offsets_end = array_base + (stamp_count * 32)
+        self._require(offsets_end <= len(body) // 2, "Human Passport stamp offsets are truncated")
+        stamps = []
+        array_end = offsets_end
+        for index in range(stamp_count):
+            element_offset = self._abi_uint(body, array_base + (index * 32), "stamp tuple offset")
+            element_start = array_base + element_offset
+            self._require(element_start >= offsets_end, "Human Passport stamp tuple overlaps its offset table")
+            string_offset = self._abi_uint(body, element_start, "stamp provider offset")
+            stamp_score = self._abi_uint(body, element_start + 32, "stamp score")
+            provider_start = element_start + string_offset
+            provider = self._abi_utf8(body, provider_start, "stamp provider")
+            self._require(bool(provider) and len(provider) <= MAX_HUMAN_PASSPORT_PROVIDER_LENGTH, "Human Passport stamp provider is malformed")
+            provider_length = self._abi_uint(body, provider_start, "stamp provider length")
+            provider_end = provider_start + 32 + provider_length
+            provider_padded_end = provider_start + 32 + ((provider_length + 31) // 32) * 32
+            self._require(provider_padded_end <= len(body) // 2, "Human Passport stamp provider is truncated")
+            array_end = max(array_end, element_start + 64, provider_padded_end)
+            stamps.append({"provider": provider, "score": stamp_score})
+        self._require(array_end == len(body) // 2, "Human Passport stamp array has trailing or missing ABI data")
+        return {
+            "passing_score": bool(passing_word),
+            "score_decimals": score_decimals,
+            "scorer_id": scorer_id,
+            "raw_score": raw_score,
+            "threshold_raw": threshold,
+            "stamps": stamps,
+        }
+
+    def _passport_unified_stable_facts(self, subject: str, attestation_uid: str, block_number: int) -> dict:
+        uid = self._require_hex_hash(attestation_uid, "Human Passport attestation UID")
+        chain_id = self._hex_int(str(self._passport_rpc("eth_chainId", [])), "Human Passport chain ID")
+        self._require(chain_id == HUMAN_PASSPORT_CHAIN_ID, "Human Passport RPC is on the wrong chain")
+        block_tag = hex(int(block_number))
+        block = self._passport_rpc("eth_getBlockByNumber", [block_tag, False])
+        self._require(isinstance(block, dict), "Human Passport block was not found")
+        self._require(self._hex_int(str(block.get("number", "0x0")), "Human Passport block number") == int(block_number), "Human Passport block number mismatch")
+        block_hash = str(block.get("hash", "")).lower()
+        block_timestamp = self._hex_int(str(block.get("timestamp", "0x0")), "Human Passport block timestamp")
+        self._require(bool(re.match(r"^0x[0-9a-f]{64}$", block_hash)), "Human Passport block hash is malformed")
+        for address_value, label in (
+            (HUMAN_PASSPORT_EAS_ADDRESS, "Human Passport EAS"),
+            (HUMAN_PASSPORT_SCHEMA_REGISTRY_ADDRESS, "Human Passport schema registry"),
+            (HUMAN_PASSPORT_UNIFIED_RESOLVER, "Human Passport resolver"),
+        ):
+            code = str(self._passport_rpc("eth_getCode", [address_value, block_tag]) or "")
+            self._require(len(code) > 2 and bool(re.match(r"^0x[0-9a-f]+$", code.lower())), label + " has no code at the pinned block")
+        attestation_raw = self._passport_rpc(
+            "eth_call",
+            [{"to": HUMAN_PASSPORT_EAS_ADDRESS, "data": HUMAN_PASSPORT_GET_ATTESTATION_SELECTOR + uid[2:]}, block_tag],
+        )
+        attestation = self._decode_eas_attestation(str(attestation_raw or ""))
+        self._require(attestation["uid"] == uid, "Human Passport EAS UID mismatch")
+        self._require(attestation["schema"] == HUMAN_PASSPORT_UNIFIED_SCHEMA_UID, "Human Passport schema UID is not the approved unified schema")
+        self._require(attestation["recipient"] == self._addr(subject), "Human Passport recipient does not match the assessed wallet")
+        self._require(attestation["attester"] == HUMAN_PASSPORT_PERMITTED_ATTESTER, "Human Passport attester is not permitted")
+        self._require(attestation["revocable"] is True, "Human Passport attestation must be revocable")
+        self._require(int(attestation["revocation_time"]) == 0, "Human Passport attestation is revoked at the pinned block")
+        self._require(int(attestation["time"]) <= block_timestamp, "Human Passport attestation was created after the pinned block")
+        self._require(int(attestation["expiration_time"]) > block_timestamp, "Human Passport attestation was expired at the pinned block")
+        schema_raw = self._passport_rpc(
+            "eth_call",
+            [{"to": HUMAN_PASSPORT_SCHEMA_REGISTRY_ADDRESS, "data": HUMAN_PASSPORT_GET_SCHEMA_SELECTOR + HUMAN_PASSPORT_UNIFIED_SCHEMA_UID[2:]}, block_tag],
+        )
+        schema = self._decode_schema_record(str(schema_raw or ""))
+        self._require(schema["schema"] == HUMAN_PASSPORT_UNIFIED_SCHEMA, "Human Passport schema definition mismatch")
+        self._require(schema["resolver"] == HUMAN_PASSPORT_UNIFIED_RESOLVER, "Human Passport schema resolver mismatch")
+        self._require(schema["revocable"] is True, "Human Passport schema must be revocable")
+        decoded = self._decode_unified_passport_data(attestation["data"])
+        self._require(int(decoded["score_decimals"]) == HUMAN_PASSPORT_DECIMALS, "Human Passport score precision mismatch")
+        self._require(int(decoded["scorer_id"]) == HUMAN_PASSPORT_APPROVED_SCORER_ID, "Human Passport scorer is not approved")
+        self._require(int(decoded["threshold_raw"]) == HUMAN_PASSPORT_THRESHOLD_RAW, "Human Passport attestation threshold mismatch")
+        self._require(bool(decoded["passing_score"]) == (int(decoded["raw_score"]) >= int(decoded["threshold_raw"])), "Human Passport passing flag contradicts score and threshold")
+        facts = {
+            "wallet": self._addr(subject), "chain_id": chain_id, "eas_address": HUMAN_PASSPORT_EAS_ADDRESS,
+            "schema_registry": HUMAN_PASSPORT_SCHEMA_REGISTRY_ADDRESS, "schema_uid": attestation["schema"],
+            "resolver": schema["resolver"], "attester": attestation["attester"], "attestation_uid": uid,
+            "block_number": int(block_number), "block_hash": block_hash, "block_timestamp": block_timestamp,
+            "created_at": int(attestation["time"]), "expiration_time": int(attestation["expiration_time"]),
+            "revocation_time": int(attestation["revocation_time"]), "revocable": bool(attestation["revocable"]),
+            "ref_uid": attestation["ref_uid"], "score_decimals": int(decoded["score_decimals"]),
+            "scorer_id": int(decoded["scorer_id"]), "raw_score": int(decoded["raw_score"]),
+            "threshold_raw": int(decoded["threshold_raw"]), "passing_score": bool(decoded["passing_score"]),
+            "stamps": decoded["stamps"], "data_commitment": self._sha(attestation["data"]),
+        }
+        facts["evidence_commitment"] = self._sha(self._dump(facts))
+        return facts
+
+    @gl.public.write
+    def refresh_humanity_evidence_unified(self, request_id: str, attestation_uid: str, block_number: u256) -> str:
+        request = self._request(str(request_id))
+        self._require(self._sender() == request["subject"], "Only the subject can refresh Human Passport evidence")
+        self._require(request["state"] in ("AWAITING_PAYMENT", "FUNDED", "EVALUATING"), "Request is not accepting humanity evidence")
+        block = int(block_number)
+        self._require(block > 0, "Human Passport block must be positive")
+
+        def leader_fn():
+            return self._passport_unified_stable_facts(request["subject"], attestation_uid, block)
+
+        def validator_fn(leader_result) -> bool:
+            if not isinstance(leader_result, gl.vm.Return) or not isinstance(leader_result.calldata, dict):
+                return False
+            try:
+                mine = self._passport_unified_stable_facts(request["subject"], attestation_uid, block)
+            except Exception:
+                return False
+            return mine == leader_result.calldata
+
+        try:
+            facts = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+        except Exception as error:
+            if isinstance(error, gl.vm.UserError):
+                raise
+            raise gl.vm.UserError(f"{ERROR_CONSENSUS} Human Passport unified attestation validators did not agree: {error}")
+        self._require(isinstance(facts, dict), "Human Passport unified consensus returned no facts")
+        now = int(self._now())
+        self._require(int(facts.get("expiration_time", 0) or 0) > now, "Human Passport unified attestation is expired")
+        self._require(int(facts.get("block_timestamp", 0) or 0) <= now, "Human Passport evidence block is in the future")
+        self._require(now - int(facts.get("block_timestamp", 0) or 0) <= MAX_HUMANITY_SNAPSHOT_AGE_SECONDS, "Human Passport evidence block is stale")
+        snapshot = {
+            "request_id": request["request_id"], "evidence_type": "eas_unified_v1", "wallet": facts["wallet"],
+            "chain_id": facts["chain_id"], "decoder": "", "eas_address": facts["eas_address"],
+            "schema_registry": facts["schema_registry"], "schema_uid": facts["schema_uid"],
+            "resolver": facts["resolver"], "attester": facts["attester"], "attestation_uid": facts["attestation_uid"],
+            "block_number": facts["block_number"], "block_hash": facts["block_hash"], "block_timestamp": facts["block_timestamp"],
+            "created_at": facts["created_at"], "expiration_time": facts["expiration_time"],
+            "revocation_time": facts["revocation_time"], "revocable": facts["revocable"], "ref_uid": facts["ref_uid"],
+            "score_decimals": facts["score_decimals"], "scorer_id": facts["scorer_id"], "raw_score": facts["raw_score"],
+            "threshold_raw": facts["threshold_raw"], "passing_score": facts["passing_score"], "stamps": facts["stamps"],
+            "data_commitment": facts["data_commitment"], "evidence_commitment": facts["evidence_commitment"],
+            "score_scaled": self._score_decimal(int(facts["raw_score"])), "observed_at": now,
+            "source": "optimism-sepolia-human-passport-eas-unified",
+        }
+        self.humanity_snapshots[request["request_id"]] = self._dump(snapshot)
+        request["humanity_snapshot_ref"] = request["request_id"]
+        self.requests[request["request_id"]] = self._dump(request)
+        return self._dump(facts)
 
     @gl.public.write
     def refresh_humanity_evidence(self, request_id: str, block_number: u256) -> str:
@@ -1181,21 +1456,9 @@ Explain the result without exposing private Google identifiers, tokens, or raw p
             if not google.get("valid"):
                 return {"eligible": False, "reason": google.get("reason", "GOOGLE_EVIDENCE_INVALID")}
         if bool(policy.get("external_humanity_required")):
-            snap = self._load(record.get("humanity_snapshot", ""), {})
-            if not snap:
-                return {"eligible": False, "reason": "HUMANITY_EVIDENCE_INVALID"}
-            if (
-                str(snap.get("wallet", "")).lower() != self._addr(subject)
-                or int(snap.get("chain_id", 0) or 0) != HUMAN_PASSPORT_CHAIN_ID
-                or str(snap.get("decoder", "")).lower() != self.human_passport_decoder_address
-                or int(snap.get("raw_score", -1) or -1) < int(policy.get("minimum_humanity_score", HUMAN_PASSPORT_THRESHOLD_RAW))
-                or int(snap.get("observed_at", 0) or 0) <= 0
-                or now - int(snap.get("observed_at", 0) or 0) > MAX_HUMANITY_SNAPSHOT_AGE_SECONDS
-                or int(snap.get("block_timestamp", 0) or 0) <= 0
-                or int(snap.get("block_timestamp", 0) or 0) > now
-                or now - int(snap.get("block_timestamp", 0) or 0) > MAX_HUMANITY_SNAPSHOT_AGE_SECONDS
-            ):
-                return {"eligible": False, "reason": "HUMANITY_EVIDENCE_STALE"}
+            humanity = self._humanity_facts({"request_id": record.get("request_id", ""), "subject": self._addr(subject)}, policy, now)
+            if not humanity.get("valid"):
+                return {"eligible": False, "reason": humanity.get("reason", "HUMANITY_EVIDENCE_INVALID")}
         return {"eligible": True, "reason": "TRUSTPASS_ACTIVE", "assessment_id": record.get("assessment_id", ""), "checked_at": now}
 
     @gl.public.view
@@ -1284,6 +1547,13 @@ Explain the result without exposing private Google identifiers, tokens, or raw p
             "human_passport_rpc_url": self.human_passport_rpc_url,
             "human_passport_threshold_raw": HUMAN_PASSPORT_THRESHOLD_RAW,
             "human_passport_score_decimals": HUMAN_PASSPORT_DECIMALS,
+            "human_passport_evidence_mode": "EAS_UNIFIED_V1_WITH_LEGACY_FALLBACK",
+            "human_passport_eas_address": HUMAN_PASSPORT_EAS_ADDRESS,
+            "human_passport_schema_registry": HUMAN_PASSPORT_SCHEMA_REGISTRY_ADDRESS,
+            "human_passport_unified_schema_uid": HUMAN_PASSPORT_UNIFIED_SCHEMA_UID,
+            "human_passport_unified_resolver": HUMAN_PASSPORT_UNIFIED_RESOLVER,
+            "human_passport_permitted_attester": HUMAN_PASSPORT_PERMITTED_ATTESTER,
+            "human_passport_approved_scorer_id": HUMAN_PASSPORT_APPROVED_SCORER_ID,
             "v3_contract_version": V3_CONTRACT_VERSION,
             "assessment_price_usdc": ASSESSMENT_PRICE_USDC, "usdc_decimals": USDC_DECIMALS,
             "total_policies": int(self.total_policies), "total_requests": int(self.total_requests),

@@ -19,6 +19,7 @@ import {
   getPolicy,
   getRequests,
   getRequest,
+  getV4Stats,
   type TrustPassPolicy,
   type TrustPassRequest,
 } from "../lib/trustpass";
@@ -50,11 +51,12 @@ export function TrustPassPurchase({ wallet, googleCallback }: { wallet: string; 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [v4HumanityMode, setV4HumanityMode] = useState("LEGACY_DECODER");
   const policyId = sybil ? SYBIL_POLICY_ID : IDENTITY_POLICY_ID;
 
   const linkedGoogle = Boolean(request?.google_commitment);
   const canPay = request?.state === "AWAITING_PAYMENT" && Boolean(request.consent_nonce);
-  const canEvaluate = request?.state === "FUNDED";
+  const canEvaluate = request?.state === "FUNDED" && (!policy?.external_humanity_required || (v4HumanityMode.includes("EAS_UNIFIED") && Boolean(request.humanity_snapshot_ref)));
 
   async function inspectArcPayment(current: TrustPassRequest): Promise<{ payment: ArcPaymentRecord; reference: ArcDepositReference | null } | null> {
     if (current.state !== "AWAITING_PAYMENT" && current.payment_state !== "ESCROWED") {
@@ -70,7 +72,11 @@ export function TrustPassPurchase({ wallet, googleCallback }: { wallet: string; 
         setDepositReference(null);
         return { payment, reference: null };
       }
-      const reference = await findArcDepositReference(String(intent.request_key) as `0x${string}`);
+      const reference = await findArcDepositReference(String(intent.request_key) as `0x${string}`, current.arc_tx_hash && Number(current.arc_log_index ?? -1) >= 0 && Number(current.arc_deposit_block_number ?? 0) > 0 ? {
+        transactionHash: current.arc_tx_hash as `0x${string}`,
+        logIndex: Number(current.arc_log_index),
+        blockNumber: BigInt(Number(current.arc_deposit_block_number)),
+      } : undefined);
       setDepositReference(reference);
       return { payment, reference };
     } catch (cause) {
@@ -91,6 +97,12 @@ export function TrustPassPurchase({ wallet, googleCallback }: { wallet: string; 
     setDepositReference(null);
     setError("");
     try {
+      try {
+        const stats = await getV4Stats();
+        setV4HumanityMode(String(stats.human_passport_evidence_mode || "LEGACY_DECODER"));
+      } catch {
+        setV4HumanityMode("LEGACY_DECODER");
+      }
       const found = await getRequests(wallet, 0, 50);
       let latest: TrustPassRequest | null;
       if (googleCallback?.status === "ready" && googleCallback.pendingId) {
@@ -266,11 +278,12 @@ export function TrustPassPurchase({ wallet, googleCallback }: { wallet: string; 
       {notice && <p className="text-sm text-emerald-300">{notice}</p>}{error && <p className="text-sm text-red-300">{error}</p>}
     </section>
 
-    {request && policy && <>
-      <PaymentLifecycle request={request} arcPayment={arcPayment} onResume={resumePayment} onRefund={refund} busy={busy} />
-      <section className="rounded-xl border border-gray-800 bg-gray-900/60 p-4 space-y-3"><h3 className="font-semibold text-white">Consent and evidence</h3><p className="text-xs text-gray-400">Request <code>{request.request_id}</code> · policy hash <code>{request.policy_hash}</code></p><div className="flex flex-wrap gap-2">{request.state === "AWAITING_CONSENT" && <button className="btn-primary" onClick={consent} disabled={busy}>I consent to this policy and purpose</button>}{canPay && <button className="btn-primary" onClick={pay} disabled={busy}><CreditCard className="w-4 h-4" />Approve and pay 1 USDC on Arc</button>}{canEvaluate && <button className="btn-primary" onClick={evaluate} disabled={busy}>Run independent assessment</button>}{(request.state === "AWAITING_CONSENT" || request.state === "AWAITING_PAYMENT") && <button className="btn-secondary" onClick={cancelRequest} disabled={busy}>Cancel unpaid request</button>}</div></section>
+      {request && policy && <>
+       <PaymentLifecycle request={request} arcPayment={arcPayment} onResume={resumePayment} onRefund={refund} busy={busy} />
+       <section className="rounded-xl border border-gray-800 bg-gray-900/60 p-4 space-y-3"><h3 className="font-semibold text-white">Consent and evidence</h3><p className="text-xs text-gray-400">Request <code>{request.request_id}</code> · policy hash <code>{request.policy_hash}</code></p><div className="flex flex-wrap gap-2">{request.state === "AWAITING_CONSENT" && <button className="btn-primary" onClick={consent} disabled={busy}>I consent to this policy and purpose</button>}{canPay && <button className="btn-primary" onClick={pay} disabled={busy}><CreditCard className="w-4 h-4" />Approve and pay 1 USDC on Arc</button>}{canEvaluate && <button className="btn-primary" onClick={evaluate} disabled={busy}>Run independent assessment</button>}{(request.state === "AWAITING_CONSENT" || request.state === "AWAITING_PAYMENT") && <button className="btn-secondary" onClick={cancelRequest} disabled={busy}>Cancel unpaid request</button>}</div></section>
+       {request.state === "FUNDED" && policy.external_humanity_required && !canEvaluate && <p className="text-sm text-amber-300">This funded Sybil request is intentionally blocked until a verified Human Passport snapshot is attached through a V4 deployment that supports the unified EAS schema. No assessment or settlement will be submitted.</p>}
       <GoogleVerification wallet={wallet} requestId={request.request_id} linked={linkedGoogle} callback={googleCallback} onChanged={refresh} />
-      <HumanPassportPanel subject={wallet} requestId={request.request_id} required={Boolean(policy.external_humanity_required)} onRefreshed={refresh} />
+       <HumanPassportPanel subject={request.subject} requestId={request.request_id} required={Boolean(policy.external_humanity_required)} canAttachUnified={v4HumanityMode.includes("EAS_UNIFIED")} onRefreshed={refresh} />
       <div className="rounded-xl border border-gray-800 bg-gray-900/60 p-4"><p className="text-xs text-gray-500">{request.state === "EVALUATED_PENDING_SETTLEMENT" ? "Assessment complete, but no TrustPass is active until the settlement operator submits and the Arc settlement event is independently consumed." : "Refresh the page at any point; the request, payment, and evidence references are read from chain state."}</p></div>
     </>}
   </div>;

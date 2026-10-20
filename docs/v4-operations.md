@@ -55,3 +55,61 @@ The live ledger must mark missing user-controlled Google, Passport, social,
 wallet-signature, payment and settlement actions as blocked or untested. A
 finalized transaction with an unsuccessful authoritative execution is not a
 successful proof.
+
+## Unified Passport compatibility and existing escrow refund
+
+The current V4 deployment remains the historical release at
+`0x886582aB1a45452880685b6a50c748cAb7c954ce`, paired with Arc escrow
+`0xe2a0118847cbf424dbd6f5761987624ea7aae72e`. The current subject’s valid
+unified EAS attestation is recorded in
+`artifacts/live/v4-unified-passport-readiness.json`, but the deployed V4 only
+contains the legacy Passport decoder path. Do not submit `evaluate_assessment`
+or settlement for its funded Sybil request.
+
+The exact funded request is
+`9FE94A1BD40CD33197241D5B780B2C448064C0C0C4BF34FF75026170D461CC7F`, with
+Arc request key
+`0x9a953df7ccd34a7db3f52a97d77ac0681038ec53b1c28f16009c6282573875d5`,
+deposit transaction
+`0x9032dccd6d089ebb0491cb6195265f7b7cad009910b22ac3785ca669329b51648`,
+and original payer/subject
+`0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09`. The authoritative Arc
+`depositedAt` is `2026-10-19T23:03:49Z`; `depositedAt + 72 hours` makes the
+refund eligible at `2026-10-22T23:03:49Z`. The V4 request’s stored display
+time is four seconds later because it was recorded during confirmation; the
+Arc escrow timestamp is authoritative.
+
+Do not run the refund before that deadline. When eligible, use the following
+read/verify sequence:
+
+1. On Arc Testnet, read `getPayment(requestKey)` from the existing escrow and
+   confirm the exact request key, original payer, amount `1000000`, and
+   `status=ESCROWED`.
+2. Call `refund(requestKey)` on the existing escrow. It is permissionless, but
+   the escrow always transfers the funds to the payer stored in the record; it
+   does not accept a caller-selected recipient.
+3. Verify a successful Arc receipt containing one `PaymentRefunded` event from
+   the existing escrow and read `getPayment(requestKey)` again to confirm
+   `status=REFUNDED`.
+4. Only then call the current V4
+   `confirm_arc_refund(requestId, refundTxHash, logIndex)` and wait for
+   `FINALIZED`, `MAJORITY_AGREE`, and successful GenVM execution.
+5. Read `get_request(requestId)` and confirm `state=REFUNDED` and
+   `payment_state=REFUNDED`. No assessment or settlement transaction belongs
+   to this request.
+
+`scripts/refund-v4-payment.mjs` contains the authenticated operator flow, but
+it must not be run before the deadline and its environment must point to the
+old V4/escrow pair. The frontend refund flow uses the same on-chain state and
+must not display a 1970 date when no escrow exists. If an old Arc log query is
+pruned, the stored V4 transaction/log/block reference is used first; a bounded
+recent log scan is only a fallback. Refund itself uses the transaction receipt
+and does not require a block-zero history query.
+
+Making this request assessable with the unified attestation cannot be done by
+changing the frontend: the current V4 has no unified-EAS write method, and the
+old escrow is bound to the old V4 address. After the old deposit is refunded,
+the minimum compatible path is an explicitly approved new V4 deployment, a
+fresh Arc escrow bound to that new address, a new request, and a new payment.
+The existing EAS attestation can be reused as evidence; the old escrow deposit
+cannot be reused as payment.

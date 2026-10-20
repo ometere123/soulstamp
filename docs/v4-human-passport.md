@@ -27,6 +27,58 @@ test-mode instructions at <https://app.passport.xyz> and the Human Passport
 documentation. Test-mode evidence must be labelled as testnet evidence; V4
 does not synthesize scores.
 
+## Unified EAS compatibility correction — prepared, not deployed
+
+The current Human Passport record for the SoulStamp subject wallet is a valid
+unified EAS attestation, not a legacy decoder record. Its independently read
+facts are:
+
+- Optimism Sepolia `11155420`, EAS `0x4200000000000000000000000000000000000021`;
+- recipient `0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09`;
+- attestation UID
+  `0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813`;
+- schema UID
+  `0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8`;
+- permitted attester `0x8B1A76795e3CbadD79C5410d2C4D4827D9C1503a`;
+- Schema Registry resolver `0xa2c832b63A20C06CCc2Ca31c12b8248452729a4D`;
+- scorer `335`, raw score `446980`, four decimals (`44.6980`), raw threshold
+  `200000`, `passing_score=true`;
+- created at `2026-10-19T13:06:08Z`, expires at
+  `2027-01-17T13:05:57Z`, and no revocation was reported at the pinned read.
+
+The official legacy decoder at
+`0xe53C60F8069C2f0c3a84F9B3DB5cf56f3100ba56` still points at historical
+Passport schemas. Its documented `getScore(address)` read returns
+`0x120a2e77` (`AttestationNotFound`) for this current unified record. That is a
+confirmed compatibility defect in the deployed reader, not a reason to reject
+the EAS attestation or to substitute a user-entered score.
+
+The two-argument legacy lookup `getScore(uint256,address)` was also tried with
+approved scorer ID `335` and this subject wallet; the deployed decoder returned
+the same `0x120a2e77` (`AttestationNotFound`). It therefore cannot be used as a
+compatibility bridge for the unified record.
+
+The prepared V4 source adds `refresh_humanity_evidence_unified`, which reads the
+complete EAS `getAttestation(bytes32)` record and the Schema Registry at one
+pinned block. It strictly checks the chain, EAS and Registry code, UID, schema,
+resolver, permitted attester, recipient, timestamps, revocation, scorer,
+numeric precision, threshold, passing flag, bounded stamp array, and evidence
+commitment. Each validator independently retrieves the same decision-critical
+facts before a snapshot is accepted. The legacy decoder path remains available
+for records it can genuinely verify.
+
+The prepared source is `soulstamp-v4.2-unified-passport-compatibility` with
+LF-normalized SHA-256
+`c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`. It is
+not the source of the currently deployed V4 and therefore has no deployed
+parity claim. Because GenLayer contracts are not upgraded in place and the Arc
+escrow is bound to the current V4 address, using this path requires explicit
+approval for a new V4 plus a fresh compatible Arc escrow. The old escrow cannot
+be migrated or reused.
+
+The full read-only record is in
+[`artifacts/live/v4-unified-passport-readiness.json`](../artifacts/live/v4-unified-passport-readiness.json).
+
 ## Current read-only audit
 
 At Optimism Sepolia block `50307497` (hash

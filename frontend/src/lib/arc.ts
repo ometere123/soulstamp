@@ -67,7 +67,21 @@ export type ArcDepositReference = {
   transactionHash: Hash;
   logIndex: number;
   blockNumber: bigint;
+  source?: "v4-request-state" | "bounded-log-scan";
 };
+
+export function boundedArcLogRanges(latest: bigint, maxScan = 100_000n, windowSize = 10_000n): Array<{ fromBlock: bigint; toBlock: bigint }> {
+  if (latest < 0n || maxScan <= 0n || windowSize <= 0n) return [];
+  const lowerBound = latest > maxScan ? latest - maxScan + 1n : 0n;
+  const ranges: Array<{ fromBlock: bigint; toBlock: bigint }> = [];
+  for (let end = latest; end >= lowerBound; end = end > windowSize ? end - windowSize : 0n) {
+    const start = end >= windowSize - 1n ? end - (windowSize - 1n) : 0n;
+    const fromBlock = start < lowerBound ? lowerBound : start;
+    ranges.push({ fromBlock, toBlock: end });
+    if (fromBlock === lowerBound) break;
+  }
+  return ranges;
+}
 
 type Eip1193 = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -157,18 +171,37 @@ export async function readArcPayment(requestKey: `0x${string}`) {
 
 /** Recover a deposit after a browser interruption from the escrow record and
  * its authenticated PaymentDeposited log. No second payment is submitted. */
-export async function findArcDepositReference(requestKey: `0x${string}`): Promise<ArcDepositReference> {
-  const logs = await getArcPublicClient().getLogs({
-    address: escrowAddress(),
-    event: paymentDepositedEvent,
-    args: { requestId: requestKey },
-    fromBlock: 0n,
-  });
-  const log = logs[logs.length - 1];
-  if (!log?.transactionHash || log.logIndex === undefined || log.blockNumber === undefined) {
-    throw new Error("Arc escrow contains a deposit but its PaymentDeposited log could not be recovered.");
+export async function findArcDepositReference(requestKey: `0x${string}`, known?: Partial<ArcDepositReference>): Promise<ArcDepositReference> {
+  if (known?.transactionHash && known.logIndex !== undefined && known.blockNumber !== undefined) {
+    return {
+      transactionHash: known.transactionHash,
+      logIndex: Number(known.logIndex),
+      blockNumber: BigInt(known.blockNumber),
+      source: "v4-request-state",
+    };
   }
-  return { transactionHash: log.transactionHash, logIndex: Number(log.logIndex), blockNumber: log.blockNumber };
+  const client = getArcPublicClient();
+  const latest = await client.getBlockNumber();
+  for (const { fromBlock, toBlock } of boundedArcLogRanges(latest)) {
+    try {
+      const logs = await client.getLogs({
+        address: escrowAddress(),
+        event: paymentDepositedEvent,
+        args: { requestId: requestKey },
+        fromBlock,
+        toBlock,
+      });
+      const log = logs[logs.length - 1];
+      if (log?.transactionHash && log.logIndex !== undefined && log.blockNumber !== undefined) {
+        return { transactionHash: log.transactionHash, logIndex: Number(log.logIndex), blockNumber: log.blockNumber, source: "bounded-log-scan" };
+      }
+    } catch {
+      // Public RPC providers may reject a range or prune old history. Keep the
+      // scan bounded and continue; a V4 request-state reference is authoritative
+      // once confirm_arc_payment has accepted the deposit.
+    }
+  }
+  throw new Error("Arc escrow contains a deposit but no bounded PaymentDeposited log was recoverable. Resume with the V4-recorded deposit reference or a provider with that bounded history.");
 }
 
 export async function readArcBalance(wallet: string): Promise<bigint> {

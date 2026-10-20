@@ -40,6 +40,10 @@ const escrowAbi = parseAbi([
 ]);
 const payment = await publicClient.readContract({ address: ESCROW, abi: escrowAbi, functionName: "getPayment", args: [requestKey] });
 if (Number(payment.status) !== 1) throw new Error(`Payment is not escrowed; status ${payment.status}`);
+if (account.address.toLowerCase() !== String(payment.payer).toLowerCase()) throw new Error("Refund signer must be the original payer stored in the escrow record");
+const refundAvailableAt = Number(payment.depositedAt) + 72 * 60 * 60;
+if (!Number.isSafeInteger(refundAvailableAt)) throw new Error("Escrow depositedAt is outside the safe timestamp range");
+if (Math.floor(Date.now() / 1000) < refundAvailableAt) throw new Error(`Refund is not eligible until ${new Date(refundAvailableAt * 1000).toISOString()}`);
 const hash = await walletClient.writeContract({ address: ESCROW, abi: escrowAbi, functionName: "refund", args: [requestKey], account, chain });
 const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
 if (receipt.status !== "success") throw new Error(`Refund reverted: ${hash}`);

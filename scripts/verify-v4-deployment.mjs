@@ -30,7 +30,7 @@ function jsonSafe(value) {
 }
 
 const client = createClient({ chain: studionet, endpoint: "https://studio.genlayer.com/api" });
-const expectedVersion = config("V4_CONTRACT_VERSION", "soulstamp-v4.1-trustpass-security-correction");
+const expectedVersion = config("V4_CONTRACT_VERSION", "soulstamp-v4.2-unified-passport-compatibility");
 const receipt = await client.waitForTransactionReceipt({
   hash: deploymentTx,
   status: TransactionStatus.FINALIZED,
@@ -56,6 +56,12 @@ const expectedAdmin = config("V4_ADMIN_ADDRESS", "").toLowerCase();
 if (stats.contract_version !== expectedVersion) throw new Error(`V4 contract version mismatch: expected ${expectedVersion}`);
 if (stats.v3_contract_address?.toLowerCase() !== config("V3_SOULSTAMP_CONTRACT_ADDRESS", "0x4ed8aF93E64F6411826DeEaa6d2af68DD67C9c3d").toLowerCase()) throw new Error("V3 linkage mismatch");
 if (expectedAdmin && stats.admin?.toLowerCase() !== expectedAdmin) throw new Error("V4 admin mismatch");
+if (expectedVersion.includes("v4.2-unified-passport-compatibility")) {
+  if (stats.human_passport_evidence_mode !== "EAS_UNIFIED_V1_WITH_LEGACY_FALLBACK") throw new Error("Unified Human Passport evidence mode is not configured");
+  if (stats.human_passport_unified_schema_uid?.toLowerCase() !== "0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8") throw new Error("Unified Human Passport schema UID mismatch");
+  if (stats.human_passport_unified_resolver?.toLowerCase() !== "0xa2c832b63a20c06ccc2ca31c12b8248452729a4d") throw new Error("Unified Human Passport resolver mismatch");
+  if (Number(stats.human_passport_approved_scorer_id) !== 335) throw new Error("Unified Human Passport scorer mismatch");
+}
 for (const field of ["total_policies", "total_requests", "total_assessments", "total_passes", "total_settlements", "total_refunds"]) {
   if (String(stats[field]) !== "0") throw new Error(`Initial state field ${field} is not zero`);
 }

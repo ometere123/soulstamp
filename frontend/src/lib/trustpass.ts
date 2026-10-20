@@ -51,6 +51,8 @@ export type TrustPassRequest = {
   google_commitment: string;
   humanity_snapshot_ref: string;
   arc_tx_hash: string;
+  arc_log_index?: number;
+  arc_deposit_block_number?: number;
   arc_settlement_tx_hash: string;
   arc_refund_tx_hash: string;
   payment_state: string;
@@ -184,6 +186,10 @@ export async function revokeGoogleAttestation(requestId: string) {
 
 export async function refreshHumanityEvidence(requestId: string, blockNumber: number) {
   return write("refresh_humanity_evidence", [requestId, blockNumber]);
+}
+
+export async function refreshUnifiedHumanityEvidence(requestId: string, attestationUid: string, blockNumber: number) {
+  return write("refresh_humanity_evidence_unified", [requestId, attestationUid, blockNumber]);
 }
 
 export async function confirmArcPayment(requestId: string, txHash: string, logIndex: number) {

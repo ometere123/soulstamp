@@ -56,3 +56,32 @@ frontend derives interrupted-payment state from the Arc escrow record and
 `PaymentDeposited` event, keyed by the original payer and request, so reloads
 cannot cause a second deposit. Refund success is displayed only after the Arc
 refund and the GenLayer refund confirmation both finalize successfully.
+
+## Unified EAS evidence adapter
+
+V4.2 adds a second, explicit Human Passport evidence path for the current
+unified EAS schema:
+
+`bool passing_score, uint8 score_decimals, uint128 scorer_id, uint32 score,
+uint32 threshold, tuple(string provider, uint256 score)[] stamps`
+
+The adapter reads `getAttestation(bytes32)` from the genuine Optimism Sepolia
+EAS contract and `getSchema(bytes32)` from the Schema Registry at one pinned
+block. It verifies chain ID, contract bytecode, UID, schema text, resolver,
+permitted Human Passport attester, recipient, creation/expiry/revocation,
+scorer ID, four-decimal precision, score/threshold relation, passing flag,
+bounded dynamic stamp data, and a commitment over the accepted facts. The
+leader and each validator retrieve these facts independently; a validator does
+not merely repeat a preselected verdict.
+
+The legacy decoder path remains separate and is accepted only when the
+configured decoder actually returns a valid score. The current deployed V4.1
+is legacy-only, so the V4.2 source is prepared but not live. Adding a frontend
+reader cannot alter the on-chain contract. A V4.2 release therefore requires a
+fresh V4 deployment and a fresh Arc escrow bound to that address; the old
+escrow and its existing deposit cannot be migrated into the new pair.
+
+Unified evidence is an acceptance-time, pinned-block snapshot with explicit
+expiry and revocation facts. It is not a continuously live humanity oracle.
+Consumers must enforce the stored evidence age and pass expiry, and the user
+must refresh evidence for a new assessment when the policy requires it.
