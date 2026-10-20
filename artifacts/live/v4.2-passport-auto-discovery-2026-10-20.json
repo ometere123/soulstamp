@@ -128,10 +128,10 @@
   "vercel": {
     "project": "delealufejoel-4184s-projects/soulstamp",
     "production": {
-      "deployment_id": "dpl_7TZ4pv5Xuay6kyNkXUEwSWeAhLNV",
+      "deployment_id": "dpl_9VcqDR7n8kyYkx95De6gExQ3xs3J",
       "url": "https://soulstamp-gen.vercel.app",
-      "deployment_url": "https://soulstamp-5l33pfpio-delealufejoel-4184s-projects.vercel.app",
-      "inspect_url": "https://vercel.com/delealufejoel-4184s-projects/soulstamp/7TZ4pv5Xuay6kyNkXUEwSWeAhLNV",
+      "deployment_url": "https://soulstamp-g294cjtu8-delealufejoel-4184s-projects.vercel.app",
+      "inspect_url": "https://vercel.com/delealufejoel-4184s-projects/soulstamp/9VcqDR7n8kyYkx95De6gExQ3xs3J",
       "status": "READY",
       "bundle_checks": {
         "active_v4_address_present": true,

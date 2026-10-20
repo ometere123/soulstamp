@@ -11,7 +11,7 @@ The v3 contribution is a lifecycle state machine, not a UI-only refresh: a consu
 | Service | URL |
 |---|---|
 | Frontend | https://soulstamp-gen.vercel.app |
-| Preview deployment | https://soulstamp-ifbrc26ea-delealufejoel-4184s-projects.vercel.app |
+| Preview deployment | https://soulstamp-o6uiotme4-delealufejoel-4184s-projects.vercel.app |
 | Discord Worker | https://soulstamp-discord.delealufejoel.workers.dev |
 | Repository | https://github.com/ometere123/soulstamp |
 
@@ -53,8 +53,8 @@ LF-normalized source SHA-256: fe0b21907b1612f839da126d91a0dd2d7a9ccdb4f021512fa6
 Arc Testnet 5042002 escrow: 0x53eeb55fcb5253d6640a5db8c3a7bea9deb9316f
 Arc deployment: https://explorer.testnet.arc.io/tx/0xebc88901a2f00f459f6e2e5baad0e1ca5a82052a917e452e2b036efe724844f0
 Arc binding: https://explorer.testnet.arc.io/tx/0x7fc07c9fbac09cad0df21f6fd8b3e2e2c046f8e21c2d680eda5120695e93b703
-Vercel Production: dpl_DEpMTuf2gxN6FzdRBS52RWSNUgjR READY
-Vercel Preview: dpl_5ansqaEkxLF1gnemp8FHvpfL7gsB READY
+Vercel Production: dpl_9VcqDR7n8kyYkx95De6gExQ3xs3J READY
+Vercel Preview: dpl_AxUrUu6VcM3Le2kj7ZYDGQ9Xdteo READY
 ```
 
 The corrected V4.2 source is exactly matched to the deployed GenLayer source
@@ -201,8 +201,8 @@ transactions. V3 remains unchanged at
 
 The existing Worker, Discord configuration and Google OAuth secrets were not
 changed. Vercel Production is READY at deployment
-`dpl_DEpMTuf2gxN6FzdRBS52RWSNUgjR` and Preview is READY at
-`dpl_5ansqaEkxLF1gnemp8FHvpfL7gsB`; both served bundles contain only the new
+`dpl_9VcqDR7n8kyYkx95De6gExQ3xs3J` and Preview is READY at
+`dpl_AxUrUu6VcM3Le2kj7ZYDGQ9Xdteo`; both served bundles contain only the new
 V4/Arc pair. The previous V4.2 pair remains preserved as historical evidence.
 
 The user’s existing unified EAS evidence is independently read-only verified as

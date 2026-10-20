@@ -269,7 +269,10 @@ settlement or refund write was submitted by this release.
 Vercel Production deployment `dpl_DEpMTuf2gxN6FzdRBS52RWSNUgjR` and Preview
 deployment `dpl_5ansqaEkxLF1gnemp8FHvpfL7gsB` are both READY. Authenticated
 bundle checks confirm the active V4/Arc pair is present and the superseded pair
-is absent.
+is absent; those deployment IDs remain historical. The current automatic
+Passport-discovery release is READY at Production deployment
+`dpl_9VcqDR7n8kyYkx95De6gExQ3xs3J` and Preview deployment
+`dpl_AxUrUu6VcM3Le2kj7ZYDGQ9Xdteo`.
 
 ## Engineering gates
 
@@ -320,8 +323,9 @@ lowercase wallet inputs. A bounded secondary indexer is used only when the
 primary result is empty or unavailable.
 `0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813`.
 
-Independent pinned Optimism Sepolia RPC decoding at block `50356420` (hash
-`0xc9e2cceb4aaf7f85115806b30b70c4dcd1be9f04d22fabb1ef577b5c672cff10`) still
+Independent pinned Optimism Sepolia RPC decoding at block `50358574` (hash
+`0x0ccbea3b9c462df15516fdd02daf6ce3035dd5ea508b7e0435f0e995e14e2f80`)
+still
 confirms recipient wallet `0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09`, unified
 schema, permitted attester, scorer `335`, raw score `446980` (`44.6980`), raw
 threshold `200000`, 15 stamps, expiry `2027-01-17T13:05:57Z`, and no revocation.
