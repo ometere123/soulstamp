@@ -990,50 +990,78 @@ class SoulStampTrustPass(gl.Contract):
         end = start + length
         padded_end = start + ((length + 31) // 32) * 32
         self._require(end <= len(body) // 2 and padded_end <= len(body) // 2, f"{label} string is truncated")
+        self._require(body[end * 2:padded_end * 2] == "0" * ((padded_end - end) * 2), f"{label} string ABI padding is non-zero")
         try:
             return bytes.fromhex(body[start * 2:end * 2]).decode("utf-8")
         except Exception:
             raise gl.vm.UserError(f"{ERROR_EXTERNAL} {label} is not valid UTF-8")
 
+    def _abi_dynamic_tuple_start(self, body: str, head_words: int, label: str) -> int:
+        """Return the start of a single dynamic tuple ABI return value."""
+        body_bytes = len(body) // 2
+        self._require(body_bytes >= 32, f"{label} is truncated")
+        tuple_start = self._abi_uint(body, 0, f"{label} tuple offset")
+        self._require(tuple_start == 32, f"{label} tuple offset is malformed")
+        self._require(tuple_start + (int(head_words) * 32) <= body_bytes, f"{label} tuple head is truncated")
+        return tuple_start
+
     def _decode_eas_attestation(self, raw: str) -> dict:
         body = self._hex_body(raw, "Human Passport EAS attestation")
-        # EAS Attestation is a tuple of nine static values followed by bytes data.
-        self._require(len(body) >= 10 * 64, "Human Passport EAS attestation is truncated")
-        data_offset = self._abi_uint(body, 9 * 32, "EAS data")
+        # getAttestation returns one dynamic tuple in the official EAS order:
+        # uid, schema, time, expirationTime, revocationTime, refUID,
+        # recipient, attester, revocable, data.
+        tuple_start = self._abi_dynamic_tuple_start(body, 10, "Human Passport EAS attestation")
+        body_bytes = len(body) // 2
+        data_relative_offset = self._abi_uint(body, tuple_start + 9 * 32, "EAS data")
+        self._require(data_relative_offset >= 10 * 32 and data_relative_offset % 32 == 0, "EAS data offset is malformed")
+        data_offset = tuple_start + data_relative_offset
         data_length = self._abi_uint(body, data_offset, "EAS data")
+        self._require(data_length <= MAX_HUMAN_PASSPORT_RESPONSE_BYTES, "EAS data is too large")
         data_start = data_offset + 32
         data_end = data_start + data_length
         padded_end = data_start + ((data_length + 31) // 32) * 32
-        self._require(padded_end == len(body) // 2, "Human Passport EAS attestation has trailing or missing ABI data")
-        revocable = self._abi_uint(body, 5 * 32, "EAS revocable")
+        self._require(data_end <= body_bytes and padded_end == body_bytes, "Human Passport EAS attestation has trailing or missing ABI data")
+        self._require(body[data_end * 2:padded_end * 2] == "0" * ((padded_end - data_end) * 2), "EAS data ABI padding is non-zero")
+        time_value = self._abi_uint(body, tuple_start + 2 * 32, "EAS creation time")
+        expiration_time = self._abi_uint(body, tuple_start + 3 * 32, "EAS expiration time")
+        revocation_time = self._abi_uint(body, tuple_start + 4 * 32, "EAS revocation time")
+        self._require(time_value <= 18446744073709551615, "EAS creation time exceeds uint64")
+        self._require(expiration_time <= 18446744073709551615, "EAS expiration time exceeds uint64")
+        self._require(revocation_time <= 18446744073709551615, "EAS revocation time exceeds uint64")
+        revocable = self._abi_uint(body, tuple_start + 8 * 32, "EAS revocable")
         self._require(revocable in (0, 1), "Human Passport EAS revocable flag is malformed")
         return {
-            "uid": "0x" + self._abi_word(body, 0, "EAS UID"),
-            "schema": "0x" + self._abi_word(body, 32, "EAS schema"),
-            "time": self._abi_uint(body, 2 * 32, "EAS creation time"),
-            "expiration_time": self._abi_uint(body, 3 * 32, "EAS expiration time"),
-            "revocation_time": self._abi_uint(body, 4 * 32, "EAS revocation time"),
+            "uid": "0x" + self._abi_word(body, tuple_start, "EAS UID"),
+            "schema": "0x" + self._abi_word(body, tuple_start + 32, "EAS schema"),
+            "time": time_value,
+            "expiration_time": expiration_time,
+            "revocation_time": revocation_time,
             "revocable": bool(revocable),
-            "ref_uid": "0x" + self._abi_word(body, 6 * 32, "EAS reference UID"),
-            "recipient": self._abi_address(self._abi_word(body, 7 * 32, "EAS recipient"), "EAS recipient"),
-            "attester": self._abi_address(self._abi_word(body, 8 * 32, "EAS attester"), "EAS attester"),
+            "ref_uid": "0x" + self._abi_word(body, tuple_start + 5 * 32, "EAS reference UID"),
+            "recipient": self._abi_address(self._abi_word(body, tuple_start + 6 * 32, "EAS recipient"), "EAS recipient"),
+            "attester": self._abi_address(self._abi_word(body, tuple_start + 7 * 32, "EAS attester"), "EAS attester"),
             "data": "0x" + body[data_start * 2:data_end * 2],
         }
 
     def _decode_schema_record(self, raw: str) -> dict:
         body = self._hex_body(raw, "Human Passport schema record")
-        self._require(len(body) >= 3 * 64, "Human Passport schema record is truncated")
-        schema_offset = self._abi_uint(body, 0, "schema string")
+        # SchemaRecord is (bytes32 uid, address resolver, bool revocable,
+        # string schema), returned as one dynamic tuple with an outer offset.
+        tuple_start = self._abi_dynamic_tuple_start(body, 4, "Human Passport schema record")
+        schema_relative_offset = self._abi_uint(body, tuple_start + 3 * 32, "schema string")
+        self._require(schema_relative_offset >= 4 * 32 and schema_relative_offset % 32 == 0, "schema string offset is malformed")
+        schema_offset = tuple_start + schema_relative_offset
         schema = self._abi_utf8(body, schema_offset, "Human Passport schema")
         schema_length = self._abi_uint(body, schema_offset, "Human Passport schema length")
         schema_end = schema_offset + 32 + schema_length
         padded_end = schema_offset + 32 + ((schema_length + 31) // 32) * 32
         self._require(padded_end == len(body) // 2, "Human Passport schema record has trailing or missing ABI data")
-        revocable = self._abi_uint(body, 2 * 32, "schema revocable")
+        revocable = self._abi_uint(body, tuple_start + 2 * 32, "schema revocable")
         self._require(revocable in (0, 1), "Human Passport schema revocable flag is malformed")
         return {
+            "uid": "0x" + self._abi_word(body, tuple_start, "schema UID"),
             "schema": schema,
-            "resolver": self._abi_address(self._abi_word(body, 32, "schema resolver"), "schema resolver"),
+            "resolver": self._abi_address(self._abi_word(body, tuple_start + 32, "schema resolver"), "schema resolver"),
             "revocable": bool(revocable),
         }
 
@@ -1116,6 +1144,7 @@ class SoulStampTrustPass(gl.Contract):
             [{"to": HUMAN_PASSPORT_SCHEMA_REGISTRY_ADDRESS, "data": HUMAN_PASSPORT_GET_SCHEMA_SELECTOR + HUMAN_PASSPORT_UNIFIED_SCHEMA_UID[2:]}, block_tag],
         )
         schema = self._decode_schema_record(str(schema_raw or ""))
+        self._require(schema["uid"] == HUMAN_PASSPORT_UNIFIED_SCHEMA_UID, "Human Passport schema registry UID mismatch")
         self._require(schema["schema"] == HUMAN_PASSPORT_UNIFIED_SCHEMA, "Human Passport schema definition mismatch")
         self._require(schema["resolver"] == HUMAN_PASSPORT_UNIFIED_RESOLVER, "Human Passport schema resolver mismatch")
         self._require(schema["revocable"] is True, "Human Passport schema must be revocable")

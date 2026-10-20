@@ -1,5 +1,9 @@
 import json
 import os
+from pathlib import Path
+
+
+REAL_EAS_FIXTURE = json.loads((Path(__file__).resolve().parents[1] / "fixtures" / "human-passport-eas-real.json").read_text(encoding="utf-8"))
 
 
 CONTRACT = "contracts/soulstamp_trustpass.py"
@@ -80,13 +84,13 @@ def eas_attestation(*, recipient=OWNER, schema=UNIFIED_SCHEMA_UID, attester=OFFI
     data = data or unified_data()
     padded_data = data[2:].ljust(((len(data) - 2 + 63) // 64) * 64, "0")
     return "0x" + "".join([
-        ATTESTATION_UID[2:], schema[2:], abi_word(PASSPORT_CREATED), abi_word(expiration), abi_word(revocation), abi_word(1), abi_word(0),
-        abi_word(recipient), abi_word(attester), abi_word(320), abi_word((len(data) - 2) // 2), padded_data,
+        abi_word(32), ATTESTATION_UID[2:], schema[2:], abi_word(PASSPORT_CREATED), abi_word(expiration), abi_word(revocation), abi_word(0),
+        abi_word(recipient), abi_word(attester), abi_word(1), abi_word(320), abi_word((len(data) - 2) // 2), padded_data,
     ])
 
 
 def schema_record(schema="bool passing_score, uint8 score_decimals, uint128 scorer_id, uint32 score, uint32 threshold, tuple(string provider, uint256 score)[] stamps", resolver=UNIFIED_RESOLVER):
-    return "0x" + abi_word(96) + abi_word(resolver) + abi_word(1) + abi_string(schema)
+    return "0x" + abi_word(32) + UNIFIED_SCHEMA_UID[2:] + abi_word(resolver) + abi_word(1) + abi_word(128) + abi_string(schema)
 
 
 def unified_rpc_fixture(*, recipient=OWNER, schema=UNIFIED_SCHEMA_UID, attester=OFFICIAL_ATTESTER, data=None, expiration=PASSPORT_EXPIRATION, revocation=0, resolver=UNIFIED_RESOLVER):
@@ -104,6 +108,27 @@ def unified_rpc_fixture(*, recipient=OWNER, schema=UNIFIED_SCHEMA_UID, attester=
             if str(call.get("to", "")).lower() == SCHEMA_REGISTRY:
                 return schema_record(resolver=resolver)
         raise AssertionError((method, params))
+    return rpc
+
+
+def real_unified_rpc_fixture():
+    block_number = int(REAL_EAS_FIXTURE["block"]["number"])
+
+    def rpc(method, params):
+        if method == "eth_chainId":
+            return "0xaa37dc"
+        if method == "eth_getBlockByNumber":
+            return {"number": hex(block_number), "hash": REAL_EAS_FIXTURE["block"]["hash"], "timestamp": hex(int(REAL_EAS_FIXTURE["block"]["timestamp"]))}
+        if method == "eth_getCode":
+            return "0x6001600155"
+        if method == "eth_call":
+            call = params[0]
+            if str(call.get("to", "")).lower() == EAS:
+                return REAL_EAS_FIXTURE["eas"]["raw"]
+            if str(call.get("to", "")).lower() == SCHEMA_REGISTRY:
+                return REAL_EAS_FIXTURE["schemaRegistry"]["raw"]
+        raise AssertionError((method, params))
+
     return rpc
 
 
@@ -272,6 +297,27 @@ def test_unified_human_passport_attestation_is_independently_decoded_and_snapsho
     facts = contract._humanity_facts(contract.get_request(request["request_id"]), contract.get_policy("unified-passport-v1"), PASSPORT_CREATED + 60)
     assert facts["valid"] is True
     assert facts["reason"] == "HUMANITY_UNIFIED_ATTESTATION_VALID"
+
+
+def test_captured_real_eas_and_schema_responses_decode_to_authenticated_facts(direct_vm, direct_deploy, monkeypatch):
+    contract = deploy(direct_deploy)
+    monkeypatch.setattr(contract, "_passport_rpc", real_unified_rpc_fixture())
+    facts = contract._passport_unified_stable_facts(
+        REAL_EAS_FIXTURE["wallet"],
+        REAL_EAS_FIXTURE["attestationUid"],
+        int(REAL_EAS_FIXTURE["block"]["number"]),
+    )
+    assert facts["wallet"] == REAL_EAS_FIXTURE["wallet"].lower()
+    assert facts["block_hash"] == REAL_EAS_FIXTURE["block"]["hash"]
+    assert facts["schema_uid"] == REAL_EAS_FIXTURE["schemaRegistry"]["decoded"]["uid"]
+    assert facts["resolver"] == REAL_EAS_FIXTURE["schemaRegistry"]["decoded"]["resolver"].lower()
+    assert facts["attester"] == REAL_EAS_FIXTURE["eas"]["decoded"]["attester"].lower()
+    assert facts["expiration_time"] == int(REAL_EAS_FIXTURE["eas"]["decoded"]["expirationTime"])
+    assert facts["revocation_time"] == 0
+    assert facts["scorer_id"] == 335
+    assert facts["raw_score"] == 446980
+    assert facts["threshold_raw"] == 200000
+    assert facts["passing_score"] is True
 
 
 def test_unified_passport_rejects_wrong_recipient_schema_attester_and_revocation(direct_vm, direct_deploy, monkeypatch):

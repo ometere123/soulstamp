@@ -79,6 +79,7 @@ function utf8At(body: string, byteOffset: number, label: string): { value: strin
   const end = start + length;
   const paddedEnd = start + Math.ceil(length / 32) * 32;
   if (paddedEnd * 2 > body.length) throw new Error(`${label} is truncated.`);
+  if (!/^0*$/.test(body.slice(end * 2, paddedEnd * 2))) throw new Error(`${label} ABI padding is non-zero.`);
   try {
     const bytes = new Uint8Array(length);
     for (let i = 0; i < length; i += 1) bytes[i] = Number.parseInt(body.slice((start + i) * 2, (start + i + 1) * 2), 16);
@@ -86,6 +87,15 @@ function utf8At(body: string, byteOffset: number, label: string): { value: strin
   } catch {
     throw new Error(`${label} is not valid UTF-8.`);
   }
+}
+
+function dynamicTupleStart(body: string, headWords: number, label: string): number {
+  const bodyBytes = body.length / 2;
+  if (bodyBytes < 32) throw new Error(`${label} is truncated.`);
+  const tupleStart = uint(body, 0, `${label} tuple offset`);
+  if (tupleStart !== 32 || tupleStart % 32 !== 0) throw new Error(`${label} tuple offset is malformed.`);
+  if (tupleStart + headWords * 32 > bodyBytes) throw new Error(`${label} tuple head is truncated.`);
+  return tupleStart;
 }
 
 function codeAt(block: number, address: string): Promise<string> {
@@ -107,38 +117,48 @@ type EasAttestation = {
 
 function decodeEasAttestation(raw: string): EasAttestation {
   const body = hexBody(raw, "Human Passport EAS attestation");
-  if (body.length < 10 * 64) throw new Error("Human Passport EAS attestation is truncated.");
-  const dataOffset = uint(body, 9 * 32, "EAS data");
+  const tupleStart = dynamicTupleStart(body, 10, "Human Passport EAS attestation");
+  const bodyBytes = body.length / 2;
+  const dataRelativeOffset = uint(body, tupleStart + 9 * 32, "EAS data");
+  if (dataRelativeOffset < 10 * 32 || dataRelativeOffset % 32 !== 0) throw new Error("EAS data offset is malformed.");
+  const dataOffset = tupleStart + dataRelativeOffset;
   const dataLength = uint(body, dataOffset, "EAS data");
+  if (dataLength > 131072) throw new Error("EAS data is too large.");
   const dataStart = dataOffset + 32;
   const dataEnd = dataStart + dataLength;
   const paddedEnd = dataStart + Math.ceil(dataLength / 32) * 32;
-  if (paddedEnd * 2 !== body.length) throw new Error("Human Passport EAS attestation has trailing or missing ABI data.");
-  const revocable = uint(body, 5 * 32, "EAS revocable");
+  if (dataEnd > bodyBytes || paddedEnd * 2 !== body.length) throw new Error("Human Passport EAS attestation has trailing or missing ABI data.");
+  if (!/^0*$/.test(body.slice(dataEnd * 2, paddedEnd * 2))) throw new Error("EAS data ABI padding is non-zero.");
+  const time = uint(body, tupleStart + 2 * 32, "EAS creation time");
+  const expirationTime = uint(body, tupleStart + 3 * 32, "EAS expiration time");
+  const revocationTime = uint(body, tupleStart + 4 * 32, "EAS revocation time");
+  const revocable = uint(body, tupleStart + 8 * 32, "EAS revocable");
   if (revocable !== 0 && revocable !== 1) throw new Error("Human Passport EAS revocable flag is malformed.");
   return {
-    uid: `0x${word(body, 0, "EAS UID")}`,
-    schema: `0x${word(body, 32, "EAS schema")}`,
-    time: uint(body, 2 * 32, "EAS creation time"),
-    expirationTime: uint(body, 3 * 32, "EAS expiration time"),
-    revocationTime: uint(body, 4 * 32, "EAS revocation time"),
+    uid: `0x${word(body, tupleStart, "EAS UID")}`,
+    schema: `0x${word(body, tupleStart + 32, "EAS schema")}`,
+    time,
+    expirationTime,
+    revocationTime,
     revocable: revocable === 1,
-    refUid: `0x${word(body, 6 * 32, "EAS reference UID")}`,
-    recipient: addressFromWord(word(body, 7 * 32, "EAS recipient"), "EAS recipient"),
-    attester: addressFromWord(word(body, 8 * 32, "EAS attester"), "EAS attester"),
+    refUid: `0x${word(body, tupleStart + 5 * 32, "EAS reference UID")}`,
+    recipient: addressFromWord(word(body, tupleStart + 6 * 32, "EAS recipient"), "EAS recipient"),
+    attester: addressFromWord(word(body, tupleStart + 7 * 32, "EAS attester"), "EAS attester"),
     data: `0x${body.slice(dataStart * 2, dataEnd * 2)}`,
   };
 }
 
-function decodeSchemaRecord(raw: string): { schema: string; resolver: string; revocable: boolean } {
+function decodeSchemaRecord(raw: string): { uid: string; schema: string; resolver: string; revocable: boolean } {
   const body = hexBody(raw, "Human Passport schema record");
-  if (body.length < 3 * 64) throw new Error("Human Passport schema record is truncated.");
-  const schemaOffset = uint(body, 0, "schema string");
+  const tupleStart = dynamicTupleStart(body, 4, "Human Passport schema record");
+  const schemaRelativeOffset = uint(body, tupleStart + 3 * 32, "schema string");
+  if (schemaRelativeOffset < 4 * 32 || schemaRelativeOffset % 32 !== 0) throw new Error("schema string offset is malformed.");
+  const schemaOffset = tupleStart + schemaRelativeOffset;
   const decoded = utf8At(body, schemaOffset, "Human Passport schema");
   if (decoded.end * 2 !== body.length) throw new Error("Human Passport schema record has trailing or missing ABI data.");
-  const revocable = uint(body, 2 * 32, "schema revocable");
+  const revocable = uint(body, tupleStart + 2 * 32, "schema revocable");
   if (revocable !== 0 && revocable !== 1) throw new Error("Human Passport schema revocable flag is malformed.");
-  return { schema: decoded.value, resolver: addressFromWord(word(body, 32, "schema resolver"), "schema resolver"), revocable: revocable === 1 };
+  return { uid: `0x${word(body, tupleStart, "schema UID")}`, schema: decoded.value, resolver: addressFromWord(word(body, tupleStart + 32, "schema resolver"), "schema resolver"), revocable: revocable === 1 };
 }
 
 export type HumanPassportStamp = { provider: string; score: number };
@@ -246,7 +266,7 @@ export async function readUnifiedHumanPassport(wallet: string, attestationUid: s
   if (!attestation.revocable || attestation.revocationTime !== 0) throw new Error("Human Passport attestation is revoked or not safely revocable.");
   if (attestation.time > blockTimestamp || attestation.expirationTime <= blockTimestamp) throw new Error("Human Passport attestation is not valid at the pinned block.");
   const schema = decodeSchemaRecord(await rpc<string>("eth_call", [{ to: HUMAN_PASSPORT_SCHEMA_REGISTRY, data: `0xa2ea7c6e${HUMAN_PASSPORT_UNIFIED_SCHEMA_UID.slice(2)}` }, tag]));
-  if (schema.schema !== HUMAN_PASSPORT_UNIFIED_SCHEMA || schema.resolver !== HUMAN_PASSPORT_UNIFIED_RESOLVER || !schema.revocable) throw new Error("Human Passport schema registry record is not the approved unified configuration.");
+  if (schema.uid !== HUMAN_PASSPORT_UNIFIED_SCHEMA_UID || schema.schema !== HUMAN_PASSPORT_UNIFIED_SCHEMA || schema.resolver !== HUMAN_PASSPORT_UNIFIED_RESOLVER || !schema.revocable) throw new Error("Human Passport schema registry record is not the approved unified configuration.");
   const decoded = decodeUnifiedData(attestation.data);
   if (decoded.scoreDecimals !== 4 || decoded.scorerId !== HUMAN_PASSPORT_APPROVED_SCORER_ID || decoded.thresholdRaw !== HUMAN_PASSPORT_THRESHOLD_RAW) throw new Error("Human Passport score metadata is not approved.");
   if (decoded.passingScore !== (decoded.rawScore >= decoded.thresholdRaw)) throw new Error("Human Passport passing flag contradicts score and threshold.");

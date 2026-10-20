@@ -163,7 +163,8 @@ live ledger at [artifacts/live/v4-deployment.json](./artifacts/live/v4-deploymen
 The current V4.2 TrustPass contract is deployed at
 `0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2` on Studionet `61999` with
 `FINALIZED / MAJORITY_AGREE / FINISHED_WITH_RETURN / SUCCESS` deployment
-execution and exact LF-normalized source parity. The source hash is
+execution and exact LF-normalized parity for the pre-correction source. The
+source hash is
 `c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`. The
 fresh Arc Testnet escrow is `0x686f8ab8ce08512af72ab26c78a98a23ea8b71be` on
 chain `5042002`, configured to that V4 address. See the [GenLayer deployment](https://explorer-studio.genlayer.com/tx/0xa3475265f2f0cef9c3fdcb7c49d81f9c3d04eb90257da31b5a56a29f0df6ff0d),
@@ -581,11 +582,19 @@ typed frontend score.
 
 The historical V4.1 deployment at `0x886582aB1a45452880685b6a50c748cAb7c954ce`
 still uses the legacy decoder, whose `getScore` call returns `0x120a2e77` for
-this unified record. The corrected V4.2 source is now deployed at
-`0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2`; it adds strict direct EAS
-verification with independent validator reads and keeps the legacy fallback.
-Its exact LF-normalized source hash is
+this unified record. The deployed V4.2 source was intended to add strict direct
+EAS verification, but the real-byte ABI audit found its tuple decoder omitted
+the outer dynamic offset and used the wrong EAS field positions. The corrected
+source is in the working tree and has executable real-response tests; it is not
+yet deployed. The pre-correction source hash is
 `c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`.
+
+The independent capture at Optimism Sepolia block `50306314` decodes the
+subject’s unified attestation as scorer `335`, raw score `446980` (`44.6980`),
+threshold `200000`, recipient `0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09`,
+and no revocation at the pinned read. The corrected ABI implementation and
+before/after evidence are recorded in
+[`artifacts/live/v4.2-eas-abi-correction-2026-10-20.json`](artifacts/live/v4.2-eas-abi-correction-2026-10-20.json).
 
 The historical funded request is intentionally preserved as `ESCROWED` on the
 old V4/Arc pair and has not been assessed or settled. Its authoritative

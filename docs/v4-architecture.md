@@ -76,10 +76,19 @@ not merely repeat a preselected verdict.
 
 The legacy decoder path remains separate and is accepted only when the
 configured decoder actually returns a valid score. The historical deployed
-V4.1 is legacy-only; V4.2 is now deployed with the direct unified-EAS reader
-and a fresh Arc escrow bound to that address. Adding a frontend reader alone
-could not alter the on-chain contract. The old escrow and its existing deposit
-remain bound to the historical V4.1 pair and cannot be migrated into V4.2.
+V4.1 is legacy-only. The deployed V4.2 contains the intended direct reader,
+but its first implementation was found to decode the dynamic EAS/Schema
+Registry return tuples incorrectly; the corrected reader is therefore an
+engineering change awaiting a replacement deployment. Adding a frontend reader
+alone could not alter the on-chain contract. The old escrow and its existing
+deposit remain bound to the historical V4.1 pair and cannot be migrated into
+V4.2.
+
+The official EAS return is `(uid, schema, time, expirationTime, revocationTime,
+refUID, recipient, attester, revocable, data)` inside an outer dynamic tuple;
+the Schema Registry return is `(uid, resolver, revocable, schema)` inside the
+same kind of tuple. The corrected implementation and real response capture are
+tracked in `artifacts/live/v4.2-eas-abi-correction-2026-10-20.json`.
 
 Unified evidence is an acceptance-time, pinned-block snapshot with explicit
 expiry and revocation facts. It is not a continuously live humanity oracle.

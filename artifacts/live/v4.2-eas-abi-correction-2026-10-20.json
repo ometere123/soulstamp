@@ -1,0 +1,102 @@
+{
+  "record_type": "v4.2_eas_abi_correction",
+  "status": "ENGINEERING_CORRECTED_NOT_DEPLOYED",
+  "network": "Optimism Sepolia",
+  "chain_id": 11155420,
+  "current_live_v42": {
+    "contract_address": "0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2",
+    "source_commit": "ae494fe5045b20a00babea3838c26e8989ab5e03",
+    "source_hash_lf_normalized": "c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4",
+    "deployment_transaction": "0xa3475265f2f0cef9c3fdcb7c49d81f9c3d04eb90257da31b5a56a29f0df6ff0d",
+    "defect_status": "confirmed_in_deployed_source; immutable contract requires replacement for on-chain correction"
+  },
+  "official_deployed_abi": {
+    "eas_getAttestation": "(bytes32 uid, bytes32 schema, uint64 time, uint64 expirationTime, uint64 revocationTime, bytes32 refUID, address recipient, address attester, bool revocable, bytes data)",
+    "schema_registry_getSchema": "(bytes32 uid, address resolver, bool revocable, string schema)",
+    "outer_return_shape": "one ABI dynamic tuple with a 0x20 outer offset; dynamic member offsets are relative to the tuple start",
+    "sources": [
+      "https://github.com/ethereum-attestation-service/eas-contracts/blob/master/contracts/ISchemaRegistry.sol",
+      "https://github.com/ethereum-attestation-service/eas-contracts/blob/master/deployments/arbitrum-one/EAS.json",
+      "https://github.com/ethereum-attestation-service/eas-contracts#deployments"
+    ]
+  },
+  "real_capture": {
+    "fixture": "tests/fixtures/human-passport-eas-real.json",
+    "wallet": "0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09",
+    "mint_transaction": "0x93930c72a9bcf30789f2fd5bdbb29f4f72ac2d71f6026e481406c411ff1f6260",
+    "attestation_uid": "0x65843ca97b6f8133713feeff548173b64cb5c7bf98839e68f77c701fb6d17813",
+    "schema_uid": "0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8",
+    "eas_address": "0x4200000000000000000000000000000000000021",
+    "schema_registry_address": "0x4200000000000000000000000000000000000020",
+    "block_number": 50306314,
+    "block_hash": "0x36f11b3f747410d8ebeeb4dbc0b028e2bf0a0837a7d2b28b4983f6ad4e75993f",
+    "block_timestamp": 1792415168,
+    "independent_decoder": "viem decodeFunctionResult using the official tuple component order"
+  },
+  "before_correction_reproduction": {
+    "eas": {
+      "observed_outer_offset": 32,
+      "old_flat_decoder_word_9_as_data_offset": 1,
+      "result": "REJECTED",
+      "failure": "The old flat decoder treated the revocable word as the data offset; byte offset 1 is not a valid 32-byte ABI offset."
+    },
+    "schema_registry": {
+      "observed_outer_offset": 32,
+      "old_flat_decoder_word_0_as_schema_offset": 32,
+      "word_read_as_old_schema_length": "0x81d8758ccd97bbeea7642df29001f6046a676b3c24f808c4297db5ee36838dd8",
+      "result": "REJECTED",
+      "failure": "The old flat decoder treated the outer offset as the string offset, then read the schema UID as an impossible string length and truncated."
+    }
+  },
+  "independent_decoding_result": {
+    "recipient": "0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09",
+    "attester": "0x8B1A76795e3CbadD79C5410d2C4D4827D9C1503a",
+    "resolver": "0xa2c832b63A20C06CCc2Ca31c12b8248452729a4D",
+    "revocable": true,
+    "revocation_time": 0,
+    "expiration_time": 1800191157,
+    "scorer_id": 335,
+    "score_decimals": 4,
+    "raw_score": 446980,
+    "threshold_raw": 200000,
+    "passing_score": true,
+    "display_score": "44.6980"
+  },
+  "corrected_implementation": {
+    "python_contract": "contracts/soulstamp_trustpass.py",
+    "typescript_adapter": "frontend/src/lib/humanPassport.ts",
+    "corrected_contract_source_hash_lf_normalized": "fe0b21907b1612f839da126d91a0dd2d7a9ccdb4f021512fa6b89b551f1d09a7",
+    "checks": [
+      "canonical outer tuple offset",
+      "official field order",
+      "relative dynamic bytes/string offsets",
+      "uint64 bounds",
+      "strict bool/address padding",
+      "bounded response and stamp arrays",
+      "schema UID, resolver, recipient, attester, score and threshold binding"
+    ],
+    "direct_mode_real_capture": "added",
+    "frontend_real_capture": "added"
+  },
+  "deployment_decision": {
+    "replacement_required": true,
+    "reason": "The live V4.2 contract is immutable and its deployed source contains the confirmed decoder defect; frontend-only correction cannot change GenLayer state-transition logic.",
+    "approval_required": "Explicit authorization to deploy a source-matched corrected V4 contract and a fresh Arc escrow bound to that new V4 address. No deployment or binding write was performed in this gate."
+  },
+  "vercel_read_only_check": {
+    "project": "delealufejoel-4184s-projects/soulstamp",
+    "production": {
+      "deployment_id": "dpl_8VwX1yULZRny8Uyf5FYHcxFz1cKn",
+      "status": "READY",
+      "url": "https://soulstamp-gen.vercel.app",
+      "bundle_status": "pre-correction frontend; no Vercel redeploy performed"
+    },
+    "preview": {
+      "deployment_id": "dpl_6vUZJN1Tx8a2P5sFNgHsowtxQHqv",
+      "status": "READY",
+      "url": "https://soulstamp-3r2zik676-delealufejoel-4184s-projects.vercel.app",
+      "bundle_status": "pre-correction frontend; no Vercel redeploy performed"
+    }
+  },
+  "live_acceptance": "UNEXECUTED: no new V4 deployment, assessment, settlement, or paid lifecycle was submitted."
+}

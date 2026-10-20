@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import realFixture from "../fixtures/human-passport-eas-real.json";
 import {
   HUMAN_PASSPORT_DECODER,
   HUMAN_PASSPORT_EAS,
@@ -40,13 +41,13 @@ function encodeUnifiedData(score = 446980, scorerId = 335, threshold = 200000) {
 }
 
 function encodeSchemaRecord(schema = HUMAN_PASSPORT_UNIFIED_SCHEMA, resolver = HUMAN_PASSPORT_UNIFIED_RESOLVER) {
-  return `0x${[word(96), word(`0x${resolver.slice(2)}`), word(1), bytesTail(schema)].join("")}`;
+  return `0x${[word(32), HUMAN_PASSPORT_UNIFIED_SCHEMA_UID.slice(2), word(`0x${resolver.slice(2)}`), word(1), word(128), bytesTail(schema)].join("")}`;
 }
 
 function encodeAttestation({ recipient = WALLET, schema = HUMAN_PASSPORT_UNIFIED_SCHEMA_UID, attester = HUMAN_PASSPORT_PERMITTED_ATTESTER, data = encodeUnifiedData(), expiration = EXPIRATION_TIME, revocation = 0 } = {}) {
   const payload = [
-    UID.slice(2), schema.slice(2), word(ATTESTATION_TIME), word(expiration), word(revocation), word(1), word(0),
-    word(`0x${recipient.slice(2)}`), word(`0x${attester.slice(2)}`), word(320),
+    word(32), UID.slice(2), schema.slice(2), word(ATTESTATION_TIME), word(expiration), word(revocation), word(0),
+    word(`0x${recipient.slice(2)}`), word(`0x${attester.slice(2)}`), word(1), word(320),
     word((data.length - 2) / 2), data.slice(2).padEnd(Math.ceil((data.length - 2) / 64) * 64, "0"),
   ];
   return `0x${payload.join("")}`;
@@ -62,6 +63,22 @@ function mockUnifiedRpc(overrides: { recipient?: string; schema?: string; attest
     else if (body.method === "eth_getCode") result = "0x6001600155";
     else if (body.method === "eth_call" && String(body.params?.[0]?.to || "").toLowerCase() === HUMAN_PASSPORT_EAS.toLowerCase()) result = encodeAttestation(overrides);
     else if (body.method === "eth_call" && String(body.params?.[0]?.to || "").toLowerCase() === HUMAN_PASSPORT_SCHEMA_REGISTRY.toLowerCase()) result = overrides.schemaRecord || encodeSchemaRecord();
+    else result = "0x";
+    return new Response(JSON.stringify({ jsonrpc: "2.0", id: body.id, result }), { status: 200 });
+  });
+}
+
+function mockCapturedUnifiedRpc() {
+  const blockNumber = Number(realFixture.block.number);
+  const blockTag = `0x${blockNumber.toString(16)}`;
+  return vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+    const body = JSON.parse(String(init?.body || "{}"));
+    let result: unknown;
+    if (body.method === "eth_chainId") result = "0xaa37dc";
+    else if (body.method === "eth_getBlockByNumber") result = { number: blockTag, hash: realFixture.block.hash, timestamp: `0x${Number(realFixture.block.timestamp).toString(16)}` };
+    else if (body.method === "eth_getCode") result = "0x6001600155";
+    else if (body.method === "eth_call" && String(body.params?.[0]?.to || "").toLowerCase() === HUMAN_PASSPORT_EAS.toLowerCase()) result = realFixture.eas.raw;
+    else if (body.method === "eth_call" && String(body.params?.[0]?.to || "").toLowerCase() === HUMAN_PASSPORT_SCHEMA_REGISTRY.toLowerCase()) result = realFixture.schemaRegistry.raw;
     else result = "0x";
     return new Response(JSON.stringify({ jsonrpc: "2.0", id: body.id, result }), { status: 200 });
   });
@@ -112,6 +129,24 @@ describe("Human Passport pinned decoder adapter", () => {
 });
 
 describe("Human Passport unified EAS adapter", () => {
+  it("decodes the captured real EAS and Schema Registry responses at the mint block", async () => {
+    mockCapturedUnifiedRpc();
+    const evidence = await readUnifiedHumanPassport(realFixture.wallet, realFixture.attestationUid, Number(realFixture.block.number));
+    expect(evidence.wallet).toBe(realFixture.wallet.toLowerCase());
+    expect(evidence.blockHash).toBe(realFixture.block.hash);
+    expect(evidence.attestationUid).toBe(realFixture.eas.decoded.uid);
+    expect(evidence.schemaUid).toBe(realFixture.schemaRegistry.decoded.uid);
+    expect(evidence.resolver).toBe(realFixture.schemaRegistry.decoded.resolver.toLowerCase());
+    expect(evidence.attester).toBe(realFixture.eas.decoded.attester.toLowerCase());
+    expect(evidence.expirationTime).toBe(Number(realFixture.eas.decoded.expirationTime));
+    expect(evidence.revocationTime).toBe(0);
+    expect(evidence.scorerId).toBe(335);
+    expect(evidence.rawScore).toBe(446980);
+    expect(evidence.thresholdRaw).toBe(200000);
+    expect(evidence.score?.toFixed(4)).toBe("44.6980");
+    expect(evidence.thresholdMet).toBe(true);
+  });
+
   it("decodes the real unified schema, four-decimal score and bounded stamps", async () => {
     mockUnifiedRpc();
     const evidence = await readUnifiedHumanPassport(WALLET, UID, 100);

@@ -27,7 +27,7 @@ test-mode instructions at <https://app.passport.xyz> and the Human Passport
 documentation. Test-mode evidence must be labelled as testnet evidence; V4
 does not synthesize scores.
 
-## Unified EAS compatibility correction — deployed V4.2
+## Unified EAS compatibility correction — live evidence and replacement gate
 
 The current Human Passport record for the SoulStamp subject wallet is a valid
 unified EAS attestation, not a legacy decoder record. Its independently read
@@ -58,22 +58,29 @@ approved scorer ID `335` and this subject wallet; the deployed decoder returned
 the same `0x120a2e77` (`AttestationNotFound`). It therefore cannot be used as a
 compatibility bridge for the unified record.
 
-The deployed V4.2 source adds `refresh_humanity_evidence_unified`, which reads the
-complete EAS `getAttestation(bytes32)` record and the Schema Registry at one
-pinned block. It strictly checks the chain, EAS and Registry code, UID, schema,
-resolver, permitted attester, recipient, timestamps, revocation, scorer,
-numeric precision, threshold, passing flag, bounded stamp array, and evidence
-commitment. Each validator independently retrieves the same decision-critical
-facts before a snapshot is accepted. The legacy decoder path remains available
-for records it can genuinely verify.
+The deployed V4.2 source includes `refresh_humanity_evidence_unified`, but the
+independent ABI audit found that its first implementation omitted the outer
+dynamic-tuple offset and used the wrong EAS field positions. It cannot be
+treated as a successful live refresh path until a corrected replacement is
+deployed. The corrected implementation now strictly checks the chain, EAS and
+Registry code, UID, schema, resolver, permitted attester, recipient, timestamps,
+revocation, scorer, numeric precision, threshold, passing flag, bounded stamp
+array, and evidence commitment. Each validator independently retrieves the same
+decision-critical facts before a snapshot is accepted. The legacy decoder path
+remains available for records it can genuinely verify.
 
-The V4.2 source is `soulstamp-v4.2-unified-passport-compatibility` with
-LF-normalized SHA-256
+The deployed pre-correction V4.2 source is
+`soulstamp-v4.2-unified-passport-compatibility` with LF-normalized SHA-256
 `c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`. It is
-deployed at `0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2` on Studionet `61999`
-with exact remote/local parity, `FINALIZED`, `MAJORITY_AGREE`,
-`FINISHED_WITH_RETURN`, and successful execution. Its fresh Arc escrow is
-`0x686f8ab8ce08512af72ab26c78a98a23ea8b71be`, bound once to that V4 address.
+deployed at `0xFdb126147cE5DFD9Cb461079d77cae5803E7E7F2` on Studionet `61999`,
+but that deployment is marked ABI-incompatible for unified evidence. The
+corrected source is not yet deployed. Its fresh Arc escrow is
+`0x686f8ab8ce08512af72ab26c78a98a23ea8b71be`, bound once to the old V4.2
+address. A replacement must use a fresh escrow; no old payment may be reused.
+The deployment receipt remains
+`FINALIZED`, `MAJORITY_AGREE`,
+`FINISHED_WITH_RETURN`, and successful execution for the old source, but this
+does not prove corrected unified refresh behavior.
 The earlier V4.2 pair with an empty Google issuer was superseded before any
 user state was created and is retained separately in the live ledger.
 
@@ -84,10 +91,10 @@ The full read-only record is in
 
 At the original Optimism Sepolia pinned read, the legacy decoder at
 `0xe53C60F8069C2f0c3a84F9B3DB5cf56f3100ba56` returned `0x120a2e77` for the
-unified UID because it is configured for historical schemas. V4.2 now reads
-the unified EAS record directly. The authenticated subject attestation is
-therefore compatible with the deployed V4.2 adapter, but the subject has not
-yet submitted a live `refresh_humanity_evidence_unified` transaction.
+unified UID because it is configured for historical schemas. The EAS record is
+valid and the corrected off-chain adapter reads it, but the deployed V4.2
+adapter has not passed the real-byte ABI gate; no live
+`refresh_humanity_evidence_unified` transaction is claimed.
 
 The earlier read was at Optimism Sepolia block `50307497` (hash
 `0x33d845abf8cf74181cd38fd5d0c56f0533386c95a9f047f02dbd03070386c5ab`), where

@@ -100,9 +100,19 @@ read/verify sequence:
    `payment_state=REFUNDED`. No assessment or settlement transaction belongs
    to this request.
 
-`scripts/refund-v4-payment.mjs` contains the authenticated operator flow, but
-it must not be run before the deadline and its environment must point to the
-old V4/escrow pair. The frontend refund flow uses the same on-chain state and
+`scripts/refund-v4-payment.mjs` contains the authenticated payer flow, but it
+must not be run before the deadline. It requires the historical V4 address,
+historical escrow address, and expected original payer explicitly on the command
+line, so a current `.env` address cannot silently redirect the refund. For this
+request the guarded command is:
+
+```text
+node scripts/refund-v4-payment.mjs 9FE94A1BD40CD33197241D5B780B2C448064C0C0C4BF34FF75026170D461CC7F 0x9a953df7ccd34a7db3f52a97d77ac0681038ec53b1c28f16009c6282573875d5 0x886582aB1a45452880685b6a50c748cAb7c954ce 0xe2a0118847cbf424dbd6f5761987624ea7aae72e 0xFd69A5D0b8330dC86e266304B3D1ABE3F57b9D09
+```
+
+Before any write it reads the historical V4 request/intent, confirms the exact
+escrow binding and payer, reads the Arc payment record, confirms the original
+payer signer and only then calls `refund`. The frontend refund flow uses the same on-chain state and
 must not display a 1970 date when no escrow exists. If an old Arc log query is
 pruned, the stored V4 transaction/log/block reference is used first; a bounded
 recent log scan is only a fallback. Refund itself uses the transaction receipt

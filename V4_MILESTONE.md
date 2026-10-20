@@ -19,7 +19,7 @@ The Sybil-resistant TrustPass additionally reads Human Passport evidence for
 the exact subject wallet. Neither tier claims that social accounts prove one
 human or prevents all multi-wallet participation.
 
-## Current V4.2 unified-Passport release
+## Current V4.2 unified-Passport release (deployed; ABI correction pending replacement)
 
 The deployed V4.2 contract source is from commit
 `ae494fe5045b20a00babea3838c26e8989ab5e03`. Its LF-normalized source hash is:
@@ -212,13 +212,15 @@ schema UID is
 
 The historical V4.1 decoder remains legacy-schema-only and returns
 `0x120a2e77` (`AttestationNotFound`) for this unified UID. The deployed V4.2
-source adds strict EAS `getAttestation` and Schema Registry reads at a pinned
-block, exact schema/resolver/attester/recipient/scorer checks, dynamic ABI
-decoding, evidence commitments, and independent validator re-reads. Its exact
-LF-normalized source hash is
+source contains the direct EAS and Schema Registry path, but the independent ABI
+audit found that its tuple decoder omits the outer dynamic-tuple offset and uses
+the wrong EAS field positions. Its exact pre-correction LF-normalized source
+hash is
 `c49fe8d5eb0f7f9771fb0a6c47c218c74c79d48e2aded5c664f1f573e556d5f4`, matching
-the deployed source. The old V4.1 escrow and its historical funded request
-remain separate; neither payment nor state is silently migrated into V4.2.
+the deployed pre-correction source. The corrected Python/TypeScript decoders
+and captured real-RPC regression fixtures are now in the working tree but have
+not been deployed. The old V4.1 escrow and its historical funded request remain
+separate; neither payment nor state is silently migrated into V4.2.
 The legacy `getScore(uint256,address)` form was also attempted with scorer
 `335` and returned the same `AttestationNotFound` revert.
 
@@ -236,6 +238,30 @@ procedure and no-write status are recorded in
 The old escrow is bound to the old V4, so the unified path uses the fresh V4.2
 pair after the old request is recovered. The old payment cannot be migrated or
 reused, and V3 remains unchanged.
+
+## V4.2 EAS ABI correction gate — 2026-10-20
+
+At Optimism Sepolia block `50306314`, the real `getAttestation(bytes32)` and
+`getSchema(bytes32)` responses both begin with the ABI outer offset `0x20`.
+Independent viem decoding of the captured responses confirms the subject wallet,
+UID, resolver, attester, expiration, scorer `335`, raw score `446980`, and raw
+threshold `200000`; the verified display is `44.6980`. Replaying the deployed
+flat decoder against those same bytes reads EAS word 9 (`1`) as a data offset and
+reads the Schema Registry outer offset (`32`) as a string offset, so both paths
+fail closed before producing evidence.
+
+The corrected decoder uses the official tuple order, relative dynamic offsets,
+bounded bytes/string data, strict padding and schema-UID validation. Executable
+Direct Mode and Vitest tests consume the captured response in
+[`tests/fixtures/human-passport-eas-real.json`](./tests/fixtures/human-passport-eas-real.json).
+The full audit is in
+[`artifacts/live/v4.2-eas-abi-correction-2026-10-20.json`](./artifacts/live/v4.2-eas-abi-correction-2026-10-20.json).
+
+Because the current V4.2 contract is immutable and the defect is in deployed
+GenLayer logic, a frontend-only update cannot repair the live reader. A future
+replacement requires explicit approval to deploy a corrected V4 and a fresh Arc
+escrow bound to that new address. No deployment, payment, assessment, settlement
+or refund write was submitted by this correction gate.
 
 ## Engineering gates
 
