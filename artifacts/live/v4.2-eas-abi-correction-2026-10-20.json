@@ -86,16 +86,16 @@
   "vercel_read_only_check": {
     "project": "delealufejoel-4184s-projects/soulstamp",
     "production": {
-      "deployment_id": "dpl_8VwX1yULZRny8Uyf5FYHcxFz1cKn",
+      "deployment_id": "dpl_4y5hyqQkUnxWhhN6yAa47iLgBpo6",
       "status": "READY",
       "url": "https://soulstamp-gen.vercel.app",
-      "bundle_status": "pre-correction frontend; no Vercel redeploy performed"
+      "bundle_status": "READY bundle contains corrected tuple decoder and current V4/Arc addresses; automatic Git deployment from e82a21d"
     },
     "preview": {
       "deployment_id": "dpl_6vUZJN1Tx8a2P5sFNgHsowtxQHqv",
       "status": "READY",
       "url": "https://soulstamp-3r2zik676-delealufejoel-4184s-projects.vercel.app",
-      "bundle_status": "pre-correction frontend; no Vercel redeploy performed"
+      "bundle_status": "READY older preview bundle; corrected frontend was not manually deployed to Preview in this gate"
     }
   },
   "live_acceptance": "UNEXECUTED: no new V4 deployment, assessment, settlement, or paid lifecycle was submitted."

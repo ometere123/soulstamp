@@ -263,6 +263,13 @@ replacement requires explicit approval to deploy a corrected V4 and a fresh Arc
 escrow bound to that new address. No deployment, payment, assessment, settlement
 or refund write was submitted by this correction gate.
 
+The push of the corrected source automatically produced a READY Production
+Vercel deployment (`dpl_4y5hyqQkUnxWhhN6yAa47iLgBpo6`) whose served bundle
+contains the corrected tuple decoder and current V4/Arc addresses. The existing
+READY Preview deployment (`dpl_6vUZJN1Tx8a2P5sFNgHsowtxQHqv`) remains a prior
+pre-correction bundle; no manual Preview deployment was performed before the
+on-chain replacement decision.
+
 ## Engineering gates
 
 ```text
