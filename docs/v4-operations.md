@@ -91,9 +91,11 @@ read/verify sequence:
 3. Verify a successful Arc receipt containing one `PaymentRefunded` event from
    the existing escrow and read `getPayment(requestKey)` again to confirm
    `status=REFUNDED`.
-4. Only then call the current V4
-   `confirm_arc_refund(requestId, refundTxHash, logIndex)` and wait for
-   `FINALIZED`, `MAJORITY_AGREE`, and successful GenVM execution.
+4. Only then call `confirm_arc_refund(requestId, refundTxHash, logIndex)` on the
+   historical V4.1 contract
+   `0x886582aB1a45452880685b6a50c748cAb7c954ce`, because that request and its
+   escrow are bound to that pair. Wait for `FINALIZED`, `MAJORITY_AGREE`, and
+   successful GenVM execution; do not send this confirmation to V4.2.
 5. Read `get_request(requestId)` and confirm `state=REFUNDED` and
    `payment_state=REFUNDED`. No assessment or settlement transaction belongs
    to this request.

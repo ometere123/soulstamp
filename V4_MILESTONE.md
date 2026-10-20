@@ -228,7 +228,8 @@ Arc escrow reports `ESCROWED`, amount `1000000`, and `depositedAt`
 `2026-10-22T23:03:49Z`. The original payer can use the existing escrow’s
 permissionless `refund(requestKey)` after that time; the funds always return to
 the stored payer. Only after a successful Arc receipt and `status=REFUNDED`
-should `confirm_arc_refund` be submitted on the current V4. The complete
+should `confirm_arc_refund` be submitted on the historical V4.1 contract
+`0x886582aB1a45452880685b6a50c748cAb7c954ce`, not on V4.2. The complete
 procedure and no-write status are recorded in
 [`artifacts/live/v4-unified-passport-readiness.json`](./artifacts/live/v4-unified-passport-readiness.json).
 
